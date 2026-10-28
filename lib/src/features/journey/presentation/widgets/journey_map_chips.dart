@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../../core/animation/motion.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/utils/extensions.dart';
 
@@ -40,11 +41,10 @@ class JourneyMapChips extends StatelessWidget {
 
   /// Reintentar el recálculo fallido (solo aplica con [refreshFailed]).
   final VoidCallback? onRetryRefresh;
-
   @override
   Widget build(BuildContext context) {
     return AnimatedSwitcher(
-      duration: const Duration(milliseconds: 240),
+      duration: Motion.release,
       switchInCurve: Curves.easeOutCubic,
       transitionBuilder: (child, animation) => FadeTransition(
         opacity: animation,
@@ -90,15 +90,12 @@ class JourneyMapChips extends StatelessWidget {
 /// aviso de error con reintento si la actualización falló.
 class _ReplanChip extends StatelessWidget {
   const _ReplanChip({required this.failed, this.onRetry});
-
   final bool failed;
   final VoidCallback? onRetry;
-
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
     final text = context.text;
-
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
@@ -150,14 +147,11 @@ class _ReplanChip extends StatelessWidget {
 /// Badge flotante sobre el mapa: indica qué opción de viaje se está viendo.
 class _MapBadge extends StatelessWidget {
   const _MapBadge({required this.index});
-
   final int index;
-
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
     final text = context.text;
-
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
       decoration: BoxDecoration(

@@ -86,7 +86,7 @@ class JourneyMicroTile extends StatelessWidget {
         curve: Curves.easeOutCubic,
         scale: busy ? 0.985 : 1,
         child: AnimatedContainer(
-          duration: const Duration(milliseconds: 240),
+          duration: Motion.release,
           curve: Curves.easeOutCubic,
           decoration: BoxDecoration(
             color: cardBackground,
@@ -147,7 +147,7 @@ class JourneyMicroTile extends StatelessWidget {
                         bottom: 0,
                         child: AnimatedContainer(
                           key: const ValueKey('route-accent-bar'),
-                          duration: const Duration(milliseconds: 300),
+                          duration: Motion.settle,
                           curve: Curves.easeOutCubic,
                           height: alive ? 3 : 0,
                           color: tint,
@@ -159,7 +159,7 @@ class JourneyMicroTile extends StatelessWidget {
                         left: 12,
                         bottom: 10,
                         child: AnimatedScale(
-                          duration: const Duration(milliseconds: 320),
+                          duration: Motion.transition,
                           curve: Curves.easeOutBack,
                           scale: alive ? 1.06 : 1,
                           child: RouteBadge(
@@ -179,7 +179,7 @@ class JourneyMicroTile extends StatelessWidget {
                           duration: const Duration(milliseconds: 180),
                           opacity: alive ? 1 : 0,
                           child: AnimatedScale(
-                            duration: const Duration(milliseconds: 300),
+                            duration: Motion.settle,
                             curve: Curves.easeOutBack,
                             scale: alive ? 1 : 0.5,
                             child: _ActivePill(
@@ -346,7 +346,7 @@ class _DirectionChip extends StatelessWidget {
 
     return PressScale(
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 240),
+        duration: Motion.release,
         curve: Curves.easeOutCubic,
         height: 40,
         decoration: BoxDecoration(
@@ -374,7 +374,7 @@ class _DirectionChip extends StatelessWidget {
               // Un solo color interpolado para todo el contenido: texto e
               // iconos lo heredan, así el cambio ida↔activo no es un salto.
               child: TweenAnimationBuilder<Color?>(
-                duration: const Duration(milliseconds: 240),
+                duration: Motion.release,
                 curve: Curves.easeOut,
                 tween: ColorTween(
                   end: active ? foreground : colors.onSurfaceVariant,
@@ -430,7 +430,7 @@ class _DirectionChip extends StatelessWidget {
                       // El check entra con rebote la primera vez que se
                       // dibuja (TweenAnimationBuilder arranca en `begin`).
                       TweenAnimationBuilder<double>(
-                        duration: const Duration(milliseconds: 260),
+                        duration: Motion.morph,
                         curve: Curves.easeOutBack,
                         tween: Tween(begin: 0.3, end: 1),
                         builder: (_, scale, child) =>

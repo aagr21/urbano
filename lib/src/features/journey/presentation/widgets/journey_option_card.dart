@@ -209,7 +209,7 @@ class JourneyOptionCard extends StatelessWidget {
                       ],
                     ),
                     AnimatedSize(
-                      duration: const Duration(milliseconds: 260),
+                      duration: Motion.morph,
                       curve: Curves.easeOutCubic,
                       alignment: Alignment.topCenter,
                       child: expanded

@@ -63,17 +63,6 @@ export const DIRECTION_THRESHOLDS = {
     dominanceRatio: 3,
 };
 
-const EARTH_RADIUS_M = 6_371_000;
-
-/** Distancia haversine en metros entre dos coordenadas en grados. */
-export function haversineMeters(lat1: number, lon1: number, lat2: number, lon2: number): number {
-    const toRad = (deg: number) => (deg * Math.PI) / 180;
-    const dLat = toRad(lat2 - lat1);
-    const dLon = toRad(lon2 - lon1);
-    const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
-    return 2 * EARTH_RADIUS_M * Math.asin(Math.sqrt(a));
-}
-
 /** Convierte `HH:mm:ss` de GTFS a segundos (las horas pueden superar 24). */
 export function timeToSec(value: string): number {
     const parts = value.trim().split(":");
@@ -271,6 +260,12 @@ export function reverseShapeRows(rows: CsvRow[]): CsvRow[] {
  * Verificación de que la reparación volteó efectivamente la dirección: la
  * vuelta invertida comparada contra la ida debe dejar de verse defectuosa.
  */
+
+import { haversineMeters } from '../../core/common/utils/geo';
+
+// La fórmula antes duplicada aquí vive en la util compartida; re-exportar
+// para quien llegue buscando por este módulo.
+export { haversineMeters };
 export function isRepairEffective(
     ida: DirectionStop[],
     vueltaBefore: DirectionStop[],

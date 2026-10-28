@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../../core/animation/motion.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/utils/extensions.dart';
 import '../../../../core/widgets/glass_card.dart';
@@ -23,17 +24,13 @@ class JourneyPlannerTrigger extends StatelessWidget {
 
   /// `true` con el panel de origen/destino desplegado (gira la flecha).
   final bool panelOpen;
-
   final VoidCallback onTap;
-
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
     final text = context.text;
-
     final hasBoth = originLabel != null && destinationLabel != null;
     final hasAny = originLabel != null || destinationLabel != null;
-
     final title = hasBoth
         ? '$originLabel  →  $destinationLabel'
         : (originLabel ?? destinationLabel ?? '¿A dónde vas?');
@@ -42,7 +39,6 @@ class JourneyPlannerTrigger extends StatelessWidget {
         : (hasAny
               ? 'Toca para completar el viaje'
               : 'Marca origen y destino para viajar');
-
     return GlassCard(
       key: const ValueKey('planner-trigger'),
       padding: const EdgeInsets.fromLTRB(16, 10, 10, 10),
@@ -84,7 +80,7 @@ class JourneyPlannerTrigger extends StatelessWidget {
           // La flecha gira al abrir/cerrar: refuerza el gesto del panel.
           AnimatedRotation(
             turns: panelOpen ? 0.5 : 0,
-            duration: const Duration(milliseconds: 260),
+            duration: Motion.morph,
             curve: Curves.easeOutCubic,
             child: Icon(
               Icons.keyboard_arrow_up_rounded,

@@ -5,10 +5,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:latlong2/latlong.dart';
 
+import '../../../core/animation/motion.dart';
 import '../../../core/map/map.dart';
 import '../../../core/theme/map_theme_scope.dart';
 import '../../../core/utils/extensions.dart';
 import '../../../core/utils/location.dart';
+import '../../../core/utils/time_formatters.dart';
 import '../../routes/data/route_models.dart';
 import '../data/journey_models.dart';
 import '../data/journey_repository.dart';
@@ -44,7 +46,6 @@ import 'widgets/journey_status_panel.dart';
 /// cableado UI: `GlobalKey` del mapa, hoja arrastrable y panel abierto.
 class JourneyPlannerScreen extends ConsumerStatefulWidget {
   const JourneyPlannerScreen({super.key});
-
   @override
   ConsumerState<JourneyPlannerScreen> createState() =>
       _JourneyPlannerScreenState();
@@ -56,7 +57,6 @@ class _JourneyPlannerScreenState extends ConsumerState<JourneyPlannerScreen> {
   // ------------------------------------------------------------------
   final _journeyMapKey = GlobalKey<JourneyResultMapState>();
   final _sheetController = DraggableScrollableController();
-
   double _sheetExtent = 0.45;
 
   /// `true` cuando el panel de origen/destino está desplegado sobre el mapa.
@@ -73,12 +73,10 @@ class _JourneyPlannerScreenState extends ConsumerState<JourneyPlannerScreen> {
 
   /// Abre/cierra el panel de origen/destino (con animación de despliegue).
   void _togglePanel() => setState(() => _panelOpen = !_panelOpen);
-
   @override
   void initState() {
     super.initState();
     _sheetController.addListener(_onSheetExtentChanged);
-
     // «Ver todas» desde el home (ver [pendingMicrosPanelProvider]): la bandera
     // llega puesta al llegar a la pestaña Viaje y aquí se convierte en la
     // apertura del panel de micros.
@@ -113,11 +111,9 @@ class _JourneyPlannerScreenState extends ConsumerState<JourneyPlannerScreen> {
   /// Notifier del planeador (lectura fuera de `build`).
   JourneyPlannerController get _planner =>
       ref.read(journeyPlannerControllerProvider.notifier);
-
   // ------------------------------------------------------------------
   // Viaje: origen/destino/hora/swap/planificar
   // ------------------------------------------------------------------
-
   /// Descarta la caché del viaje (nuevo extremo/hora/swap/limpiar): la
   /// respuesta anterior ya no representa lo que se ve en los campos.
   void _discardCachedOptions() {
@@ -197,7 +193,6 @@ class _JourneyPlannerScreenState extends ConsumerState<JourneyPlannerScreen> {
       params['lat'] = '${current.lat}';
       params['lon'] = '${current.lon}';
     }
-
     final point = await context.push<JourneyPoint>(
       Uri(path: '/journey/pick', queryParameters: params).toString(),
     );
@@ -236,17 +231,14 @@ class _JourneyPlannerScreenState extends ConsumerState<JourneyPlannerScreen> {
 
   Future<void> _pickTime() async {
     final current = ref.read(journeyPlannerControllerProvider).time;
-    final initial = current == null
-        ? TimeOfDay.now()
-        : TimeOfDay(
-            hour: int.tryParse(current.split(':')[0]) ?? TimeOfDay.now().hour,
-            minute: int.tryParse(current.split(':')[1]) ?? 0,
-          );
+    final parts = GtfsTime.parseHm(current);
+    final now = TimeOfDay.now();
+    final initial = parts == null
+        ? now
+        : TimeOfDay(hour: parts.$1, minute: parts.$2);
     final picked = await showTimePicker(context: context, initialTime: initial);
     if (picked == null || !mounted) return;
-    _planner.setTime(
-      '${picked.hour.toString().padLeft(2, '0')}:${picked.minute.toString().padLeft(2, '0')}',
-    );
+    _planner.setTime(GtfsTime.formatHm(picked.hour, picked.minute));
     _discardCachedOptions();
   }
 
@@ -312,7 +304,6 @@ class _JourneyPlannerScreenState extends ConsumerState<JourneyPlannerScreen> {
   // ------------------------------------------------------------------
   // Mapa: movimiento de cámara y panel de micros
   // ------------------------------------------------------------------
-
   void _onMapMoved(MapCamera camera, bool hasGesture) {
     if (!hasGesture) return;
     // Sella el momento del gesto: la ventana de la barrera anti-zoom nace
@@ -362,7 +353,6 @@ class _JourneyPlannerScreenState extends ConsumerState<JourneyPlannerScreen> {
   // ------------------------------------------------------------------
   // Build
   // ------------------------------------------------------------------
-
   @override
   Widget build(BuildContext context) {
     // La ubicación EN VIVO no se ve aquí: `locationControllerProvider` emite
@@ -371,12 +361,10 @@ class _JourneyPlannerScreenState extends ConsumerState<JourneyPlannerScreen> {
     // resultados) solo para mover la cámara. Lo que de verdad depende del GPS
     // vive en los dos `Consumer` acotados de abajo: [LiveMapLayer] y
     // [LiveMapControls].
-
     // Pantalla completa del mapa: oculta los paneles flotantes y deja solo
     // el mapa con sus controles (la barra del shell la esconde UrbanoShell).
     final fullscreen = ref.watch(mapFullscreenProvider);
     final planner = ref.watch(journeyPlannerControllerProvider);
-
     JourneyQuery? query;
     if (planner.submitted && planner.ready) {
       query = JourneyQuery(
@@ -387,7 +375,6 @@ class _JourneyPlannerScreenState extends ConsumerState<JourneyPlannerScreen> {
     }
     // Resultado vigente para la consulta actual.
     final result = query == null ? null : ref.watch(journeyProvider(query));
-
     // La caché se refresca SOLO con datos frescos de la consulta actual: una
     // respuesta cargada antes del último cambio de extremo/hora queda vieja.
     final fresh = result?.valueOrNull;
@@ -408,14 +395,12 @@ class _JourneyPlannerScreenState extends ConsumerState<JourneyPlannerScreen> {
     final mapOption = !hasResults || cached.isEmpty
         ? _bareOption()
         : cached[selectedIndex];
-
     // El mapa prefiere lo que muestran los CAMPOS (que durante un arrastre de
     // pin van por delante del plan comprometido): así el pin sigue el dedo.
     final pickedOrigin = planner.origin.pointOrNull;
     final pickedDestination = planner.destination.pointOrNull;
     final mapOrigin = pickedOrigin ?? query?.originPoint;
     final mapDestination = pickedDestination ?? query?.destinationPoint;
-
     return Scaffold(
       // Brillo PROPIO del mapa: este ámbito decide el estilo de los tiles y,
       // con él, los colores de TODO lo que flota sobre el mapa (tarjeta de
@@ -445,7 +430,6 @@ class _JourneyPlannerScreenState extends ConsumerState<JourneyPlannerScreen> {
             final controlsBottom = hasResults ? sheetTop + 12.0 : 24.0;
             final showStatusPanel =
                 !hasResults && planner.submitted && planner.ready;
-
             return Stack(
               children: [
                 // 1. Mapa a pantalla completa (SIEMPRE montado).
@@ -492,8 +476,8 @@ class _JourneyPlannerScreenState extends ConsumerState<JourneyPlannerScreen> {
                         // oculta con una animación de despliegue vertical
                         // (tamaño + flojedad + desvanecido).
                         AnimatedSwitcher(
-                          duration: const Duration(milliseconds: 300),
-                          reverseDuration: const Duration(milliseconds: 240),
+                          duration: Motion.settle,
+                          reverseDuration: Motion.release,
                           switchInCurve: Curves.easeOutCubic,
                           switchOutCurve: Curves.easeInCubic,
                           transitionBuilder: (child, animation) =>
@@ -568,7 +552,7 @@ class _JourneyPlannerScreenState extends ConsumerState<JourneyPlannerScreen> {
                   ),
                 // 3. Controles a la derecha (zoom, ubicación, micros, full).
                 AnimatedPositioned(
-                  duration: const Duration(milliseconds: 220),
+                  duration: Motion.fade,
                   curve: Curves.easeOutCubic,
                   right: 16,
                   bottom: fullscreen ? 24.0 : controlsBottom,
@@ -604,7 +588,7 @@ class _JourneyPlannerScreenState extends ConsumerState<JourneyPlannerScreen> {
                 //    y la píldora que abre/cierra el panel de origen y destino.
                 if (!fullscreen)
                   AnimatedPositioned(
-                    duration: const Duration(milliseconds: 220),
+                    duration: Motion.fade,
                     curve: Curves.easeOutCubic,
                     left: 16,
                     right: 76,

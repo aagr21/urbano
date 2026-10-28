@@ -7,6 +7,7 @@ import 'package:flutter/services.dart' show PlatformException;
 import 'package:latlong2/latlong.dart';
 import 'package:maplibre_gl/maplibre_gl.dart' as ml;
 
+import '../utils/geo.dart';
 import 'endpoint_drag_detector.dart';
 import 'map_controller.dart';
 import 'map_engine.dart';

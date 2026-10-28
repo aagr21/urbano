@@ -19,7 +19,7 @@ List<List<LatLng>> _dashSegments(List<LatLng> points) {
   for (var i = 1; i < path.length; i++) {
     final a = path[i - 1];
     final b = path[i];
-    final total = _haversineMeters(a, b);
+    final total = haversineMeters(a, b);
     if (total <= 0) continue;
     var position = 0.0;
     while (position < total) {
@@ -27,7 +27,7 @@ List<List<LatLng>> _dashSegments(List<LatLng> points) {
       final start = _lerp(a, b, position / total);
       final end = _lerp(a, b, (position + take) / total);
       if (drawing) {
-        if (current.isEmpty || _haversineMeters(current.last, start) > 0.5) {
+        if (current.isEmpty || haversineMeters(current.last, start) > 0.5) {
           current.add(start);
         }
         current.add(end);
@@ -54,7 +54,7 @@ List<LatLng> _resample(List<LatLng> points, double stepMeters) {
   for (var i = 1; i < points.length; i++) {
     final a = points[i - 1];
     final b = points[i];
-    final segment = _haversineMeters(a, b);
+    final segment = haversineMeters(a, b);
     if (segment <= 0) continue;
     var fromA = carry;
     while (fromA + stepMeters <= segment) {
@@ -65,19 +65,6 @@ List<LatLng> _resample(List<LatLng> points, double stepMeters) {
   }
   out.add(points.last);
   return out;
-}
-
-double _haversineMeters(LatLng a, LatLng b) {
-  const radius = 6371000.0;
-  double rad(double degrees) => degrees * math.pi / 180;
-  final dLat = rad(b.latitude - a.latitude);
-  final dLng = rad(b.longitude - a.longitude);
-  final h =
-      math.pow(math.sin(dLat / 2), 2) +
-      math.cos(rad(a.latitude)) *
-          math.cos(rad(b.latitude)) *
-          math.pow(math.sin(dLng / 2), 2);
-  return 2 * radius * math.asin(math.min(1, math.sqrt(h)));
 }
 
 LatLng _lerp(LatLng a, LatLng b, double t) => LatLng(

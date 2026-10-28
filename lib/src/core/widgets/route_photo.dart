@@ -2,6 +2,7 @@ import 'dart:ui' show ImageFilter;
 
 import 'package:flutter/material.dart';
 
+import '../animation/motion.dart';
 import '../theme/app_theme.dart';
 import '../utils/extensions.dart';
 import '../utils/runtime_flags.dart';
@@ -23,7 +24,6 @@ class RoutePhoto extends StatelessWidget {
     this.fit = BoxFit.cover,
     this.showFull = false,
   });
-
   final String url;
   final double? width;
   final double? height;
@@ -36,7 +36,6 @@ class RoutePhoto extends StatelessWidget {
 
   /// Foto completa vertical con fondo difuminado del mismo origen.
   final bool showFull;
-
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
@@ -86,7 +85,7 @@ class RoutePhoto extends StatelessWidget {
   ) {
     if (wasSync) return child;
     return AnimatedOpacity(
-      duration: const Duration(milliseconds: 240),
+      duration: Motion.release,
       curve: Curves.easeOut,
       opacity: frame == null ? 0 : 1,
       child: child,
@@ -97,9 +96,7 @@ class RoutePhoto extends StatelessWidget {
 /// Placeholder: bus estilizado centrado — siempre válido, sin texto.
 class _Fallback extends StatelessWidget {
   const _Fallback({required this.small});
-
   final bool small;
-
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;

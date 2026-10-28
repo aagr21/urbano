@@ -33,6 +33,20 @@ abstract final class Motion {
   static const Duration release = Duration(milliseconds: 240);
 
   static const Duration quick = Duration(milliseconds: 180);
+
+  /// Fundido corto de estados atenuados (tile en vuelo, opacidades que van
+  /// y vienen dentro de un panel).
+  static const Duration fade = Duration(milliseconds: 220);
+
+  /// Cambios de forma dentro de un mismo lugar (píldora que se transforma,
+  /// chips que entran desde un switch).
+  static const Duration morph = Duration(milliseconds: 260);
+
+  /// Asentamiento de una pieza grande recién aparecida (tarjetas, textos).
+  static const Duration settle = Duration(milliseconds: 300);
+
+  /// Transiciones de superficie completa (páginas del panel, controles FAB).
+  static const Duration transition = Duration(milliseconds: 320);
   static const Duration base = Duration(milliseconds: 280);
   static const Duration slow = Duration(milliseconds: 420);
 

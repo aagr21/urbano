@@ -68,7 +68,7 @@ Future<void> showJourneyMicrosPanel(
       settings: const RouteSettings(name: 'journey-micros-panel'),
       barrierColor: Colors.black.withValues(alpha: 0.45),
       transitionDuration: const Duration(milliseconds: 280),
-      reverseTransitionDuration: const Duration(milliseconds: 240),
+      reverseTransitionDuration: Motion.release,
       // El brillo propio del mapa se instala AQUÍ, por ENCIMA del panel entero:
       // el panel es una RUTA montada en el `Overlay` del Navigator (fuera del
       // ámbito que pone la pantalla Viaje) y su `build` lee `context.colors`
@@ -172,14 +172,12 @@ class _MicrosPanelState extends State<_MicrosPanel>
   /// Muelle del arrastre horizontal: devuelve el panel a su sitio cuando el
   /// gesto no llegó al umbral de cierre.
   late final AnimationController _snap =
-      AnimationController(
-        vsync: this,
-        duration: const Duration(milliseconds: 220),
-      )..addStatusListener((status) {
-        if (status == AnimationStatus.completed && mounted) {
-          setState(() => _dragDx = 0);
-        }
-      });
+      AnimationController(vsync: this, duration: Motion.fade)
+        ..addStatusListener((status) {
+          if (status == AnimationStatus.completed && mounted) {
+            setState(() => _dragDx = 0);
+          }
+        });
   late final Animation<double> _snapCurved = CurvedAnimation(
     parent: _snap,
     curve: Curves.easeOut,

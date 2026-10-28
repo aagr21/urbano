@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../animation/motion.dart';
 import '../utils/extensions.dart';
 import 'location_controller.dart';
 
@@ -35,11 +36,8 @@ class LocationFab extends ConsumerStatefulWidget {
 
   /// `true` si la cámara está siguiendo al usuario.
   final bool following;
-
   final ValueChanged<bool> onFollowChanged;
-
   final Object heroTag;
-
   @override
   ConsumerState<LocationFab> createState() => _LocationFabState();
 }
@@ -82,7 +80,6 @@ class _LocationFabState extends ConsumerState<LocationFab>
   Widget build(BuildContext context) {
     final location = ref.watch(locationControllerProvider);
     final colors = context.colors;
-
     final IconData icon;
     final String tooltip;
     final bool error;
@@ -107,10 +104,8 @@ class _LocationFabState extends ConsumerState<LocationFab>
             : 'Seguir mi ubicación';
         error = false;
     }
-
     final background = error ? colors.error : colors.primary;
     final foreground = error ? colors.onError : colors.onPrimary;
-
     return FloatingActionButton.small(
       heroTag: widget.heroTag,
       tooltip: tooltip,
@@ -131,7 +126,7 @@ class _LocationFabState extends ConsumerState<LocationFab>
               // el punto del botón de micros).
               child: TweenAnimationBuilder<double>(
                 tween: Tween(begin: 0.2, end: 1),
-                duration: const Duration(milliseconds: 320),
+                duration: Motion.transition,
                 curve: Curves.easeOutBack,
                 builder: (context, scale, child) =>
                     Transform.scale(scale: scale, child: child),

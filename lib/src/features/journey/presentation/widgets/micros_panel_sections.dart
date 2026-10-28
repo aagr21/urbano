@@ -28,7 +28,7 @@ extension _MicrosPanelSections on _MicrosPanelState {
         child: Row(
           children: [
             AnimatedContainer(
-              duration: const Duration(milliseconds: 260),
+              duration: Motion.morph,
               curve: Curves.easeOutCubic,
               width: 44,
               height: 44,
@@ -43,7 +43,7 @@ extension _MicrosPanelSections on _MicrosPanelState {
                 ),
               ),
               child: AnimatedScale(
-                duration: const Duration(milliseconds: 320),
+                duration: Motion.transition,
                 curve: Curves.easeOutBack,
                 scale: alive ? 1.06 : 1,
                 // Con recorridos dibujados el bus flota dentro de su insignia.
@@ -64,7 +64,7 @@ extension _MicrosPanelSections on _MicrosPanelState {
                   Text('Micros', style: text.titleMedium),
                   const SizedBox(height: 2),
                   AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 260),
+                    duration: Motion.morph,
                     switchInCurve: Curves.easeOutCubic,
                     transitionBuilder: (child, animation) => FadeTransition(
                       opacity: animation,
@@ -155,7 +155,7 @@ extension _MicrosPanelSections on _MicrosPanelState {
       Padding(
         padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
         child: AnimatedContainer(
-          duration: const Duration(milliseconds: 220),
+          duration: Motion.fade,
           curve: Curves.easeOutCubic,
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(AppRadius.input),
@@ -183,7 +183,7 @@ extension _MicrosPanelSections on _MicrosPanelState {
                   ? '¿Qué línea pasa por aquí? (calle, lugar…)'
                   : 'Buscar línea…',
               prefixIcon: TweenAnimationBuilder<Color?>(
-                duration: const Duration(milliseconds: 220),
+                duration: Motion.fade,
                 curve: Curves.easeOut,
                 tween: ColorTween(
                   end: focused ? colors.primary : colors.onSurfaceVariant,

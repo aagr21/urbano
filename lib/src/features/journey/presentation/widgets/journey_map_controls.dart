@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../../core/animation/motion.dart';
 import '../../../../core/location/location_fab.dart';
 import '../../../../core/utils/extensions.dart';
 import '../../../../core/widgets/map_theme_toggle_button.dart';
@@ -19,7 +20,6 @@ class JourneyMapControls extends StatelessWidget {
     required this.fullscreen,
     required this.onToggleFullscreen,
   });
-
   final VoidCallback onZoomIn;
   final VoidCallback onZoomOut;
   final VoidCallback onOpenMicros;
@@ -34,7 +34,6 @@ class JourneyMapControls extends StatelessWidget {
   /// `true` cuando el mapa está a pantalla completa (el botón ofrece salir).
   final bool fullscreen;
   final VoidCallback onToggleFullscreen;
-
   @override
   Widget build(BuildContext context) {
     return Column(
@@ -85,10 +84,8 @@ class JourneyMapControls extends StatelessWidget {
 /// pequeño rebote (0.2 → 1, `easeOutBack`) para marcar el cambio de estado.
 class _MicrosButton extends StatelessWidget {
   const _MicrosButton({required this.active, required this.onTap});
-
   final bool active;
   final VoidCallback onTap;
-
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
@@ -107,7 +104,7 @@ class _MicrosButton extends StatelessWidget {
             child: IgnorePointer(
               child: TweenAnimationBuilder<double>(
                 tween: Tween(begin: 0.2, end: 1),
-                duration: const Duration(milliseconds: 320),
+                duration: Motion.transition,
                 curve: Curves.easeOutBack,
                 builder: (context, scale, child) =>
                     Transform.scale(scale: scale, child: child),

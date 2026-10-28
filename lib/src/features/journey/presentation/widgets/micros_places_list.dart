@@ -8,6 +8,7 @@ import '../../../../core/router/app_router.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/utils/extensions.dart';
+import '../../../../core/utils/time_formatters.dart';
 import '../../../../core/widgets/async_value_view.dart';
 import '../../../../core/widgets/glass_card.dart';
 import '../../../../core/widgets/route_badge.dart';
@@ -321,9 +322,7 @@ class MicrosPlaceTile extends StatelessWidget {
     );
   }
 
-  static String _distance(double meters) => meters < 1000
-      ? '${meters.round()} m'
-      : '${(meters / 1000).toStringAsFixed(1)} km';
+  static String _distance(double meters) => Fmt.distance(meters);
 
   void _openLine(BuildContext context, StopRouteRef micro) {
     unawaited(

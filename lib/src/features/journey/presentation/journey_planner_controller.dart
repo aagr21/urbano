@@ -22,6 +22,12 @@ import 'journey_providers.dart';
 /// muestran los campos; los `plan*` son los puntos que viajan a la consulta:
 /// al arrastrar un extremo los campos se actualizan al instante (en cada
 /// evento del arrastre) y los `plan*` se comprometen con debounce.
+/// Sentinel para "no toques este campo" en [copyWith]: los parámetros van
+/// tipados como `Object?` así `null` significa LIMPIAR (poner `null` en el
+/// campo) y omitir el parámetro significa CONSERVAR. Top-level (privado de
+/// esta biblioteca) para que state y controller lo compartan.
+const Object _keep = Object();
+
 class JourneyPlannerState {
   const JourneyPlannerState({
     this.origin,
@@ -114,42 +120,38 @@ class JourneyPlannerState {
 
   /// Copia con cambios: cada mutación produce un objeto nuevo (el [Notifier]
   /// avisa por identidad, no por igualdad profunda).
+  ///
+  /// Convención con sentinel [_keep] (privado de la biblioteca):
+  /// omitir el parámetro → el campo CONSERVA su valor; pasar `null` → LIMPIA
+  /// el campo; pasar un valor → lo reemplaza. Con el patrón `clear*` anterior
+  /// eran 21 parámetros; con sentinel son 15 y sin ternarios.
   JourneyPlannerState copyWith({
-    JourneyPlace? origin,
-    bool clearOrigin = false,
-    JourneyPlace? destination,
-    bool clearDestination = false,
-    JourneyPlace? planOrigin,
-    bool clearPlanOrigin = false,
-    JourneyPlace? planDestination,
-    bool clearPlanDestination = false,
-    String? time,
-    bool clearTime = false,
+    Object? origin = _keep,
+    Object? destination = _keep,
+    Object? planOrigin = _keep,
+    Object? planDestination = _keep,
+    Object? time = _keep,
     bool? submitted,
     bool? replanPending,
     int? selectedOptionIndex,
-    int? expandedIndex,
-    bool clearExpandedIndex = false,
+    Object? expandedIndex = _keep,
     Map<String, MapPolyline>? routeLines,
     Map<String, MapMarker>? routeMarkers,
     Set<String>? visibleRouteKeys,
     List<MapMarker>? placeMarkers,
     bool? loadingRoutes,
   }) {
+    T? take<T>(Object? v, T? old) => identical(v, _keep) ? old : v as T?;
     return JourneyPlannerState(
-      origin: clearOrigin ? null : (origin ?? this.origin),
-      destination: clearDestination ? null : (destination ?? this.destination),
-      planOrigin: clearPlanOrigin ? null : (planOrigin ?? this.planOrigin),
-      planDestination: clearPlanDestination
-          ? null
-          : (planDestination ?? this.planDestination),
-      time: clearTime ? null : (time ?? this.time),
+      origin: take(origin, this.origin),
+      destination: take(destination, this.destination),
+      planOrigin: take(planOrigin, this.planOrigin),
+      planDestination: take(planDestination, this.planDestination),
+      time: take(time, this.time),
       submitted: submitted ?? this.submitted,
       replanPending: replanPending ?? this.replanPending,
       selectedOptionIndex: selectedOptionIndex ?? this.selectedOptionIndex,
-      expandedIndex: clearExpandedIndex
-          ? null
-          : (expandedIndex ?? this.expandedIndex),
+      expandedIndex: take(expandedIndex, this.expandedIndex),
       routeLines: routeLines ?? this.routeLines,
       routeMarkers: routeMarkers ?? this.routeMarkers,
       visibleRouteKeys: visibleRouteKeys ?? this.visibleRouteKeys,
@@ -300,10 +302,10 @@ class JourneyPlannerController extends Notifier<JourneyPlannerState> {
     debouncer.run(() {
       if (_disposed) return;
       state = state.copyWith(
-        planOrigin: isOrigin ? place : null,
-        planDestination: isOrigin ? null : place,
+        planOrigin: isOrigin ? place : _keep,
+        planDestination: isOrigin ? _keep : place,
         replanPending: false,
-        clearExpandedIndex: true,
+        expandedIndex: null,
         selectedOptionIndex: 0,
       );
     });
@@ -318,10 +320,8 @@ class JourneyPlannerController extends Notifier<JourneyPlannerState> {
     required bool replanPending,
   }) {
     state = state.copyWith(
-      origin: isOrigin ? value : null,
-      clearOrigin: isOrigin && value == null,
-      destination: isOrigin ? null : value,
-      clearDestination: !isOrigin && value == null,
+      origin: isOrigin ? value : _keep,
+      destination: isOrigin ? _keep : value,
       replanPending: replanPending,
     );
   }
@@ -334,18 +334,17 @@ class JourneyPlannerController extends Notifier<JourneyPlannerState> {
   /// o punto del mapa): campo Y plan al mismo valor, y limpiar la selección
   /// de resultados (hubo cambio de extremo, lo anterior quedó viejo). El
   /// extremo NO tocado se conserva: elegir destino no borra el origen.
-  /// Sin flags `clear*`: `copyWith(null)` conserva, que es justo lo que
-  /// queremos aquí.
+  /// Con el copyWith por sentinel, el lado no tocado va omitido (`_keep`).
   void setPlace(JourneyPlace place, {required bool isOrigin}) {
     _cancelDebouncers();
     state = state.copyWith(
-      origin: isOrigin ? place : null,
-      destination: isOrigin ? null : place,
-      planOrigin: isOrigin ? place : null,
-      planDestination: isOrigin ? null : place,
+      origin: isOrigin ? place : _keep,
+      destination: isOrigin ? _keep : place,
+      planOrigin: isOrigin ? place : _keep,
+      planDestination: isOrigin ? _keep : place,
       submitted: false,
       replanPending: false,
-      clearExpandedIndex: true,
+      expandedIndex: null,
       selectedOptionIndex: 0,
     );
   }
@@ -356,8 +355,9 @@ class JourneyPlannerController extends Notifier<JourneyPlannerState> {
     state = state.copyWith(time: time, submitted: false, replanPending: false);
   }
 
-  /// Intercambia origen y destino (el plan con ellos). Los `clear*` cubren
-  /// el lado que puede estar sin marcar (`copyWith(null)` NO limpia).
+  /// Intercambia origen y destino (el plan con ellos). `null` limpia
+  /// el lado que quedó sin punto: con el copyWith por sentinel
+  /// (`null` = LIMPIAR) no hace falta ningún flag.
   void swap() {
     _cancelDebouncers();
     final origin = state.origin;
@@ -366,13 +366,9 @@ class JourneyPlannerController extends Notifier<JourneyPlannerState> {
     final planDestination = state.planDestination;
     state = state.copyWith(
       origin: destination,
-      clearOrigin: destination == null,
       destination: origin,
-      clearDestination: origin == null,
       planOrigin: planDestination,
-      clearPlanOrigin: planDestination == null,
       planDestination: planOrigin,
-      clearPlanDestination: planOrigin == null,
       submitted: false,
       replanPending: false,
       selectedOptionIndex: 0,
@@ -386,11 +382,9 @@ class JourneyPlannerController extends Notifier<JourneyPlannerState> {
   void submit() {
     state = state.copyWith(
       planOrigin: state.origin,
-      clearPlanOrigin: state.origin == null,
       planDestination: state.destination,
-      clearPlanDestination: state.destination == null,
       submitted: true,
-      clearExpandedIndex: true,
+      expandedIndex: null,
     );
   }
 
@@ -417,8 +411,7 @@ class JourneyPlannerController extends Notifier<JourneyPlannerState> {
     final collapsing = state.expandedIndex == itemIndex;
     state = state.copyWith(
       selectedOptionIndex: itemIndex,
-      expandedIndex: itemIndex,
-      clearExpandedIndex: collapsing,
+      expandedIndex: collapsing ? null : itemIndex,
     );
   }
 

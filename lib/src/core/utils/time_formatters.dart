@@ -35,7 +35,11 @@ class GtfsTime {
     return b - a;
   }
 
-  static (int, int)? _parts(String? value) {
+  static (int, int)? _parts(String? value) => parseHm(value);
+
+  /// Parser público de `HH:mm[:ss]` de la app (luego del selector de hora
+  /// `HH:mm`: `parseHm('08:30')` → `(8, 30)`; malformado → `null`).
+  static (int, int)? parseHm(String? value) {
     if (value == null || value.trim().isEmpty) return null;
     final split = value.trim().split(':');
     if (split.length < 2) return null;
@@ -44,6 +48,10 @@ class GtfsTime {
     if (hour == null || minute == null) return null;
     return (hour, minute);
   }
+
+  /// `(8, 30)` → `08:30` (el formato del [TimeOfDay] selector spindle-hour).
+  static String formatHm(int hour, int minute) =>
+      '${hour.toString().padLeft(2, '0')}:${minute.toString().padLeft(2, '0')}';
 }
 
 /// Formateadores de presentación (distancias, duraciones, números).
