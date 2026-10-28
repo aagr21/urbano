@@ -244,7 +244,7 @@ describe('OtpJourneyRouter.plan', () => {
     expect(await new OtpJourneyRouter(configWithOtp).plan(query)).toEqual([]);
   });
 
-  it('recorta resultados a maxResults', async () => {
+  it('NO recorta ni ordena: solo mapea (la política de resultados vive en domain)', async () => {
     const itineraries = Array.from({ length: 5 }, (_, i) => itinerary(
       [walkLeg(), busLeg({ trip: { gtfsId: `FEED:T${i}` } })],
       '2026-10-22T06:00:00-04:00',
@@ -252,6 +252,8 @@ describe('OtpJourneyRouter.plan', () => {
     ));
     stubFetchReturning(otpResponse(itineraries));
     const options = await new OtpJourneyRouter(configWithOtp).plan(query);
-    expect(options).toHaveLength(3);
+    // El adapter devuelve todos los itinerarios mapeados; rankAndCut del
+    // servicio (domain) es quien recorta a maxResults.
+    expect(options).toHaveLength(5);
   });
 });

@@ -171,6 +171,49 @@ function stopRef(stop: CandidateStop): JourneyOption['walkToStop'] {
  */
 export const TRANSFER_PENALTY_MINUTES = 10;
 
+/**
+ * Costo generalizado de una opción, en minutos: duración + penalización de
+ * transbordo. La POLÍTICA de orden de resultados vive aquí, en domain — la
+ * usan el planner interno y el servicio que recibe opciones de OTP, de modo
+ * que ambos motores rankean con la MISMA regla (antes la copiaba el adapter
+ * OTP y cualquier cambio de scoring tocaba dos lugares).
+ */
+export function journeyCost(option: JourneyOption): number {
+  return (
+    option.durationMinutes +
+    (option.type === 'transfer' ? TRANSFER_PENALTY_MINUTES : 0)
+  );
+}
+
+/** Ordena por costo generalizado; empates y desempates determinísticos. */
+export function compareJourneyOptions(
+  a: JourneyOption,
+  b: JourneyOption,
+): number {
+  const costA = journeyCost(a);
+  const costB = journeyCost(b);
+  if (costA !== costB) return costA - costB;
+  if (a.durationMinutes !== b.durationMinutes) {
+    return a.durationMinutes - b.durationMinutes;
+  }
+  if (a.departAt !== b.departAt) return a.departAt < b.departAt ? -1 : 1;
+  // Preferir directo en empate
+  if (a.type !== b.type) return a.type === 'direct' ? -1 : 1;
+  return 0;
+}
+
+/**
+ * Ordena por la política común ([compareJourneyOptions]) y recorta a
+ * [maxResults]: la llamada de top de resultados también es política, no un
+ * detalle del adapter.
+ */
+export function rankAndCut(
+  options: JourneyOption[],
+  maxResults: number,
+): JourneyOption[] {
+  return [...options].sort(compareJourneyOptions).slice(0, maxResults);
+}
+
 /** Planea viajes directos y con 1 transbordo, ordenados por duración y costo generalizado. */
 export function planJourneys(input: PlannerInput): JourneyOption[] {
   const { originStops, destStops, trips, timeSec, maxResults } = input;
@@ -315,26 +358,7 @@ export function planJourneys(input: PlannerInput): JourneyOption[] {
     }
   }
 
-  return [...bestByKey.values()]
-    .sort((a, b) => {
-      const costA =
-        a.durationMinutes +
-        (a.type === 'transfer' ? TRANSFER_PENALTY_MINUTES : 0);
-      const costB =
-        b.durationMinutes +
-        (b.type === 'transfer' ? TRANSFER_PENALTY_MINUTES : 0);
-      if (costA !== costB) {
-        return costA - costB;
-      }
-      if (a.durationMinutes !== b.durationMinutes) {
-        return a.durationMinutes - b.durationMinutes;
-      }
-      if (a.departAt !== b.departAt) return a.departAt < b.departAt ? -1 : 1;
-      // Preferir directo en empate
-      if (a.type !== b.type) return a.type === 'direct' ? -1 : 1;
-      return 0;
-    })
-    .slice(0, maxResults);
+  return rankAndCut([...bestByKey.values()], maxResults);
 }
 
 function push(map: Map<string, IndexedTrip[]>, key: string, value: IndexedTrip): void {

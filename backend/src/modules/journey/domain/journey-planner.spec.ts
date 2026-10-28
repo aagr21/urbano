@@ -1,9 +1,10 @@
 import {
   planJourneys,
+  rankAndCut,
   walkDurationMinutes,
   nextRunDeparture,
 } from './journey-planner';
-import { CandidateStop, TripSchedule } from './journey.model';
+import { CandidateStop, JourneyOption, TripSchedule } from './journey.model';
 
 describe('journey-planner (lógica pura)', () => {
   describe('walkDurationMinutes', () => {
@@ -264,6 +265,56 @@ describe('journey-planner (lógica pura)', () => {
       expect(options[0].durationMinutes).toBe(35);
       expect(options[1].type).toBe('transfer');
       expect(options[1].durationMinutes).toBe(30);
+    });
+  });
+
+  describe('rankAndCut (política compartida con OTP)', () => {
+    const makeOption = (
+      type: 'direct' | 'transfer',
+      durationMinutes: number,
+      departAt = '06:00:00',
+    ): JourneyOption => ({
+      type,
+      departAt,
+      arriveAt: '07:00:00',
+      durationMinutes,
+      walkToStop: { id: 'S1', name: 'P1', distanceMeters: 100 },
+      walkFromStop: { id: 'S2', name: 'P2', distanceMeters: 100 },
+      legs: [],
+    });
+
+    it('penaliza transbordos (directo 45 gana a transbordo 40)', () => {
+      const ranked = rankAndCut([
+        makeOption('transfer', 40),
+        makeOption('direct', 45),
+      ], 2);
+      expect(ranked[0].type).toBe('direct');
+    });
+
+    it('la duración desempata ANTES del tipo: transbordo 30 (costo 40) < directo 40', () => {
+      const ranked = rankAndCut([
+        makeOption('transfer', 30), // costo 40
+        makeOption('direct', 40), // costo 40, duración mayor
+      ], 2);
+      expect(ranked.map((o) => o.type)).toEqual(['transfer', 'direct']);
+    });
+
+    it('recorta a maxResults', () => {
+      const ranked = rankAndCut([
+        makeOption('direct', 10),
+        makeOption('direct', 20),
+        makeOption('direct', 30),
+      ], 2);
+      expect(ranked).toHaveLength(2);
+      expect(ranked.map((o) => o.durationMinutes)).toEqual([10, 20]);
+    });
+
+    it('orden determinístico en empate total: sale antes el que parte antes', () => {
+      const ranked = rankAndCut([
+        makeOption('direct', 40, '06:10:00'),
+        makeOption('direct', 40, '06:05:00'),
+      ], 2);
+      expect(ranked[0].departAt).toBe('06:05:00');
     });
   });
 });

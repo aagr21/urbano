@@ -11,10 +11,7 @@ import {
   JourneyRouterPort,
   JourneyRouterQuery,
 } from '../../domain/journey-router.port';
-import {
-  TRANSFER_PENALTY_MINUTES,
-  walkDurationMinutes,
-} from '../../domain/journey-planner';
+import { walkDurationMinutes } from '../../domain/journey-planner';
 import { decodePolylineToGeoJSON } from './decode-polyline';
 
 /** Zona horaria del feed (toda la app opera en ella). */
@@ -216,21 +213,10 @@ export class OtpJourneyRouter implements JourneyRouterPort {
       .map((node) => mapItinerary(node))
       .filter((option): option is JourneyOption => option !== null);
 
-    const sortedOptions = [...options].sort((a, b) => {
-      const costA =
-        a.durationMinutes +
-        (a.type === 'transfer' ? TRANSFER_PENALTY_MINUTES : 0);
-      const costB =
-        b.durationMinutes +
-        (b.type === 'transfer' ? TRANSFER_PENALTY_MINUTES : 0);
-      if (costA !== costB) {
-        return costA - costB;
-      }
-      return a.durationMinutes - b.durationMinutes;
-    });
-
-    // OTP puede devolver más de `first` resultados paginados: recorto.
-    return sortedOptions.slice(0, query.maxResults);
+    // SOLO mapea: el ORDEN y el recorte a maxResults son política de domain
+    // (rankAndCut en journey-planner) y los aplica el servicio sobre el
+    // resultado de CUALQUIER motor. El adapter no rankea.
+    return options;
   }
 }
 

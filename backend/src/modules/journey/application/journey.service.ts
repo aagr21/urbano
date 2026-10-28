@@ -10,7 +10,11 @@ import {
   LineGeometry,
   StopRef,
 } from '../domain/journey.model';
-import { planJourneys, straightLineMeters } from '../domain/journey-planner';
+import {
+  planJourneys,
+  rankAndCut,
+  straightLineMeters,
+} from '../domain/journey-planner';
 import { JourneyQueryDto } from './journey.dto';
 
 /** Radio de caminata máximo hasta una parada (metros). */
@@ -68,7 +72,10 @@ export class JourneyService {
           maxResults: query.maxResults,
         });
         if (routed !== null) {
-          return { options: routed };
+          // La POLÍTICA de orden/recorte vive en domain (rankAndCut): se
+          // aplica igual al resultado del motor externo que al del planner
+          // interno; el adapter OTP solo mapea.
+          return { options: rankAndCut(routed, query.maxResults) };
         }
         this.logger.warn('OTP no disponible; degrado al planner interno');
       } catch (err) {

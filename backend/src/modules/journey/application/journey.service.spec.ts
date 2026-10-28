@@ -84,6 +84,40 @@ describe('JourneyService — motor externo (OTP2)', () => {
     expect(port.findStopsNear).not.toHaveBeenCalled();
   });
 
+  it('aplica la política común (rankAndCut) al saldo de OTP: ordena y recorta', async () => {
+    // Empate de costo y duración (50 ambos): el desempate por tipo pone el
+    // directo primero; y las 4 opciones se recortan a maxResults=2.
+    const direct = { ...otpOption, durationMinutes: 50, arriveAt: '06:50:00' };
+    const transfer: JourneyOption = {
+      ...otpOption,
+      type: 'transfer',
+      durationMinutes: 50,
+      arriveAt: '06:50:00',
+    };
+    const expensiveDirect: JourneyOption = {
+      ...otpOption,
+      type: 'direct',
+      departAt: '07:00:00',
+      arriveAt: '08:00:00', // costo 60
+      durationMinutes: 60,
+    };
+    const expensiveTransfer: JourneyOption = {
+      ...otpOption,
+      type: 'transfer',
+      departAt: '07:00:00',
+      arriveAt: '07:55:00', // costo 55
+      durationMinutes: 45,
+    };
+    const plan = jest
+      .fn()
+      .mockResolvedValue([expensiveDirect, transfer, direct, expensiveTransfer]);
+    const { service } = makeServiceWithRouter({ plan });
+
+    const { options } = await service.plan({ ...query, maxResults: 2 });
+
+    expect(options.map((o) => o.type)).toEqual(['direct', 'transfer']);
+  });
+
   it('si OTP devuelve null (no disponible), degrada al planner interno', async () => {
     const port = {
       findStopsNear: jest.fn(async (lat: number) =>
