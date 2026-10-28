@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:latlong2/latlong.dart';
 
 import '../../../../core/map/map.dart';
+import '../../../../core/utils/extensions.dart';
 import '../../../../core/utils/location.dart';
 import '../../data/journey_models.dart';
 import '../../data/journey_repository.dart';
@@ -65,12 +66,42 @@ class LiveMapLayer extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final initialCenter =
-        ref.watch(myLocationProvider).valueOrNull ?? santaCruzCenter;
+    final me = ref.watch(myLocationProvider).valueOrNull;
+    final initialCenter = me ?? santaCruzCenter;
     final locationReady =
         ref.watch(locationControllerProvider).status == LocationStatus.ready;
     final tracking = ref.watch(followLocationProvider) && locationReady;
     final mapOrigin = origin ?? pointOf(initialCenter);
+
+    // Al DEJAR de seguir (gesto en el mapa o botón), la capa nativa duerme:
+    // una lectura puntual para que el punto Dart de abajo sea fresco.
+    ref.listen(followLocationProvider, (previous, next) {
+      if (previous == true && next == false) {
+        ref.invalidate(myLocationProvider);
+      }
+    });
+
+    // SIN seguimiento: la capa nativa duerme (batería), pero tu posición
+    // sigue visible como punto propio, dibujado AL TIPO DE LA APP desde la
+    // última lectura puntual ([myLocationProvider]). Con seguir activo el
+    // puck nativo es el que manda y este duplicado no se dibuja.
+    final markers = [
+      ...extraMarkers,
+      if (!tracking && locationReady && me != null)
+        MapMarker(
+          id: 'my-location-last',
+          point: me,
+          width: 22,
+          height: 22,
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: context.colors.primary,
+              border: Border.all(color: context.colors.surface, width: 3),
+            ),
+          ),
+        ),
+    ];
 
     return JourneyResultMap(
       key: mapKey,
@@ -87,7 +118,6 @@ class LiveMapLayer extends ConsumerWidget {
       showDestination: hasResults || destination != null,
       fitPadding: fitPadding,
       extraPolylines: extraPolylines,
-      extraMarkers: extraMarkers,
       onOriginMoved: (point) => onEndpointMoved(true, point),
       onDestinationMoved: (point) => onEndpointMoved(false, point),
       // Tocar el pin de origen/destino lo edita: abre el selector encima del
@@ -100,10 +130,11 @@ class LiveMapLayer extends ConsumerWidget {
       // esté encendida — por eso SOLO se activa con el seguimiento activo.
       // Antes era `locationReady`: con permiso concedido el GPS quedaba
       // encendido para siempre, seguir viajando o no, y el teléfono se
-      // calentaba. Fuera del seguimiento, el centrado inicial usa la
-      // lectura puntual de [myLocationProvider] (un solo fix).
+      // calentaba. Sin seguir, tu posición la pinta el punto Dart desde la
+      // última lectura puntual (ver `markers`).
       myLocationEnabled: tracking,
       followMyLocation: tracking,
+      extraMarkers: markers,
       onTrackingDismissed: () =>
           ref.read(followLocationProvider.notifier).state = false,
     );
