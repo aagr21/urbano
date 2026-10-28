@@ -1,0 +1,49 @@
+# CI de Urbano: los dos sub-proyectos van en jobs independientes (fallan por
+# separado). Igual que localmente:
+#
+# - Flutter: el trío obligatorio (format + analyze + test); nunca necesita
+#   backend ni plugins nativos — `FLUTTER_TEST` fuerza `FakeMapEngine`.
+# - Backend: unit + build SIN base de datos (los e2e necesitan Docker +
+#   feed importado; no corren aquí — quedan para un job con servicios).
+#
+#name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+jobs:
+  flutter:
+    name: Flutter (format · analyze · test)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+      - name: dart format (sin cambios)
+        run: dart format --output=none --set-exit-if-changed lib test
+      - name: flutter analyze
+        run: flutter analyze lib test
+      - name: flutter test
+        run: flutter test
+
+  backend:
+    name: Backend (unit · build)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci
+      - name: unit (sin DB)
+        run: npm test
+      - name: build
+        run: npm run build
