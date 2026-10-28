@@ -234,6 +234,14 @@ extension _MicrosPanelSections on _MicrosPanelState {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
+        // Marcar el lugar directamente en el mapa (además de escribirlo o
+        // usar «cerca de mí»): siempre disponible en modo lugares.
+        IconButton(
+          visualDensity: VisualDensity.compact,
+          tooltip: 'Marcar en el mapa',
+          onPressed: _locked ? null : _pickPlaceOnMap,
+          icon: const Icon(Icons.add_location_alt_rounded, size: 18),
+        ),
         if (draft.isNotEmpty)
           IconButton(
             visualDensity: VisualDensity.compact,
@@ -338,7 +346,7 @@ extension _MicrosPanelSections on _MicrosPanelState {
             key: ValueKey('micro-tile-${micro.id}'),
             micro: micro,
             directions: _directionsOf(micro),
-            activeDirectionKeys: widget.activeDirectionKeys,
+            activeDirectionKeys: _activeKeys,
             busyKey: _pendingKey,
             locked: _locked,
             onToggle: (directionId) => _toggle(micro, directionId),

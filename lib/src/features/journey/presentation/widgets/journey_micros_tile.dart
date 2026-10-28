@@ -7,7 +7,7 @@ import '../../../../core/utils/extensions.dart';
 import '../../../../core/widgets/route_badge.dart';
 import '../../../../core/widgets/route_photo.dart';
 import '../../../routes/data/route_models.dart';
-import 'journey_micros_sheet.dart';
+import '../journey_markers.dart';
 
 // Tarjetas del **panel de micros**: la tarjeta de una línea (con sus botones
 // Ida/Vuelta) y la píldora de recorridos dibujados. Es UI pura por props y

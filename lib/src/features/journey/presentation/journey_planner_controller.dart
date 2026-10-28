@@ -7,9 +7,9 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/debouncer.dart';
 import '../../routes/data/route_models.dart';
 import '../../routes/data/route_repository.dart';
+import '../../stops/data/stop_search_models.dart';
+import 'journey_markers.dart';
 import 'journey_providers.dart';
-import 'widgets/journey_micros_sheet.dart';
-import 'widgets/journey_result_map.dart';
 
 /// Estado completo del **planeador de viaje**: los lugares marcados, la
 /// consulta comprometida (con el par planificado separado del mostrado), la
@@ -36,6 +36,7 @@ class JourneyPlannerState {
     this.routeLines = const {},
     this.routeMarkers = const {},
     this.visibleRouteKeys = const {},
+    this.placeMarkers = const [],
     this.loadingRoutes = false,
   });
 
@@ -75,6 +76,12 @@ class JourneyPlannerState {
   /// Recorridos dibujados, por clave igual que arriba (ida y vuelta son capas
   /// independientes).
   final Set<String> visibleRouteKeys;
+
+  /// Marcadores del **modo lugares** del panel: el pin del punto consultado y
+  /// un punto por cada parada devuelta. Viven aquí (no en el `State` del panel,
+  /// que es una ruta encima) para que el mapa SIEMPRE montado del planeador los
+  /// dibuje mientras el cajón está abierto.
+  final List<MapMarker> placeMarkers;
 
   /// `true` mientras una polilínea de micro se descarga.
   final bool loadingRoutes;
@@ -126,6 +133,7 @@ class JourneyPlannerState {
     Map<String, MapPolyline>? routeLines,
     Map<String, MapMarker>? routeMarkers,
     Set<String>? visibleRouteKeys,
+    List<MapMarker>? placeMarkers,
     bool? loadingRoutes,
   }) {
     return JourneyPlannerState(
@@ -145,6 +153,7 @@ class JourneyPlannerState {
       routeLines: routeLines ?? this.routeLines,
       routeMarkers: routeMarkers ?? this.routeMarkers,
       visibleRouteKeys: visibleRouteKeys ?? this.visibleRouteKeys,
+      placeMarkers: placeMarkers ?? this.placeMarkers,
       loadingRoutes: loadingRoutes ?? this.loadingRoutes,
     );
   }
@@ -489,5 +498,59 @@ class JourneyPlannerController extends Notifier<JourneyPlannerState> {
       routeLines: const {},
       routeMarkers: const {},
     );
+  }
+
+  // ------------------------------------------------------------------
+  // Micros: marcadores del modo EXPLORACIÓN «LUGARES»
+  // ------------------------------------------------------------------
+
+  /// Tope de paradas que se clavan en el mapa: más allá solo saturan (el
+  /// listado del panel muestra todas).
+  static const int _maxPlaceStopMarkers = 24;
+
+  /// Dibuja en el mapa el resultado del modo lugares: el pin del [point]
+  /// consultado (si viene de «cerca de mí» o de marcar en el mapa) y un punto
+  /// por cada parada de [stops]. Se llama desde el panel al resolverse la
+  /// búsqueda; reemplaza por completo los marcadores anteriores.
+  void showPlaceResults({
+    ({double lat, double lon})? point,
+    List<StopHit> stops = const [],
+  }) {
+    final markers = <MapMarker>[];
+    if (point != null) {
+      markers.add(
+        MapMarker(
+          id: 'place-search-point',
+          point: LatLng(point.lat, point.lon),
+          width: MapPlacePin.widthFor(30),
+          height: MapPlacePin.heightFor(30),
+          anchor: MapMarkerAnchor.bottom,
+          child: const MapPlacePin(color: AppColors.accent),
+        ),
+      );
+    }
+    final count = stops.length < _maxPlaceStopMarkers
+        ? stops.length
+        : _maxPlaceStopMarkers;
+    for (var i = 0; i < count; i++) {
+      final stop = stops[i];
+      markers.add(
+        MapMarker(
+          id: 'place-stop-${stop.id}',
+          point: LatLng(stop.lat, stop.lon),
+          width: 16,
+          height: 16,
+          child: const MapStopDot(color: AppColors.primary),
+        ),
+      );
+    }
+    state = state.copyWith(placeMarkers: markers);
+  }
+
+  /// Borra los marcadores del modo lugares (al salir del modo, limpiar la
+  /// búsqueda o cerrar el panel): los recorridos dibujados NO se tocan.
+  void clearPlaceMarkers() {
+    if (state.placeMarkers.isEmpty) return;
+    state = state.copyWith(placeMarkers: const []);
   }
 }

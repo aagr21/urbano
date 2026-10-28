@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:urbano/src/core/theme/app_colors.dart';
 import 'package:urbano/src/core/theme/app_theme.dart';
+import 'package:urbano/src/features/journey/presentation/journey_markers.dart';
 import 'package:urbano/src/features/journey/presentation/widgets/journey_micros_sheet.dart';
 import 'package:urbano/src/features/routes/data/route_models.dart';
 import 'package:urbano/src/features/routes/data/route_repository.dart';
@@ -69,7 +70,7 @@ Widget _app(FakeRouteRepository repo, _Harness state, {bool dark = false}) =>
                 onPressed: () => showJourneyMicrosPanel(
                   context,
                   ref: ref,
-                  activeDirectionKeys: state.active,
+                  activeDirectionKeys: () => state.active,
                   onToggleDirection: (micro, directionId) async =>
                       state.toggle(micro, directionId),
                   onClearAll: state.clearAll,

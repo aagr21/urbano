@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/theme/app_theme.dart';
+import '../../../../core/theme/map_theme_controller.dart';
+import '../../../../core/theme/map_theme_scope.dart';
 import '../../../../core/utils/extensions.dart';
 import '../../data/popular_places.dart';
 
@@ -35,13 +38,21 @@ class JourneyPlacePickPoi extends JourneyPlacePickResult {
 /// universidades, plazas, centros comerciales).
 Future<JourneyPlacePickResult?> showJourneyPlacePickerSheet(
   BuildContext context, {
+  required WidgetRef ref,
   required String title,
 }) {
+  // La hoja se apoya sobre el mapa: su contenido (y el fondo del contenedor,
+  // que vive fuera del árbol del mapa) toman el brillo propio del mapa, no el
+  // de la app.
+  final mapTheme = MapThemeScope.themeFor(ref.read(mapThemeControllerProvider));
+
   return showModalBottomSheet<JourneyPlacePickResult>(
     context: context,
     isScrollControlled: true,
     showDragHandle: true,
-    builder: (sheetContext) => _PlacePickerSheetContent(title: title),
+    backgroundColor: (mapTheme ?? Theme.of(context)).colorScheme.surface,
+    builder: (sheetContext) =>
+        MapThemeScope(child: _PlacePickerSheetContent(title: title)),
   );
 }
 

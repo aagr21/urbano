@@ -2,10 +2,11 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/location/location_fab.dart';
 import '../../../../core/utils/extensions.dart';
+import '../../../../core/widgets/map_theme_toggle_button.dart';
 import 'journey_map_button.dart';
 
 /// Columna de controles a la derecha del mapa: zoom, ubicación (con
-/// estados), micros y pantalla completa.
+/// estados), micros, brillo del mapa y pantalla completa.
 class JourneyMapControls extends StatelessWidget {
   const JourneyMapControls({
     super.key,
@@ -59,6 +60,11 @@ class JourneyMapControls extends StatelessWidget {
         ),
         const SizedBox(height: 10),
         _MicrosButton(active: microsActive, onTap: onOpenMicros),
+        const SizedBox(height: 10),
+        // Cambio de brillo del mapa (independiente del tema de la app). Va
+        // aquí, dentro del `MapThemeScope` de la pantalla: el ícono se pinta
+        // con el color del BRILLO ACTIVO del mapa, así ofrece el contrario.
+        const MapThemeToggleButton(),
         const SizedBox(height: 10),
         MapCircleButton(
           icon: fullscreen

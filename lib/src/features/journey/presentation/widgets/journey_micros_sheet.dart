@@ -3,26 +3,25 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../../core/animation/motion.dart';
 import '../../../../core/location/location_service.dart';
 import '../../../../core/theme/app_theme.dart';
+import '../../../../core/theme/map_theme_scope.dart';
 import '../../../../core/utils/extensions.dart';
 import '../../../../core/widgets/empty_state.dart';
 import '../../../routes/data/route_models.dart';
 import '../../../routes/data/route_repository.dart';
+import '../../../stops/data/stop_search_models.dart';
 import '../../../stops/presentation/stop_search_providers.dart';
+import '../journey_markers.dart';
+import '../journey_planner_controller.dart';
 import '../journey_providers.dart';
 import 'journey_micros_tile.dart';
 import 'micros_places_list.dart';
 
 part 'micros_panel_sections.dart';
-
-/// Clave de un recorrido activo en el mapa: `routeId#directionId`.
-/// El panel y la pantalla padre comparten este formato para saber qué
-/// direcciones (ida/vuelta) de cada micro están dibujadas.
-String microDirectionKey(String routeId, int directionId) =>
-    '$routeId#$directionId';
 
 /// Panel de **micros**: un cajón que se desliza de izquierda a derecha sobre
 /// el mapa (no un bottom sheet). Lista **todas** las líneas del sistema con
@@ -38,10 +37,11 @@ String microDirectionKey(String routeId, int directionId) =>
 Future<void> showJourneyMicrosPanel(
   BuildContext context, {
   required WidgetRef ref,
-  required Set<String> activeDirectionKeys,
+  required Set<String> Function() activeDirectionKeys,
   required Future<void> Function(RouteSummary micro, int directionId)
   onToggleDirection,
   required VoidCallback onClearAll,
+  void Function(List<({double lat, double lon})> points)? onFramePlaces,
 }) async {
   final session = ref.read(journeyMicrosSessionProvider);
 
@@ -68,12 +68,22 @@ Future<void> showJourneyMicrosPanel(
       barrierColor: Colors.black.withValues(alpha: 0.45),
       transitionDuration: const Duration(milliseconds: 280),
       reverseTransitionDuration: const Duration(milliseconds: 240),
-      pageBuilder: (_, _, _) => _MicrosPanel(
-        ref: ref,
-        session: session,
-        activeDirectionKeys: activeDirectionKeys,
-        onToggleDirection: onToggleDirection,
-        onClearAll: onClearAll,
+      // El brillo propio del mapa se instala AQUÍ, por ENCIMA del panel entero:
+      // el panel es una RUTA montada en el `Overlay` del Navigator (fuera del
+      // ámbito que pone la pantalla Viaje) y su `build` lee `context.colors`
+      // para pintar el buscador, las tarjetas y el encabezado. Instalándolo aquí
+      // ese `context` ya ve el modo del mapa; si se instalara solo dentro del
+      // `build`, los colores que ese `build` captura seguirían siendo los de la
+      // app (letra oscura sobre vidrio oscuro con mapa oscuro + app clara).
+      pageBuilder: (_, _, _) => MapThemeScope(
+        child: _MicrosPanel(
+          ref: ref,
+          session: session,
+          activeDirectionKeys: activeDirectionKeys,
+          onToggleDirection: onToggleDirection,
+          onClearAll: onClearAll,
+          onFramePlaces: onFramePlaces,
+        ),
       ),
       // Entrada desde la izquierda: el panel se desliza hacia adentro
       // mientras el scrim (barrera oscura) se funde con la misma curva.
@@ -172,6 +182,7 @@ class _MicrosPanel extends StatefulWidget {
     required this.activeDirectionKeys,
     required this.onToggleDirection,
     required this.onClearAll,
+    this.onFramePlaces,
   });
 
   /// Acceso al repositorio de rutas desde el State (refresco de la lista).
@@ -179,10 +190,15 @@ class _MicrosPanel extends StatefulWidget {
 
   /// Estado que sobrevive a cerrar el panel.
   final JourneyMicrosSession session;
-  final Set<String> activeDirectionKeys;
+  final Set<String> Function() activeDirectionKeys;
   final Future<void> Function(RouteSummary micro, int directionId)
   onToggleDirection;
   final VoidCallback onClearAll;
+
+  /// Encuadre del mapa (debajo del cajón) sobre el lugar marcado y sus
+  /// paradas, para que el pin recién clavado se vea. `null` = sin capacidad
+  /// de encuadrar (p. ej. harness de tests que abre el panel suelto).
+  final void Function(List<({double lat, double lon})> points)? onFramePlaces;
 
   @override
   State<_MicrosPanel> createState() => _MicrosPanelState();
@@ -267,6 +283,11 @@ class _MicrosPanelState extends State<_MicrosPanel>
   );
 
   bool get _locked => _pendingKey != null;
+
+  /// Claves activas AHORA: el widget entrega un GETTER, no una copia — el
+  /// snapshot por valor hacía que un toggle quedara pintado en el botón
+  /// equivocado (stale) hasta reabrir el panel.
+  Set<String> get _activeKeys => widget.activeDirectionKeys();
 
   /// Catálogo de líneas (persistido en la sesión).
   List<RouteSummary> get _micros => widget.session.micros;
@@ -370,7 +391,7 @@ class _MicrosPanelState extends State<_MicrosPanel>
     for (final micro in _micros) {
       for (final direction in _directionsOf(micro)) {
         final key = microDirectionKey(micro.id, direction.directionId);
-        if (widget.activeDirectionKeys.contains(key)) continue;
+        if (_activeKeys.contains(key)) continue;
         if (!mounted) return;
         await _toggle(micro, direction.directionId);
         if (!mounted) return;
@@ -405,6 +426,7 @@ class _MicrosPanelState extends State<_MicrosPanel>
       widget.session.placesNearbyPoint = null;
       widget.session.placesQuery = '';
     });
+    _planner.clearPlaceMarkers();
   }
 
   void _clearQuery() {
@@ -440,6 +462,9 @@ class _MicrosPanelState extends State<_MicrosPanel>
   /// Cambia de modo (líneas ⇆ lugares): el campo se reinicia con la consulta
   /// de ese modo y el commit es el texto guardado.
   void _switchMode(bool toPlaces) {
+    // Al salir de lugares se quitan sus marcadores del mapa (los recorridos
+    // dibujados quedan: esos los apaga «Limpiar»).
+    if (!toPlaces) _planner.clearPlaceMarkers();
     setState(() {
       widget.session.placesMode = toPlaces;
       if (toPlaces) {
@@ -463,6 +488,75 @@ class _MicrosPanelState extends State<_MicrosPanel>
       widget.session.placesNearbyPoint = (lat: me.latitude, lon: me.longitude);
     });
   }
+
+  /// Notifier del planeador: dueño de los marcadores del mapa (el mapa vive
+  /// debajo del cajón, en la pantalla base, no aquí).
+  JourneyPlannerController get _planner =>
+      widget.ref.read(journeyPlannerControllerProvider.notifier);
+
+  /// «Marcar en el mapa» del modo LUGARES: abre el selector de punto (el
+  /// MISMO `/journey/pick` que origen/destino) y usa lo elegido como el lugar
+  /// a consultar — equivale a un «cerca de mí» pero en el punto que el usuario
+  /// clava. El listado de [stopNearbyProvider] y sus marcadores se refrescan
+  /// solos al cambiar el punto en la sesión.
+  Future<void> _pickPlaceOnMap() async {
+    if (_locked) return;
+    final current = widget.session.placesNearbyPoint;
+    final params = <String, String>{'title': 'Lugar'};
+    if (current != null) {
+      params['lat'] = '${current.lat}';
+      params['lon'] = '${current.lon}';
+    }
+    final picked = await context.push<({double lat, double lon})>(
+      Uri(path: '/journey/pick', queryParameters: params).toString(),
+    );
+    if (picked == null || !mounted) return;
+    setState(() {
+      widget.session.placesQuery = '';
+      widget.session.placesNearbyPoint = picked;
+    });
+  }
+
+  /// `true` si el recorrido (ida) de esta línea ya está dibujado en el mapa.
+  bool _routeActive(StopRouteRef route) =>
+      _activeKeys.contains(microDirectionKey(route.id, 0));
+
+  /// Dibuja/borra en el mapa el recorrido COMPLETO de UNA línea del resultado
+  /// (ida y vuelta juntas), no una sola orientación: «Ver ruta» muestra la
+  /// línea entera. Cada `_toggle` invierte SU dirección, así que la bandera se
+  /// decide con la ida y luego la vuelta se aplica solo si está en el estado
+  /// contrario (y la ruta realmente la tiene: una de mano única no tiene vuelta).
+  Future<void> _toggleStopRoute(StopRouteRef route) async {
+    if (_locked) return;
+    final summary = _summaryForRef(route);
+    final turnOff = _routeActive(route);
+    await _toggle(summary, 0);
+    if (!mounted) return;
+    // El detalle de la ruta ya quedó cacheado por el toggle de la ida, así que
+    // aquí sabemos si de verdad existe la vuelta.
+    final detail = widget.session.details[route.id];
+    final hasVuelta =
+        detail == null || detail.directions.any((d) => d.directionId == 1);
+    final vueltaActive = _activeKeys.contains(microDirectionKey(route.id, 1));
+    if (hasVuelta && turnOff == vueltaActive) {
+      await _toggle(summary, 1);
+    }
+  }
+
+  /// Referencia de línea de un resultado → [RouteSummary] mínima para el
+  /// toggle: el controller solo lee `id` y `shortName` (la forma la pide él).
+  RouteSummary _summaryForRef(StopRouteRef ref) => RouteSummary(
+    id: ref.id,
+    shortName: ref.shortName,
+    longName: 'Línea ${ref.shortName}',
+    color: ref.color,
+    textColor: 'FFFFFF',
+    description: 'Transporte publico urbano de micros',
+    type: 3,
+    directionsCount: 2,
+    stopCount: 0,
+    tripCount: 0,
+  );
 
   void _onDragUpdate(DragUpdateDetails details) {
     if (_snap.isAnimating) _snap.stop();
@@ -488,7 +582,7 @@ class _MicrosPanelState extends State<_MicrosPanel>
   Widget build(BuildContext context) {
     final colors = context.colors;
     final text = context.text;
-    final activeCount = widget.activeDirectionKeys.length;
+    final activeCount = _activeKeys.length;
     final dx = _shownDx;
     final panelWidth = math.min(340.0, MediaQuery.sizeOf(context).width * 0.85);
     // El tirador sobresale del panel hacia el mapa: la caja del Stack tiene que
@@ -496,6 +590,9 @@ class _MicrosPanelState extends State<_MicrosPanel>
     // recibiría taps (RenderBox solo hit-testa dentro de su propio tamaño).
     const handleZone = 18.0;
 
+    // El ámbito de brillo del mapa lo pone la ruta (`pageBuilder`), así que el
+    // `context` de este `build` ya resuelve `context.colors` contra el modo del
+    // mapa: reabrir el panel nunca pinta letra oscura sobre vidrio oscuro.
     return Align(
       alignment: Alignment.centerLeft,
       child: GestureDetector(
@@ -543,6 +640,12 @@ class _MicrosPanelState extends State<_MicrosPanel>
                                         query: _placesQuery,
                                         point: widget.session.placesNearbyPoint,
                                         onUseMyLocation: _applyMyLocation,
+                                        onPickOnMap: _pickPlaceOnMap,
+                                        activeDirectionKeys: _activeKeys,
+                                        busyKey: _pendingKey,
+                                        locked: _locked,
+                                        onToggleRoute: _toggleStopRoute,
+                                        onFramePlaces: widget.onFramePlaces,
                                       )
                                     : _list(colors),
                               ),

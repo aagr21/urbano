@@ -9,6 +9,7 @@ import '../../../../core/utils/extensions.dart';
 import '../../../../core/widgets/urbano_map.dart';
 import '../../data/journey_models.dart';
 import '../../data/journey_repository.dart';
+import '../journey_markers.dart';
 
 /// Mapa de una opción de viaje: polilíneas de micro (con `geometry`, o línea
 /// recta de degradado), tramos de caminata punteados y marcadores de origen
@@ -546,45 +547,6 @@ class JourneyResultMapState extends State<JourneyResultMap> {
   }
 }
 
-/// Punto medio de una polilínea por longitud acumulada (la insignia de la
-/// ruta queda encima de su propia línea, sin importar cuántas curvas tenga).
-///
-/// Es público porque el **panel de micros** lo usa para poner la insignia del
-/// micro sobre el recorrido que dibuja en el mapa, idéntico a la planificación.
-LatLng routePathMidpoint(List<LatLng> path) {
-  if (path.length < 2) return path.first;
-  const distance = Distance();
-  final segments = <double>[];
-  var total = 0.0;
-  for (var i = 1; i < path.length; i++) {
-    final length = distance.distance(path[i - 1], path[i]);
-    segments.add(length);
-    total += length;
-  }
-  if (total == 0) return path.first;
-
-  var walked = 0.0;
-  for (var i = 0; i < segments.length; i++) {
-    if (walked + segments[i] >= total / 2) {
-      final t = segments[i] == 0 ? 0.0 : (total / 2 - walked) / segments[i];
-      final a = path[i];
-      final b = path[i + 1];
-      return LatLng(
-        a.latitude + (b.latitude - a.latitude) * t,
-        a.longitude + (b.longitude - a.longitude) * t,
-      );
-    }
-    walked += segments[i];
-  }
-  return path.last;
-}
-
-/// Ancho de la insignia en función del texto (icono + texto + padding).
-double routeBadgeWidth(String label) {
-  final width = 30 + label.length * 6.6;
-  return width.clamp(46, 170).toDouble();
-}
-
 /// Controles flotantes del mapa: zoom +/− y encuadre del viaje.
 class _MapControls extends StatelessWidget {
   const _MapControls({
@@ -751,61 +713,6 @@ class MapLegend extends StatelessWidget {
           ),
           const SizedBox(height: 4),
           bar(AppColors.accent, 'Transbordo'),
-        ],
-      ),
-    );
-  }
-}
-
-/// Insignia de micro sobre su tramo en el mapa: "101" (número/nombre) en el
-/// color de la línea, con sombra y borde blanco para que se lea sobre
-/// cualquier tile. Compartida entre la planificación y el panel de micros.
-///
-/// La letra y el ícono NO son blancos fijos: el color de línea viene del GTFS y
-/// puede ser casi blanco (`F1C40F`), así que el foreground lo decide
-/// `AppColors.onColor` sobre ese relleno.
-class MapRouteBadge extends StatelessWidget {
-  const MapRouteBadge({super.key, required this.label, required this.color});
-
-  final String label;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    final onColor = AppColors.onColor(color);
-    return Container(
-      alignment: Alignment.center,
-      decoration: BoxDecoration(
-        color: color,
-        borderRadius: BorderRadius.circular(AppRadius.tile),
-        border: Border.all(color: Colors.white, width: 2),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x4D000000),
-            blurRadius: 6,
-            offset: Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.directions_bus_rounded, size: 12, color: onColor),
-          const SizedBox(width: 3),
-          Flexible(
-            child: Text(
-              label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: onColor,
-                fontSize: 10.5,
-                fontWeight: FontWeight.w800,
-                height: 1.1,
-              ),
-            ),
-          ),
         ],
       ),
     );
