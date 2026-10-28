@@ -16,8 +16,8 @@ import 'map_scene.dart';
 import 'map_types.dart';
 import 'marker_rasterizer.dart';
 
-part 'maplibre_engine_helpers.dart';
 part 'maplibre_engine_dash.dart';
+part 'maplibre_engine_helpers.dart';
 part 'maplibre_engine_sync.dart';
 
 /// Motor de mapa **real**: renderiza el [MapScene] con `maplibre_gl`.
@@ -61,6 +61,16 @@ class MapLibreEngineState extends State<MapLibreEngine>
   /// una generación anterior se descartan (los managers se recrean).
   int _styleGeneration = 0;
 
+  /// `styleString` que REALMENTE se le entregó al plugin (vía `MapLibreMap`).
+  /// Es el único valor que cambia el estilo nativo, así que lo controlamos para
+  /// que NUNCA haya dos `setStyle` simultáneos (ver [_applyStyle]).
+  String? _displayStyle;
+
+  /// Estilo pedido por la escena MIENTRAS hay una recarga en vuelo. Se aplica en
+  /// el próximo `_onStyleLoaded` (el nativo ya estará listo), colapsando todas
+  /// las alternancias rápidas claro↔oscuro en una sola recarga adicional.
+  String? _pendingStyle;
+
   /// Marcadores ya presentes en la escena (id → símbolo en el mapa).
   final Map<String, ml.Symbol> _symbols = <String, ml.Symbol>{};
 
@@ -95,6 +105,8 @@ class MapLibreEngineState extends State<MapLibreEngine>
   void initState() {
     super.initState();
     _camera = MapCamera(center: widget.scene.center, zoom: widget.scene.zoom);
+    // El primer estilo se entrega tal cual: no hay recarga previa que serializar.
+    _displayStyle = widget.scene.styleString;
     widget.controller?.attach(this);
   }
 
@@ -105,18 +117,39 @@ class MapLibreEngineState extends State<MapLibreEngine>
       oldWidget.controller?.detach(this);
       widget.controller?.attach(this);
     }
-    // CAMBIÓ el estilo (p. ej. claro↔oscuro al restaurar el modo de tema
-    // guardado unos instantes después del arranque): el plugin va a llamar
-    // `setStyleString` y el estilo NATIVO queda nulo/medio cargado hasta el
-    // próximo `onStyleLoaded`. Hay que dejar de sincronizar hasta entonces,
-    // o los `symbol#add`/`style#addImage`/`line#add` de `_syncAll` reventarían
-    // con `PlatformException(STYLE_NOT_READY)` contra un estilo sin cargar.
-    // `_onStyleLoaded` pondrá la bandera otra vez en `true` y re-encolará el
-    // dibujo cuando el nuevo estilo esté listo.
-    if (oldWidget.scene.styleString != widget.scene.styleString) {
-      _styleLoaded = false;
+    // CAMBIÓ el estilo pedido (p. ej. claro↔oscuro con el botón del mapa). Solo
+    // se lo entregamos al plugin si NO hay otra recarga en vuelo (`_styleLoaded`):
+    // si el nativo aún está swappeando el estilo anterior (su `Style` es nulo
+    // hasta el próximo `onStyleLoaded`), un SEGUNDO `setStyle` haría que el
+    // handler `onMapStyleLoadedPlatform` del plugin —async y sin dueño que lo
+    // espere— re-cree sus managers con `initialize()`/`addLayer` contra un estilo
+    // ya nulo y reviente con `PlatformException(STYLE_NOT_READY)` SIN capturar
+    // (no está en nuestro `_syncAll`, por eso el catch de ahí no lo ve). Guardar
+    // el pedido en `_pendingStyle` y aplicarlo en `_onStyleLoaded` serializa las
+    // recargas: nunca dos `setStyle` a la vez, por muchas veces que se alterne.
+    final wanted = widget.scene.styleString;
+    if (oldWidget.scene.styleString != wanted) {
+      _applyStyle(wanted);
     }
     _scheduleSync();
+  }
+
+  /// Pide el estilo [wanted] respetando la serialización de recargas (ver el
+  /// comentario en [didUpdateWidget]). Si el estilo está listo, muta
+  /// [_displayStyle] (el build de este mismo frame lo entregará al plugin y
+  /// disparará la única recarga); si hay una en vuelo, solo encola en
+  /// [_pendingStyle].
+  void _applyStyle(String wanted) {
+    if (_styleLoaded) {
+      // Estilo actual listo: es seguro disparar la (única) recarga ahora.
+      if (_displayStyle == wanted) return;
+      _displayStyle = wanted;
+      _pendingStyle = null;
+      _styleLoaded = false;
+      return;
+    }
+    // Hay una recarga en vuelo: encolamos el más reciente y esperamos.
+    _pendingStyle = wanted;
   }
 
   @override
@@ -139,6 +172,20 @@ class MapLibreEngineState extends State<MapLibreEngine>
   }
 
   void _onStyleLoaded() {
+    // La escena pidió otro estilo MIENTRAS esta recarga estaba en vuelo: el
+    // nativo ya está listo para un nuevo `setStyle`, así que aplicamos el
+    // encolado en vez de dar por bueno el estilo que el usuario ya cambió. Esto
+    // dispara una única recarga adicional (y `_styleLoaded` sigue en `false`), no
+    // dos simultáneas. El `_displayStyle` se entrega en el próximo build.
+    final pending = _pendingStyle;
+    if (pending != null && pending != _displayStyle) {
+      _pendingStyle = null;
+      _displayStyle = pending;
+      _styleLoaded = false;
+      if (mounted) setState(() {});
+      return;
+    }
+    _pendingStyle = null;
     _styleGeneration++;
     _styleLoaded = true;
     _imagesLoaded.clear();
@@ -448,7 +495,7 @@ class MapLibreEngineState extends State<MapLibreEngine>
           onDragEnd: _onDartDragEnd,
           onTap: _onDartEndpointTap,
           child: ml.MapLibreMap(
-            styleString: scene.styleString,
+            styleString: _displayStyle ?? scene.styleString,
             initialCameraPosition: ml.CameraPosition(
               target: _toMl(initial.center),
               zoom: initial.zoom,

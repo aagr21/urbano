@@ -4,7 +4,6 @@ import '../../../../core/animation/motion.dart';
 import '../../../../core/map/map.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_theme.dart';
-import '../../../../core/theme/map_theme_scope.dart';
 import '../../../../core/utils/extensions.dart';
 import '../../../../core/widgets/empty_state.dart';
 import '../../../../core/widgets/route_badge.dart';
@@ -34,89 +33,87 @@ class RouteMapCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(AppRadius.lg),
         child: SizedBox(
           height: 230,
-          // Previsualización del recorrido: el mapa y su píldora viven en el
-          // brillo propio del mapa, no en el del tema de la app.
-          child: MapThemeScope(
-            child: Stack(
-              fit: StackFit.expand,
-              children: [
-                UrbanoMap(
-                  center: points.first,
-                  cameraFit: MapCameraFit.bounds(
-                    bounds: bounds,
-                    padding: const EdgeInsets.all(32),
-                    maxZoom: 16,
-                  ),
-                  polylines: [
-                    MapPolyline(
-                      points: points,
-                      width: 6,
-                      color: routeColor,
-                      outline: true,
-                    ),
-                  ],
-                  markers: [
-                    MapMarker(
-                      id: 'route-shape-start',
-                      point: points.first,
-                      width: 22,
-                      height: 22,
-                      child: const _EndDot(color: AppColors.success),
-                    ),
-                    MapMarker(
-                      id: 'route-shape-end',
-                      point: points.last,
-                      width: 22,
-                      height: 22,
-                      child: const _EndDot(color: AppColors.danger),
-                    ),
-                  ],
+          // Previsualización del recorrido: solo el mapa base sigue el tile
+          // elegido; la píldora y su texto usan el tema de la app.
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              UrbanoMap(
+                center: points.first,
+                cameraFit: MapCameraFit.bounds(
+                  bounds: bounds,
+                  padding: const EdgeInsets.all(32),
+                  maxZoom: 16,
                 ),
-                // Tarjeta DE MAPA abrible: «Ver recorrido completo» lleva a la
-                // página full-bleed (mapa desde borde a borde + los lugares
-                // principales de [RoutePlaces] como overlay inferior).
-                Positioned(
-                  right: 12,
-                  top: 12,
-                  child: PressScale(
-                    child: Material(
-                      color: Colors.black.withValues(alpha: 0.55),
+                polylines: [
+                  MapPolyline(
+                    points: points,
+                    width: 6,
+                    color: routeColor,
+                    outline: true,
+                  ),
+                ],
+                markers: [
+                  MapMarker(
+                    id: 'route-shape-start',
+                    point: points.first,
+                    width: 22,
+                    height: 22,
+                    child: const _EndDot(color: AppColors.success),
+                  ),
+                  MapMarker(
+                    id: 'route-shape-end',
+                    point: points.last,
+                    width: 22,
+                    height: 22,
+                    child: const _EndDot(color: AppColors.danger),
+                  ),
+                ],
+              ),
+              // Tarjeta DE MAPA abrible: «Ver recorrido completo» lleva a la
+              // página full-bleed (mapa desde borde a borde + los lugares
+              // principales de [RoutePlaces] como overlay inferior).
+              Positioned(
+                right: 12,
+                top: 12,
+                child: PressScale(
+                  child: Material(
+                    color: Colors.black.withValues(alpha: 0.55),
+                    borderRadius: BorderRadius.circular(AppRadius.pill),
+                    child: InkWell(
+                      onTap: () => _openFullMap(context, detail, routeColor),
                       borderRadius: BorderRadius.circular(AppRadius.pill),
-                      child: InkWell(
-                        onTap: () => _openFullMap(context, detail, routeColor),
-                        borderRadius: BorderRadius.circular(AppRadius.pill),
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 8,
-                          ),
-                          // Único contenido claro posible sobre foto/mapa
-                          // oscuro: blanco (patrón documentado en las reglas).
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Icon(
-                                Icons.fullscreen_rounded,
-                                size: 16,
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 8,
+                        ),
+                        // Único contenido claro posible sobre foto/mapa
+                        // oscuro: blanco (patrón documentado en las reglas).
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(
+                              Icons.fullscreen_rounded,
+                              size: 16,
+                              color: Colors.white,
+                            ),
+                            const SizedBox(width: 5),
+                            Text(
+                              'Recorrido completo',
+                              style: context.text.labelSmall?.copyWith(
                                 color: Colors.white,
+                                fontWeight: FontWeight.w700,
                               ),
-                              const SizedBox(width: 5),
-                              Text(
-                                'Recorrido completo',
-                                style: context.text.labelSmall?.copyWith(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                            ],
-                          ),
+                            ),
+                          ],
                         ),
                       ),
                     ),
                   ),
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),
@@ -125,18 +122,13 @@ class RouteMapCard extends StatelessWidget {
 
   void _openFullMap(BuildContext context, RouteDetail detail, Color color) {
     Navigator.of(context).push(
+      // Página-mapa completa: la tarjeta de lugares y los controles son chrome
+      // de la app; el tile elegido solo afecta al mapa base.
       MaterialPageRoute<void>(
-        // Página-mapa completa: el ámbito va POR ENCIMA de la página, no solo de
-        // su `body`, porque el `build` de `RouteFullMap` lee `context.colors`
-        // para la tarjeta de lugares; si el ámbito se montara más abajo, esa
-        // tarjeta seguiría pintando la superficie del tema de la app sobre un
-        // mapa de brillo distinto (cruce de temas).
-        builder: (_) => MapThemeScope(
-          child: RouteFullMap(
-            detail: detail,
-            routeColor: color,
-            routeKey: RouteKey(detail.id),
-          ),
+        builder: (_) => RouteFullMap(
+          detail: detail,
+          routeColor: color,
+          routeKey: RouteKey(detail.id),
         ),
       ),
     );

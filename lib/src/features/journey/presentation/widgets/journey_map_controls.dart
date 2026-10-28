@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../../core/animation/motion.dart';
 import '../../../../core/location/location_fab.dart';
 import '../../../../core/utils/extensions.dart';
-import '../../../../core/widgets/map_theme_toggle_button.dart';
+import '../../../../core/widgets/map_tile_button.dart';
 import 'journey_map_button.dart';
 
 /// Columna de controles a la derecha del mapa: zoom, ubicación (con
@@ -56,10 +56,10 @@ class JourneyMapControls extends StatelessWidget {
         const SizedBox(height: 10),
         _MicrosButton(active: microsActive, onTap: onOpenMicros),
         const SizedBox(height: 10),
-        // Cambio de brillo del mapa (independiente del tema de la app). Va
-        // aquí, dentro del `MapThemeScope` de la pantalla: el ícono se pinta
-        // con el color del BRILLO ACTIVO del mapa, así ofrece el contrario.
-        const MapThemeToggleButton(),
+        // Selector de capa del mapa (independiente del tema de la app): cambia
+        // solo el fondo del mapa. El ícono es chrome de la app, se pinta con el
+        // tema de la app.
+        const MapTileButton(),
         const SizedBox(height: 10),
         MapCircleButton(
           icon: fullscreen

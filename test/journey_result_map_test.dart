@@ -5,9 +5,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:urbano/src/core/map/fake_map_engine.dart';
+import 'package:urbano/src/core/map/map_tile.dart';
 import 'package:urbano/src/core/map/map_types.dart';
 import 'package:urbano/src/core/router/app_router.dart';
 import 'package:urbano/src/core/theme/app_theme.dart';
+import 'package:urbano/src/core/theme/map_theme_controller.dart';
 import 'package:urbano/src/core/utils/location.dart';
 import 'package:urbano/src/core/widgets/urbano_map.dart';
 import 'package:urbano/src/features/journey/data/journey_models.dart';
@@ -24,16 +26,40 @@ import 'helpers/journey_fixtures.dart';
 const JourneyPoint _origin = (lat: -17.78, lon: -63.15);
 const JourneyPoint _destination = (lat: -17.79, lon: -63.16);
 
-Widget _mapApp(JourneyOption option) => MaterialApp(
-  theme: AppTheme.light(),
-  home: Scaffold(
-    body: SizedBox(
-      height: 420,
-      child: JourneyResultMap(
-        option: option,
-        origin: _origin,
-        destination: _destination,
-        showTiles: false,
+/// Store del tile del mapa en memoria: `flutter test` nunca depende de plugins.
+class _MemoryMapTileStore implements MapThemeStore {
+  @override
+  Future<MapTile?> load() async => null;
+
+  @override
+  Future<void> save(MapTile? tile) async {}
+}
+
+Widget _mapApp(
+  JourneyOption option, {
+  JourneyPoint? origin,
+  JourneyPoint? destination,
+  ValueChanged<LatLng>? onOriginMoved,
+  ValueChanged<LatLng>? onDestinationMoved,
+  VoidCallback? onOriginTap,
+  VoidCallback? onDestinationTap,
+}) => ProviderScope(
+  overrides: [mapThemeStoreProvider.overrideWithValue(_MemoryMapTileStore())],
+  child: MaterialApp(
+    theme: AppTheme.light(),
+    home: Scaffold(
+      body: SizedBox(
+        height: 420,
+        child: JourneyResultMap(
+          option: option,
+          origin: origin ?? _origin,
+          destination: destination ?? _destination,
+          showTiles: false,
+          onOriginMoved: onOriginMoved,
+          onDestinationMoved: onDestinationMoved,
+          onOriginTap: onOriginTap,
+          onDestinationTap: onDestinationTap,
+        ),
       ),
     ),
   ),
@@ -183,20 +209,9 @@ void main() {
       (tester) async {
         LatLng? moved;
         await tester.pumpWidget(
-          MaterialApp(
-            theme: AppTheme.light(),
-            home: Scaffold(
-              body: SizedBox(
-                height: 420,
-                child: JourneyResultMap(
-                  option: fixtureDirectOption(),
-                  origin: _origin,
-                  destination: _destination,
-                  showTiles: false,
-                  onOriginMoved: (point) => moved = point,
-                ),
-              ),
-            ),
+          _mapApp(
+            fixtureDirectOption(),
+            onOriginMoved: (point) => moved = point,
           ),
         );
         await tester.pumpAndSettle();
@@ -229,20 +244,9 @@ void main() {
     testWidgets('destino arrastrable: notifica el nuevo punto', (tester) async {
       LatLng? moved;
       await tester.pumpWidget(
-        MaterialApp(
-          theme: AppTheme.light(),
-          home: Scaffold(
-            body: SizedBox(
-              height: 420,
-              child: JourneyResultMap(
-                option: fixtureDirectOption(),
-                origin: _origin,
-                destination: _destination,
-                showTiles: false,
-                onDestinationMoved: (point) => moved = point,
-              ),
-            ),
-          ),
+        _mapApp(
+          fixtureDirectOption(),
+          onDestinationMoved: (point) => moved = point,
         ),
       );
       await tester.pumpAndSettle();
@@ -271,21 +275,10 @@ void main() {
       var originTaps = 0;
       var destinationTaps = 0;
       await tester.pumpWidget(
-        MaterialApp(
-          theme: AppTheme.light(),
-          home: Scaffold(
-            body: SizedBox(
-              height: 420,
-              child: JourneyResultMap(
-                option: fixtureDirectOption(),
-                origin: _origin,
-                destination: _destination,
-                showTiles: false,
-                onOriginTap: () => originTaps++,
-                onDestinationTap: () => destinationTaps++,
-              ),
-            ),
-          ),
+        _mapApp(
+          fixtureDirectOption(),
+          onOriginTap: () => originTaps++,
+          onDestinationTap: () => destinationTaps++,
         ),
       );
       await tester.pumpAndSettle();
@@ -305,21 +298,10 @@ void main() {
       var originTaps = 0;
       var destinationTaps = 0;
       await tester.pumpWidget(
-        MaterialApp(
-          theme: AppTheme.light(),
-          home: Scaffold(
-            body: SizedBox(
-              height: 420,
-              child: JourneyResultMap(
-                option: fixtureDirectOption(),
-                origin: _origin,
-                destination: _destination,
-                showTiles: false,
-                onOriginTap: () => originTaps++,
-                onDestinationTap: () => destinationTaps++,
-              ),
-            ),
-          ),
+        _mapApp(
+          fixtureDirectOption(),
+          onOriginTap: () => originTaps++,
+          onDestinationTap: () => destinationTaps++,
         ),
       );
       await tester.pumpAndSettle();
@@ -1201,22 +1183,7 @@ void main() {
 
       // La pantalla fija un origen nuevo Y la consulta trae una opción distinta.
       const newOrigin = (lat: -17.77, lon: -63.14);
-      await tester.pumpWidget(
-        MaterialApp(
-          theme: AppTheme.light(),
-          home: Scaffold(
-            body: SizedBox(
-              height: 420,
-              child: JourneyResultMap(
-                option: optionFar(),
-                origin: newOrigin,
-                destination: _destination,
-                showTiles: false,
-              ),
-            ),
-          ),
-        ),
-      );
+      await tester.pumpWidget(_mapApp(optionFar(), origin: newOrigin));
       await tester.pumpAndSettle();
 
       expect(

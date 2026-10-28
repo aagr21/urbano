@@ -44,7 +44,6 @@ Flutter (Android · iOS · Web) + backend NestJS con datos GTFS.
 
 ## 🚀 Arranque rápido
 
-
 ### 🔧 Backend (NestJS + Postgres/PostGIS)
 
 ```sh
@@ -77,11 +76,35 @@ flutter run -d emulator \
 # Dispositivo físico en la misma red WiFi
 flutter run -d <device> \
   --dart-define=API_BASE_URL=http://192.168.1.10:3000/api/v1
+
+# Con las capas de Google activas (ver abajo)
+flutter run -d chrome --dart-define-from-file=config/env.json
 ```
 
 La base URL se inyecta con `--dart-define=API_BASE_URL=...`
-(ver `lib/src/core/config/env.dart`); el default es `http://localhost:3000/api/v1`.
+(ver `lib/src/core/config/env.dart`); el default compilado es la IP de la red
+local `http://192.168.1.40:3000/api/v1`, así que conviene pasarla explícita.
 El contrato exacto del API vive en `docs/api-contract.md`.
+
+#### Capas de Google en el mapa
+
+El botón de capas del mapa ofrece siempre cuatro capas: Mapa (OpenStreetMap),
+Mapas y Satélite (Google) y Oscuro (MapTiler). Las dos de Google usan la
+**Map Tiles API** y necesitan clave; sin ella aparecen marcadas como
+«Requiere clave» en vez de esconderse.
+
+```sh
+# 1) Escribe tu clave en config/env.json (no la subes a git)
+#    { "GOOGLE_MAPS_API_KEY": "AIza..." }
+# 2) Ejecuta leyendo ese archivo
+flutter run -d chrome \
+  --dart-define=API_BASE_URL=http://localhost:3000/api/v1 \
+  --dart-define-from-file=config/env.json
+```
+
+En VS Code ya hay configuraciones de lanzamiento que usan ese archivo
+(`.vscode/launch.json`). La clave se pide en Google Cloud → _Map Tiles API_
+(`createSession` + `2dtiles`); el resto de capas funciona sin ninguna clave.
 
 > **Android**: `INTERNET`, `ACCESS_FINE_LOCATION`/`ACCESS_COARSE_LOCATION` y
 > `usesCleartextTraffic="true"` (para `http://10.0.2.2`) ya están en el

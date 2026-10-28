@@ -22,6 +22,8 @@ class MapScene {
     this.interactive = true,
     this.showTiles = true,
     this.dark = false,
+    this.styleOverride,
+    this.backgroundOverride,
     this.minZoom = 4,
     this.maxZoom = 18,
     this.myLocationEnabled = false,
@@ -52,8 +54,16 @@ class MapScene {
   /// `false` => sin tiles: la fachada usa el motor simulado.
   final bool showTiles;
 
-  /// Tema claro/oscuro (elige estilo y fondo).
+  /// Tema claro/oscuro (elige estilo y fondo por defecto).
   final bool dark;
+
+  /// `styleString` explícito del tile elegido (p. ej. el JSON ráster de Google).
+  /// `null` → el derivado de [dark] (URL MapTiler claro/oscuro), el
+  /// comportamiento histórico.
+  final String? styleOverride;
+
+  /// Color de fondo explícito del tile. `null` → el derivado de [dark].
+  final Color? backgroundOverride;
 
   final double minZoom;
   final double maxZoom;
@@ -73,15 +83,17 @@ class MapScene {
   /// El usuario dejó de seguir su ubicación (pan sobre el puck).
   final VoidCallback? onTrackingDismissed;
 
-  /// URL/JSON del estilo según el tema.
-  String get styleString => dark ? UrbanoMapStyles.dark : UrbanoMapStyles.light;
+  /// URL/JSON del estilo según el tile ([styleOverride]) o el tema por defecto.
+  String get styleString =>
+      styleOverride ?? (dark ? UrbanoMapStyles.dark : UrbanoMapStyles.light);
 
   /// Color de fondo del lienzo (igual que el estilo para evitar parpadeos).
   ///
   /// El oscuro replica el `background` de *dataviz-dark* (`hsl(0, 0%, 16%)`
   /// = `#292929`), el claro el de *openstreetmap*.
   Color get background =>
-      dark ? const Color(0xFF292929) : const Color(0xFFE8EEF5);
+      backgroundOverride ??
+      (dark ? const Color(0xFF292929) : const Color(0xFFE8EEF5));
 
   /// Cámara inicial resuelta para un viewport concreto.
   MapCamera cameraFor(Size viewport) {
@@ -110,6 +122,8 @@ class MapScene {
     interactive: interactive,
     showTiles: showTiles,
     dark: dark,
+    styleOverride: styleOverride,
+    backgroundOverride: backgroundOverride,
     minZoom: minZoom,
     maxZoom: maxZoom,
     myLocationEnabled: myLocationEnabled,

@@ -2,8 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/theme/app_theme.dart';
-import '../../../../core/theme/map_theme_controller.dart';
-import '../../../../core/theme/map_theme_scope.dart';
 import '../../../../core/utils/extensions.dart';
 import '../../data/popular_places.dart';
 
@@ -41,18 +39,13 @@ Future<JourneyPlacePickResult?> showJourneyPlacePickerSheet(
   required WidgetRef ref,
   required String title,
 }) {
-  // La hoja se apoya sobre el mapa: su contenido (y el fondo del contenedor,
-  // que vive fuera del árbol del mapa) toman el brillo propio del mapa, no el
-  // de la app.
-  final mapTheme = MapThemeScope.themeFor(ref.read(mapThemeControllerProvider));
-
+  // La hoja es chrome de la app, no del mapa: se pinta con el tema de la app
+  // (el tile elegido solo cambia el mapa base).
   return showModalBottomSheet<JourneyPlacePickResult>(
     context: context,
     isScrollControlled: true,
     showDragHandle: true,
-    backgroundColor: (mapTheme ?? Theme.of(context)).colorScheme.surface,
-    builder: (sheetContext) =>
-        MapThemeScope(child: _PlacePickerSheetContent(title: title)),
+    builder: (_) => _PlacePickerSheetContent(title: title),
   );
 }
 

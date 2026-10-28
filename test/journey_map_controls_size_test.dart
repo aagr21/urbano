@@ -1,11 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-
 import 'package:urbano/src/core/location/location_fab.dart';
 import 'package:urbano/src/core/theme/app_theme.dart';
-import 'package:urbano/src/core/theme/map_theme_scope.dart';
-import 'package:urbano/src/core/widgets/map_theme_toggle_button.dart';
+import 'package:urbano/src/core/widgets/map_tile_button.dart';
 import 'package:urbano/src/features/journey/presentation/widgets/journey_map_button.dart';
 import 'package:urbano/src/features/journey/presentation/widgets/journey_map_controls.dart';
 
@@ -16,18 +14,16 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         home: ProviderScope(
-          child: MapThemeScope(
-            child: Scaffold(
-              body: JourneyMapControls(
-                onZoomIn: () {},
-                onZoomOut: () {},
-                onOpenMicros: () async {},
-                microsActive: false,
-                tracking: false,
-                onFollowChanged: (_) {},
-                fullscreen: false,
-                onToggleFullscreen: () {},
-              ),
+          child: Scaffold(
+            body: JourneyMapControls(
+              onZoomIn: () {},
+              onZoomOut: () {},
+              onOpenMicros: () async {},
+              microsActive: false,
+              tracking: false,
+              onFollowChanged: (_) {},
+              fullscreen: false,
+              onToggleFullscreen: () {},
             ),
           ),
         ),
@@ -49,7 +45,7 @@ void main() {
     final fab = tester.getSize(find.byType(LocationFab));
     expect(fab.width, AppControl.mapButton);
     expect(fab.height, AppControl.mapButton);
-    final toggle = tester.getSize(find.byType(MapThemeToggleButton));
+    final toggle = tester.getSize(find.byType(MapTileButton));
     expect(toggle.width, AppControl.mapButton);
     expect(toggle.height, AppControl.mapButton);
   });

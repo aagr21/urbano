@@ -7,7 +7,6 @@ import '../../../../core/animation/motion.dart';
 import '../../../../core/map/map.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_theme.dart';
-import '../../../../core/theme/map_theme_scope.dart';
 import '../../../../core/utils/extensions.dart';
 import '../../../../core/widgets/urbano_map.dart';
 import '../home_providers.dart';
@@ -79,116 +78,113 @@ class _FeaturedMapCardState extends ConsumerState<FeaturedMapCard> {
               onTap: () => context.go('/journey'),
               child: SizedBox(
                 height: 190,
-                // El mapa de la tarjeta (y lo que flota sobre él) usa el brillo
-                // propio del mapa, no el del tema de la app.
-                child: MapThemeScope(
-                  child: Stack(
-                    fit: StackFit.expand,
-                    children: [
-                      UrbanoMap(
-                        controller: _controller,
-                        center: FeaturedMapCard._santaCruz,
-                        zoom: 11.5,
-                        interactive: false,
-                        attribution: false,
-                        polylines: shape == null
-                            ? const <MapPolyline>[]
-                            : [
-                                MapPolyline(
-                                  points: shape.points,
-                                  color: AppColors.fromHex(shape.colorHex),
-                                  outline: true,
-                                ),
-                              ],
-                      ),
-                      DecoratedBox(
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            begin: Alignment.topCenter,
-                            end: Alignment.bottomCenter,
-                            colors: [
-                              Colors.transparent,
-                              Colors.black.withValues(alpha: 0.72),
+                // El mapa de la tarjeta usa el tile elegido por el usuario; el
+                // scrub, el texto y el ícono siguen el tema de la app.
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    UrbanoMap(
+                      controller: _controller,
+                      center: FeaturedMapCard._santaCruz,
+                      zoom: 11.5,
+                      interactive: false,
+                      attribution: false,
+                      polylines: shape == null
+                          ? const <MapPolyline>[]
+                          : [
+                              MapPolyline(
+                                points: shape.points,
+                                color: AppColors.fromHex(shape.colorHex),
+                                outline: true,
+                              ),
                             ],
-                          ),
-                        ),
-                      ),
-                      Positioned(
-                        left: 16,
-                        right: 16,
-                        bottom: 14,
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.end,
-                          children: [
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'Explora Santa Cruz en el mapa',
-                                    style: text.titleSmall?.copyWith(
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.w800,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 2),
-                                  Row(
-                                    children: [
-                                      // Punto vivo junto al recuento: dice «esto
-                                      // está leído del feed, ahora» sin agregar
-                                      // texto nuevo.
-                                      const _CoverageDot(),
-                                      const SizedBox(width: 12),
-                                      Flexible(
-                                        child: Text(
-                                          stats.when(
-                                            data: (s) => '${s.routes} rutas',
-                                            loading: () =>
-                                                'Cargando cobertura…',
-                                            error: (_, _) =>
-                                                'Mapa interactivo de la ciudad',
-                                          ),
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                          style: text.labelSmall?.copyWith(
-                                            color: Colors.white.withValues(
-                                              alpha: 0.85,
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ],
-                              ),
-                            ),
-                            Container(
-                              width: 42,
-                              height: 42,
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(
-                                  AppRadius.input,
-                                ),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.black.withValues(alpha: 0.25),
-                                    blurRadius: 12,
-                                    offset: const Offset(0, 4),
-                                  ),
-                                ],
-                              ),
-                              child: Icon(
-                                Icons.map_rounded,
-                                color: colors.primary,
-                                size: 22,
-                              ),
-                            ),
+                    ),
+                    DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [
+                            Colors.transparent,
+                            Colors.black.withValues(alpha: 0.72),
                           ],
                         ),
                       ),
-                    ],
-                  ),
+                    ),
+                    Positioned(
+                      left: 16,
+                      right: 16,
+                      bottom: 14,
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Explora Santa Cruz en el mapa',
+                                  style: text.titleSmall?.copyWith(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Row(
+                                  children: [
+                                    // Punto vivo junto al recuento: dice «esto
+                                    // está leído del feed, ahora» sin agregar
+                                    // texto nuevo.
+                                    const _CoverageDot(),
+                                    const SizedBox(width: 12),
+                                    Flexible(
+                                      child: Text(
+                                        stats.when(
+                                          data: (s) => '${s.routes} rutas',
+                                          loading: () => 'Cargando cobertura…',
+                                          error: (_, _) =>
+                                              'Mapa interactivo de la ciudad',
+                                        ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: text.labelSmall?.copyWith(
+                                          color: Colors.white.withValues(
+                                            alpha: 0.85,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                          Container(
+                            width: 42,
+                            height: 42,
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(
+                                AppRadius.input,
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withValues(alpha: 0.25),
+                                  blurRadius: 12,
+                                  offset: const Offset(0, 4),
+                                ),
+                              ],
+                            ),
+                            child: Icon(
+                              Icons.map_rounded,
+                              color: colors.primary,
+                              size: 22,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),

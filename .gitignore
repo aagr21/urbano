@@ -1,6 +1,9 @@
 # Miscellaneous
 *.class
 *.log
+
+# Clave local de la Map Tiles API (config/env.json puede quedar con "")
+config/env.json
 *.pyc
 *.swp
 .DS_Store

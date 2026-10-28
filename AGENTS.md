@@ -46,7 +46,8 @@ https://download.geofabrik.de/south-america/bolivia-latest.osm.pbf -o bolivia-la
 
 `lib/src/core/config/env.dart` defaults `API_BASE_URL` to the **LAN IP
 `http://192.168.1.40:3000/api/v1`**, not localhost as `README.md` claims. Always pass it
-explicitly for targeted runs:
+explicitly for targeted runs (`.vscode/launch.json` already does, and adds
+`--dart-define-from-file=config/env.json` for the Google layer key):
 
 - Desktop/chrome: `--dart-define=API_BASE_URL=http://localhost:3000/api/v1`
 - Android emulator: `--dart-define=API_BASE_URL=http://10.0.2.2:3000/api/v1`
@@ -118,6 +119,16 @@ platform view; the merged map/result-sheet design is deliberate (see README).
 
 - Render async lists/queries with `core/widgets/async_value_view.dart`
   (`AsyncValueView`/`AsyncListView`) instead of hand-rolling per screen.
+- **Map layer ≠ app theme.** The map's base layer is `MapTile` (`core/map/map_tile.dart`, chosen
+  through `MapTileButton` and persisted under `urbano.map_tile`); the UI theme is
+  `themeModeControllerProvider`. A layer changes **only the base map** — buttons, chips, panels,
+  sheets and markers always follow the app theme, so there is no nested `Theme`/scope around map
+  overlays. UI copy says **capa**, never "tile". `MapTile.resolve(appDark:, choice:)` (choice
+  `null` = follow the app's brightness) is the single place that decision is made — read it from
+  `mapThemeControllerProvider`, never re-derive it per widget. All four layers (including the two
+  Google ones) are always listed; without `GOOGLE_MAPS_API_KEY` the Google cards are marked
+  "Requiere clave" and explain the flag instead of being hidden — and `flutter test` always has an
+  empty key, so never make a test depend on Google tiles rendering.
 - The left **micros panel** (`journey/presentation/widgets/journey_micros_sheet.dart`,
   tiles in `journey_micros_tile.dart`) keeps its working state — searched text,
   list scroll, cached `/routes` pages and fetched headsign details — in

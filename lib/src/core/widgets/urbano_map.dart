@@ -2,14 +2,17 @@ import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:latlong2/latlong.dart';
 
 import '../map/fake_map_engine.dart';
+import '../map/google_tiles_session.dart';
 import '../map/map.dart';
 import '../map/map_scene.dart';
-import '../map/map_styles.dart';
+import '../map/map_tile.dart';
 import '../map/maplibre_engine.dart';
 import '../theme/app_theme.dart';
+import '../theme/map_theme_controller.dart';
 import '../utils/extensions.dart';
 import '../utils/runtime_flags.dart';
 
@@ -26,7 +29,7 @@ import '../utils/runtime_flags.dart';
 ///
 /// Ambos motores comparten la misma API: cámara ([UrbanoMapController]),
 /// encuadre, taps de mapa y drags de marcadores.
-class UrbanoMap extends StatefulWidget {
+class UrbanoMap extends ConsumerStatefulWidget {
   const UrbanoMap({
     super.key,
     required this.center,
@@ -89,10 +92,10 @@ class UrbanoMap extends StatefulWidget {
   final bool followMyLocation;
 
   @override
-  State<UrbanoMap> createState() => _UrbanoMapState();
+  ConsumerState<UrbanoMap> createState() => _UrbanoMapState();
 }
 
-class _UrbanoMapState extends State<UrbanoMap> {
+class _UrbanoMapState extends ConsumerState<UrbanoMap> {
   bool _readyFired = false;
 
   void _handleMapReady() {
@@ -103,7 +106,11 @@ class _UrbanoMapState extends State<UrbanoMap> {
     widget.onMapReady?.call();
   }
 
-  MapScene _buildScene(bool dark) => MapScene(
+  MapScene _buildScene({
+    required bool dark,
+    required String? styleOverride,
+    required Color background,
+  }) => MapScene(
     center: widget.center,
     zoom: widget.zoom,
     cameraFit: widget.cameraFit,
@@ -112,6 +119,8 @@ class _UrbanoMapState extends State<UrbanoMap> {
     interactive: widget.interactive,
     showTiles: widget.showTiles,
     dark: dark,
+    styleOverride: styleOverride,
+    backgroundOverride: background,
     myLocationEnabled: widget.myLocationEnabled,
     followMyLocation: widget.followMyLocation,
     onMapReady: _handleMapReady,
@@ -126,8 +135,27 @@ class _UrbanoMapState extends State<UrbanoMap> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final scene = _buildScene(isDark);
+    // Capa efectiva del mapa: la elección del usuario, o el defecto del brillo
+    // de la app. MIRA el provider directamente: la capa solo cambia el mapa
+    // base, nunca el tema de los overlays (eso es el tema de la app).
+    final tile = MapTile.resolve(
+      appDark: Theme.of(context).brightness == Brightness.dark,
+      choice: ref.watch(mapThemeControllerProvider),
+    );
+    final isDark = tile.brightness == Brightness.dark;
+    // Capas MapTiler (OSM/Oscuro): estilo síncrono → `styleOverride: null` deja
+    // que `MapScene` derive la URL de `dark`. Capas Google: el estilo ráster
+    // llega al resolverse la sesión; mientras (`value == null`) se muestra el
+    // estilo MapTiler del MISMO brillo como placeholder, nunca un estilo vacío
+    // (un `setStyle` con estilo inválido recargaría el motor en balde).
+    final styleOverride = tile.isGoogle
+        ? ref.watch(googleStyleProvider(tile)).value
+        : null;
+    final scene = _buildScene(
+      dark: isDark,
+      styleOverride: styleOverride,
+      background: tile.backgroundColor,
+    );
     // En tests siempre el motor simulado (sin plugin ni red), aunque la
     // pantalla pida tiles.
     final useRealEngine = widget.showTiles && !isRunningUnderTest;
@@ -154,10 +182,7 @@ class _UrbanoMapState extends State<UrbanoMap> {
                 color: context.colors.surface.withValues(alpha: 0.85),
                 borderRadius: BorderRadius.circular(AppRadius.sm),
               ),
-              child: Text(
-                UrbanoMapStyles.attribution(dark: isDark),
-                style: context.text.labelSmall,
-              ),
+              child: Text(tile.attribution, style: context.text.labelSmall),
             ),
           ),
         ),

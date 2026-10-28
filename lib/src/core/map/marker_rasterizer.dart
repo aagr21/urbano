@@ -35,9 +35,9 @@ class MarkerRasterizer {
     MapMarker marker, {
     double pixelRatio = 3,
   }) async {
-    // El brillo del llamador es el del MAPA (ver `MapThemeScope`), no el de la
-    // app: el mapa puede estar fijado en oscuro con la app clara. Forma parte de
-    // la clave porque al cambiar de brillo el motor recarga el estilo y vuelve a
+    // El brillo con el que se rasteriza es el del TEMA DE LA APP (el tile
+    // elegido solo cambia el mapa base, no los marcadores). Forma parte de la
+    // clave porque al cambiar el brillo el motor recarga el estilo y vuelve a
     // pedir el icono; si la clave fuera ciega al brillo devolviera el PNG viejo.
     final theme = Theme.of(context);
     final key =
@@ -63,10 +63,10 @@ class MarkerRasterizer {
             child: SizedBox(
               width: marker.width,
               height: marker.height,
-              // El `Overlay` raíz cuelga POR ENCIMA del `MapThemeScope`, así que
-              // allí `Theme.of` devuelve el tema de la app. Sin reinstalar el del
-              // llamador, cualquier marcador que lea `context.colors` saldría
-              // rasterizado con la letra del tema equivocado (cruce de temas).
+              // El `Overlay` raíz cuelga POR ENCIMA del árbol de la pantalla,
+              // así que allí `Theme.of` devuelve otro tema. Sin reinstalar el
+              // del llamador, cualquier marcador que lea `context.colors`
+              // saldría rasterizado con el tema equivocado (cruce de temas).
               child: Theme(data: theme, child: marker.child),
             ),
           ),

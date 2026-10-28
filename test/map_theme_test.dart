@@ -2,17 +2,17 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:latlong2/latlong.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:urbano/src/core/map/fake_map_engine.dart';
 import 'package:urbano/src/core/map/map_scene.dart';
 import 'package:urbano/src/core/map/map_styles.dart';
+import 'package:urbano/src/core/map/map_tile.dart';
 import 'package:urbano/src/core/router/app_router.dart';
 import 'package:urbano/src/core/theme/app_colors.dart';
 import 'package:urbano/src/core/theme/app_theme.dart';
 import 'package:urbano/src/core/theme/map_theme_controller.dart';
-import 'package:urbano/src/core/theme/map_theme_scope.dart';
 import 'package:urbano/src/core/utils/location.dart';
-import 'package:urbano/src/core/widgets/glass_card.dart';
-import 'package:urbano/src/core/widgets/map_theme_toggle_button.dart';
+import 'package:urbano/src/core/widgets/map_tile_button.dart';
 import 'package:urbano/src/core/widgets/urbano_map.dart';
 import 'package:urbano/src/features/home/presentation/widgets/home_header.dart';
 import 'package:urbano/src/features/journey/presentation/journey_providers.dart';
@@ -21,25 +21,25 @@ import 'helpers/contrast.dart';
 import 'helpers/fake_location_service.dart';
 import 'helpers/journey_fixtures.dart';
 
-/// Persistencia del modo del mapa en memoria (regla del repo: `flutter test`
+/// Persistencia del tile del mapa en memoria (regla del repo: `flutter test`
 /// nunca depende de plugins).
 class MemoryMapThemeStore implements MapThemeStore {
   MemoryMapThemeStore([this._initial]);
 
-  bool? _initial;
-  bool? lastSaved;
+  MapTile? _initial;
+  MapTile? lastSaved;
   int saves = 0;
 
   @override
-  Future<bool?> load() async {
+  Future<MapTile?> load() async {
     final value = _initial;
     _initial = null; // como un store real: la carga no es idempotente.
     return value;
   }
 
   @override
-  Future<void> save(bool? dark) async {
-    lastSaved = dark;
+  Future<void> save(MapTile? tile) async {
+    lastSaved = tile;
     saves++;
   }
 }
@@ -47,10 +47,10 @@ class MemoryMapThemeStore implements MapThemeStore {
 /// Store que lanza al leer (simula una preferencia corrupta sin plugins).
 class _BrokenMapThemeStore implements MapThemeStore {
   @override
-  Future<bool?> load() async => throw Exception('store corrupta');
+  Future<MapTile?> load() async => throw Exception('store corrupta');
 
   @override
-  Future<void> save(bool? dark) async {}
+  Future<void> save(MapTile? tile) async {}
 }
 
 /// Colores del buscador de la cabecera, leídos del widget ya pintado.
@@ -62,11 +62,21 @@ typedef _HeaderField = ({
   Color ink,
 });
 
-/// Brillo del mapa para una combinación: elección del usuario o tema de la app.
-bool _mapIsDark({required bool appDark, bool? choice}) => choice ?? appDark;
+/// Tile efectivo del mapa para una combinación (mismo cálculo que [UrbanoMap]).
+MapTile _effectiveTile({required bool appDark, MapTile? choice}) =>
+    MapTile.resolve(appDark: appDark, choice: choice);
+
+/// Brillo del mapa para una combinación: tile elegido o defecto del tema de la app.
+bool _mapIsDark({required bool appDark, MapTile? choice}) =>
+    _effectiveTile(appDark: appDark, choice: choice).brightness ==
+    Brightness.dark;
+
+/// Estilo (URL MapTiler) que debe resultar para un tile no-Google.
+String _expectedStyle({required bool appDark, MapTile? choice}) =>
+    _effectiveTile(appDark: appDark, choice: choice).staticStyle!;
 
 void main() {
-  group('MapThemeController (modo propio del mapa)', () {
+  group('MapThemeController (tile propio del mapa)', () {
     test(
       'sin preferencia guardada el mapa arranca siguiendo al tema de la app',
       () {
@@ -77,56 +87,68 @@ void main() {
       },
     );
 
-    test('restaura en background el modo que el usuario eligió', () async {
-      final container = _container(MemoryMapThemeStore(true));
+    test('restaura en background el tile que el usuario eligió', () async {
+      final container = _container(MemoryMapThemeStore(MapTile.dark));
       addTearDown(container.dispose);
 
-      // Mientras la carga está en vuelo no hay modo fijado visible.
+      // Mientras la carga está en vuelo no hay tile fijado visible.
       expect(container.read(mapThemeControllerProvider), isNull);
       await Future<void>.delayed(Duration.zero);
-      expect(container.read(mapThemeControllerProvider), isTrue);
+      expect(container.read(mapThemeControllerProvider), MapTile.dark);
     });
 
     // Regresión STYLE_NOT_READY: `main()` pre-carga la preferencia y la inyecta.
     // Si el controller la cambiara después, el mapa ya montado recibiría un
     // segundo `setStyleString` que compite con la carga del estilo nativo.
     test(
-      'modo pre-cargado se aplica síncrono y no cambia en background',
+      'tile pre-cargado se aplica síncrono y no cambia en background',
       () async {
-        final store = MemoryMapThemeStore(false);
-        final container = _container(store, preloaded: false);
+        final store = MemoryMapThemeStore(MapTile.osm);
+        final container = _container(
+          store,
+          preload: true,
+          preloaded: MapTile.osm,
+        );
         addTearDown(container.dispose);
 
-        expect(container.read(mapThemeControllerProvider), isFalse);
+        expect(container.read(mapThemeControllerProvider), MapTile.osm);
         await Future<void>.delayed(Duration.zero);
-        expect(container.read(mapThemeControllerProvider), isFalse);
+        expect(container.read(mapThemeControllerProvider), MapTile.osm);
       },
     );
 
-    test('setDark fija el modo al instante y lo persiste', () {
+    test('setTile fija el tile al instante y lo persiste', () {
       final store = MemoryMapThemeStore();
       final container = _container(store);
       addTearDown(container.dispose);
 
-      container.read(mapThemeControllerProvider.notifier).setDark(true);
+      container.read(mapThemeControllerProvider.notifier).setTile(MapTile.dark);
 
-      expect(container.read(mapThemeControllerProvider), isTrue);
-      expect(store.lastSaved, isTrue);
+      expect(container.read(mapThemeControllerProvider), MapTile.dark);
+      expect(store.lastSaved, MapTile.dark);
     });
 
-    test('setDark con el valor que ya estaba no escribe en disco', () {
-      final store = MemoryMapThemeStore(false);
-      final container = _container(store, preloaded: false);
+    test('setTile con el valor que ya estaba no escribe en disco', () {
+      final store = MemoryMapThemeStore(MapTile.osm);
+      final container = _container(
+        store,
+        preload: true,
+        preloaded: MapTile.osm,
+      );
       addTearDown(container.dispose);
 
-      container.read(mapThemeControllerProvider.notifier).setDark(false);
+      container.read(mapThemeControllerProvider.notifier).setTile(MapTile.osm);
 
       expect(store.saves, isZero);
     });
 
     test('followAppTheme borra la elección y persiste el borrado', () {
-      final store = MemoryMapThemeStore(true);
-      final container = _container(store, preloaded: true);
+      final store = MemoryMapThemeStore(MapTile.dark);
+      final container = _container(
+        store,
+        preload: true,
+        preloaded: MapTile.dark,
+      );
       addTearDown(container.dispose);
 
       container.read(mapThemeControllerProvider.notifier).followAppTheme();
@@ -150,93 +172,93 @@ void main() {
         expect(container.read(mapThemeControllerProvider), isNull);
       },
     );
+
+    test(
+      'migra la preferencia antigua (bool oscuro/claro) a un tile',
+      () async {
+        SharedPreferences.setMockInitialValues({'urbano.map_theme_dark': true});
+        expect(await SharedPreferencesMapThemeStore().load(), MapTile.dark);
+
+        SharedPreferences.setMockInitialValues({
+          'urbano.map_theme_dark': false,
+        });
+        expect(await SharedPreferencesMapThemeStore().load(), MapTile.osm);
+
+        // Sin ninguna clave → `null` (sigue al tema de la app).
+        SharedPreferences.setMockInitialValues({});
+        expect(await SharedPreferencesMapThemeStore().load(), isNull);
+      },
+    );
   });
 
-  group('MapThemeScope (el mapa y lo que flota sobre él)', () {
-    test('themeFor: sin elección no hay tema extra; con ella, el del mapa', () {
-      expect(MapThemeScope.themeFor(null), isNull);
-      expect(MapThemeScope.themeFor(true)?.brightness, Brightness.dark);
-      expect(MapThemeScope.themeFor(false)?.brightness, Brightness.light);
+  group('Independencia tile/tema (el tile solo cambia el mapa)', () {
+    test(
+      'resolve: sin elección manda el brillo de la app; con ella, el tile',
+      () {
+        expect(MapTile.resolve(appDark: false), MapTile.osm);
+        expect(MapTile.resolve(appDark: true), MapTile.dark);
+        expect(
+          MapTile.resolve(appDark: false, choice: MapTile.dark),
+          MapTile.dark,
+        );
+        expect(
+          MapTile.resolve(appDark: true, choice: MapTile.osm),
+          MapTile.osm,
+        );
+        expect(
+          MapTile.resolve(
+            appDark: false,
+            choice: MapTile.googleSatellite,
+          ).brightness,
+          Brightness.dark,
+        );
+      },
+    );
+
+    // El corazón de la independencia pedida por el usuario: «Oscuro» pinta el
+    // mapa base oscuro, pero los botones/paneles siguen al tema de la app.
+    testWidgets('mapa en Oscuro con app clara: solo el mapa se oscurece', (
+      tester,
+    ) async {
+      await _pumpScope(tester, appDark: false, choice: MapTile.dark);
+
+      final scene = _scene(tester);
+      expect(scene.dark, isTrue);
+      expect(scene.styleString, UrbanoMapStyles.dark);
+      expect(scene.background, MapTile.dark.backgroundColor);
+      // El chrome de la app NO se movió.
+      expect(_appBrightness(tester), Brightness.light);
     });
 
-    testWidgets('sin elección todo hereda el brillo de la app (no-op)', (
+    testWidgets('mapa en OSM con app oscura: la interfaz sigue oscura', (
+      tester,
+    ) async {
+      await _pumpScope(tester, appDark: true, choice: MapTile.osm);
+
+      final scene = _scene(tester);
+      expect(scene.dark, isFalse);
+      expect(scene.styleString, UrbanoMapStyles.light);
+      expect(_appBrightness(tester), Brightness.dark);
+    });
+
+    testWidgets('sin elección el mapa hereda el brillo de la app', (
       tester,
     ) async {
       await _pumpScope(tester, appDark: true, choice: null);
 
       expect(_scene(tester).dark, isTrue);
-      expect(_overlayTheme(tester).brightness, Brightness.dark);
-    });
-
-    // El corazón de la independencia: mapa oscuro con app clara.
-    testWidgets('mapa en oscuro con app clara no arrastra al tema de la app', (
-      tester,
-    ) async {
-      await _pumpScope(tester, appDark: false, choice: true);
-
-      final scene = _scene(tester);
-      expect(scene.dark, isTrue);
-      expect(scene.styleString, UrbanoMapStyles.dark);
-      // El overlay (vidrio + su letra) resuelve el brillo DEL mapa...
-      expect(_overlayTheme(tester).brightness, Brightness.dark);
-      // ...y la app, por encima del ámbito, sigue clara.
-      expect(_appBrightness(tester), Brightness.light);
-
-      // Legibilidad medida sobre el fondo REAL: el vidrio del tema oscuro puesto
-      // sobre el lienzo oscuro. Sin el ámbito sería la tinta del tema CLARO
-      // sobre ese mismo vidrio, y eso es lo que el segundo `expect` comprueba.
-      final glass = Color.lerp(scene.background, Colors.white, 0.08)!;
-      expect(
-        colorContrast(_overlayTheme(tester).colorScheme.onSurface, glass),
-        greaterThanOrEqualTo(4.5),
-      );
-      expect(
-        colorContrast(AppTheme.light().colorScheme.onSurface, glass),
-        lessThan(4.5),
-        reason: 'el test no vale si el cruce ya fuera legible',
-      );
-
-      // Y el filo del vidrio se separa del mapa (frontera significativa: 3:1),
-      // que con el blanco al 12% histórico era invisible sobre el lienzo oscuro.
-      expect(
-        colorContrast(
-          Color.lerp(scene.background, Colors.white, 0.35)!,
-          scene.background,
-        ),
-        greaterThanOrEqualTo(3.0),
-      );
-    });
-
-    testWidgets('mapa en claro con app oscura: sin letra clara sobre vidrio '
-        'claro', (tester) async {
-      await _pumpScope(tester, appDark: true, choice: false);
-
-      final scene = _scene(tester);
-      expect(scene.dark, isFalse);
-      expect(scene.styleString, UrbanoMapStyles.light);
-      expect(_overlayTheme(tester).brightness, Brightness.light);
       expect(_appBrightness(tester), Brightness.dark);
-
-      final glass = Color.lerp(scene.background, Colors.white, 0.82)!;
-      expect(
-        colorContrast(_overlayTheme(tester).colorScheme.onSurface, glass),
-        greaterThanOrEqualTo(4.5),
-      );
-      expect(
-        colorContrast(AppTheme.dark().colorScheme.onSurface, glass),
-        lessThan(4.5),
-        reason: 'el test no vale si el cruce ya fuera legible',
-      );
     });
   });
 
-  group('Cuatro combinaciones app × mapa en la pantalla Viaje', () {
+  group('Combinaciones app × tile en la pantalla Viaje', () {
     for (final appDark in [false, true]) {
-      for (final choice in [false, true, null]) {
+      for (final choice in <MapTile?>[MapTile.osm, MapTile.dark, null]) {
         final mapLabel = switch (choice) {
           null => 'sin elección',
-          true => 'oscuro',
-          false => 'claro',
+          MapTile.osm => 'OSM',
+          MapTile.dark => 'Oscuro',
+          _ => choice.name,
         };
         testWidgets('app ${appDark ? 'oscura' : 'clara'} con mapa $mapLabel', (
           tester,
@@ -256,53 +278,51 @@ void main() {
           expect(scene.dark, expectedDark);
           expect(
             scene.styleString,
-            expectedDark ? UrbanoMapStyles.dark : UrbanoMapStyles.light,
+            _expectedStyle(appDark: appDark, choice: choice),
           );
 
-          // 2. Sin fugas hacia arriba: la pantalla (fuera del ámbito) conserva
-          //    el brillo de la app.
-          expect(
-            _appBrightness(tester),
-            appDark ? Brightness.dark : Brightness.light,
-          );
-
-          // 3. Los superpuestos del mapa leen el brillo del mapa: la tarjeta
-          //    origen→destino (GlassCard) y la píldora de atribución.
-          expect(
-            _overlayTheme(tester).brightness,
-            expectedDark ? Brightness.dark : Brightness.light,
-          );
+          // 2. Sin fugas hacia ningún lado: la pantalla entera conserva el
+          //    brillo de la app. El chrome (tarjeta origen→destino, píldora de
+          //    atribución, controles) NO se re-tematiza por elegir un tile.
+          final appBrightness = appDark ? Brightness.dark : Brightness.light;
+          final themeOnSurface = appDark
+              ? AppTheme.dark().colorScheme.onSurface
+              : AppTheme.light().colorScheme.onSurface;
+          expect(_appBrightness(tester), appBrightness);
           expect(
             Theme.of(
               tester.element(
-                find.text(UrbanoMapStyles.attribution(dark: expectedDark)),
+                find.text(
+                  _effectiveTile(appDark: appDark, choice: choice).attribution,
+                ),
               ),
             ).brightness,
-            expectedDark ? Brightness.dark : Brightness.light,
+            appBrightness,
           );
 
-          // 4. Con ese brillo, la letra del overlay contra el fondo que
-          //    realmente pinta (vidrio compuesto sobre el lienzo) pasa AA.
-          final glass = Color.lerp(
-            scene.background,
-            Colors.white,
-            expectedDark ? 0.08 : 0.82,
-          )!;
+          // 3. Legibilidad del chrome: los overlays siguen al tema de la app
+          //    sea cual sea el tile que pinte debajo (el lienzo del mapa es
+          //    solo fondo), así que la tinta se mide contra su propio tema.
           expect(
-            colorContrast(_overlayTheme(tester).colorScheme.onSurface, glass),
+            colorContrast(
+              themeOnSurface,
+              appDark
+                  ? AppTheme.dark().colorScheme.surface
+                  : AppTheme.light().colorScheme.surface,
+            ),
             greaterThanOrEqualTo(4.5),
-            reason: 'letra del overlay ilegible sobre el vidrio del mapa',
+            reason: 'letra del overlay ilegible sobre su propio tema',
           );
 
-          // 5. Nadie escribe en la store: el modo solo lo cambia el usuario.
+          // 4. Nadie escribe en la store: el tile solo lo cambia el usuario.
           expect(store.saves, isZero);
         });
       }
     }
   });
 
-  group('Cambiador de brillo del mapa (UI)', () {
-    testWidgets('pulsar alterna el mapa y persiste, sin tocar la app', (
+  group('Selector de capa del mapa (UI)', () {
+    testWidgets('abrir la hoja y elegir "Oscuro" fija la capa y persiste', (
       tester,
     ) async {
       final store = MemoryMapThemeStore();
@@ -310,60 +330,103 @@ void main() {
 
       expect(_scene(tester).dark, isFalse);
 
-      await tester.tap(find.byType(MapThemeToggleButton));
+      await tester.tap(find.byType(MapTileButton));
+      await tester.pumpAndSettle();
+
+      await tester.tap(_layerCard(MapTile.dark));
       await tester.pumpAndSettle();
 
       // El cruce pedido: mapa oscuro con app clara.
       expect(_scene(tester).dark, isTrue);
-      expect(store.lastSaved, isTrue);
+      expect(store.lastSaved, MapTile.dark);
       expect(_appBrightness(tester), Brightness.light);
-
-      await tester.tap(find.byType(MapThemeToggleButton));
-      await tester.pumpAndSettle();
-      expect(_scene(tester).dark, isFalse);
-      expect(store.lastSaved, isFalse);
     });
 
-    testWidgets('mantener pulsado devuelve el mapa al tema de la app', (
+    testWidgets('hoja con app clara: legible con miniaturas oscuras enfrente', (
       tester,
     ) async {
-      final store = MemoryMapThemeStore(true);
-      await _pumpPlanner(tester, appDark: false, choice: true, store: store);
+      // Capa oscura fijada con app clara: las tarjetas se pintan con el tema de
+      // la app (la miniatura oscura es solo un dibujo dentro de la tarjeta).
+      await _pumpPlanner(
+        tester,
+        appDark: false,
+        choice: MapTile.dark,
+        store: MemoryMapThemeStore(MapTile.dark),
+      );
+      await _expectSheetCardsLegible(tester, appDark: false);
+    });
 
-      // Se dispara el callback en vez de `tester.longPress`: al borrarse la
-      // elección, `MapThemeScope` deja de instalar su `Theme` y todo el subtree
-      // del mapa se reconstruye; el `PointerUpEvent` del gesto caería sobre un
-      // `RenderPointerListener` ya descartado (ruido del harness, no de la app).
-      final detector = tester
-          .widgetList<GestureDetector>(
-            find.descendant(
-              of: find.byType(MapThemeToggleButton),
-              matching: find.byType(GestureDetector),
-            ),
-          )
-          // `PressScale` también monta su `GestureDetector`: el que importa es
-          // el que lleva el `onLongPress` del cambiador.
-          .firstWhere((gesture) => gesture.onLongPress != null);
-      detector.onLongPress!();
+    testWidgets('hoja con app oscura: misma regla, tinta clara', (
+      tester,
+    ) async {
+      await _pumpPlanner(
+        tester,
+        appDark: true,
+        choice: MapTile.osm,
+        store: MemoryMapThemeStore(MapTile.osm),
+      );
+      await _expectSheetCardsLegible(tester, appDark: true);
+    });
+
+    testWidgets('Google se ve siempre: bloqueado sin clave, activo con clave', (
+      tester,
+    ) async {
+      final store = MemoryMapThemeStore();
+      await _pumpPlanner(tester, appDark: false, choice: null, store: store);
+
+      await tester.tap(find.byType(MapTileButton));
+      await tester.pumpAndSettle();
+
+      // En test `Env.googleMapsApiKey` está vacío: las dos capas de Google están
+      // visibles (ocultarlas era el bug) pero marcadas como no disponibles.
+      expect(_layerCard(MapTile.googleRoadmap), findsOneWidget);
+      expect(_layerCard(MapTile.googleSatellite), findsOneWidget);
+      expect(find.text('Mapas'), findsOneWidget);
+      expect(find.text('Satélite'), findsOneWidget);
+      expect(find.text('Requiere clave'), findsNWidgets(2));
+      expect(find.text('OpenStreetMap'), findsOneWidget);
+      expect(find.text('MapTiler'), findsOneWidget);
+
+      // Tocar una capa bloqueada NO elige nada ni cierra la hoja.
+      await tester.tap(_layerCard(MapTile.googleSatellite));
+      await tester.pumpAndSettle();
+
+      expect(store.saves, isZero);
+      expect(
+        find.text('flutter run --dart-define=GOOGLE_MAPS_API_KEY=AIza…'),
+        findsOneWidget,
+      );
+      expect(_scene(tester).dark, isFalse);
+    });
+
+    testWidgets('seguir el tema de la app borra la elección', (tester) async {
+      final store = MemoryMapThemeStore(MapTile.dark);
+      await _pumpPlanner(
+        tester,
+        appDark: false,
+        choice: MapTile.dark,
+        store: store,
+      );
+
+      await tester.tap(find.byType(MapTileButton));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Capa automática'));
       await tester.pumpAndSettle();
 
       expect(store.lastSaved, isNull);
       expect(_scene(tester).dark, isFalse); // vuelve a heredar el tema claro
-      expect(
-        find.text('El mapa vuelve a seguir el tema de la app'),
-        findsOneWidget,
-      );
     });
 
-    testWidgets('cambiar el tema de la app no mueve el modo fijado del mapa', (
+    testWidgets('cambiar el tema de la app no mueve la capa fijada del mapa', (
       tester,
     ) async {
-      // Mapa fijado en CLARO con app clara; después la app pasa a oscura.
+      // Mapa fijado en CLARO (OSM) con app clara; después la app pasa a oscura.
       final container = await _pumpPlanner(
         tester,
         appDark: false,
-        choice: false,
-        store: MemoryMapThemeStore(false),
+        choice: MapTile.osm,
+        store: MemoryMapThemeStore(MapTile.osm),
       );
       expect(_scene(tester).dark, isFalse);
       expect(_appBrightness(tester), Brightness.light);
@@ -375,31 +438,7 @@ void main() {
       expect(_appBrightness(tester), Brightness.dark);
       // ...el mapa se quedó donde lo dejó el usuario.
       expect(_scene(tester).dark, isFalse);
-      expect(_overlayTheme(tester).brightness, Brightness.light);
-    });
-
-    testWidgets('el ícono ofrece el modo contrario al brillo activo', (
-      tester,
-    ) async {
-      await _pumpPlanner(
-        tester,
-        appDark: false,
-        choice: false,
-        store: MemoryMapThemeStore(false),
-      );
-
-      Icon icon() => tester.widget<Icon>(
-        find.descendant(
-          of: find.byType(MapThemeToggleButton),
-          matching: find.byType(Icon),
-        ),
-      );
-
-      // Mapa claro → ofrece oscuro; tras el tap, mapa oscuro → ofrece claro.
-      expect(icon().icon, Icons.dark_mode_rounded);
-      await tester.tap(find.byType(MapThemeToggleButton));
-      await tester.pumpAndSettle();
-      expect(icon().icon, Icons.light_mode_rounded);
+      expect(_scene(tester).styleString, UrbanoMapStyles.light);
     });
   });
 
@@ -463,35 +502,95 @@ void main() {
 // Harness
 // ---------------------------------------------------------------------------
 
-ProviderContainer _container(MemoryMapThemeStore store, {bool? preloaded}) =>
-    ProviderContainer(
-      overrides: [
-        mapThemeStoreProvider.overrideWithValue(store),
-        if (preloaded != null)
-          mapThemeControllerProvider.overrideWith(
-            () => MapThemeController.preloaded(preloaded),
-          ),
-      ],
-    );
+ProviderContainer _container(
+  MemoryMapThemeStore store, {
+  bool preload = false,
+  MapTile? preloaded,
+}) => ProviderContainer(
+  overrides: [
+    mapThemeStoreProvider.overrideWithValue(store),
+    if (preload)
+      mapThemeControllerProvider.overrideWith(
+        () => MapThemeController.preloaded(preloaded),
+      ),
+  ],
+);
 
 /// `MapScene` del motor simulado que montó la pantalla.
 MapScene _scene(WidgetTester tester) =>
     tester.state<FakeMapEngineState>(find.byType(FakeMapEngine)).widget.scene;
 
-/// Tema que resuelve un overlay montado SOBRE el mapa (la `GlassCard`).
-ThemeData _overlayTheme(WidgetTester tester) =>
-    Theme.of(tester.element(find.byType(GlassCard).first));
+/// Etiqueta de la tarjeta de una capa dentro de la hoja del selector.
+Finder _layerCard(MapTile tile) =>
+    find.byKey(ValueKey('layer-card-${tile.name}'));
 
-/// Brillo de la app POR ENCIMA del ámbito del mapa (el `Scaffold` raíz).
+/// Colores realmente pintados de una tarjeta de capa.
+({Color fill, Color ink, Color secondary}) _cardOf(
+  WidgetTester tester,
+  MapTile tile,
+) {
+  // Fondo efectivamente pintado por la tarjeta.
+  final box = tester.widget<AnimatedContainer>(
+    find.byKey(ValueKey('layer-card-box-${tile.name}')),
+  );
+  final label = tester.widget<Text>(_layerCard(tile));
+  // La segunda línea de la tarjeta (proveedor o «Requiere clave»).
+  final secondary = tester.widget<Text>(
+    find.byKey(ValueKey('layer-card-state-${tile.name}')),
+  );
+  return (
+    fill: (box.decoration as BoxDecoration).color!,
+    ink: label.style!.color!,
+    secondary: secondary.style!.color!,
+  );
+}
+
+/// Abre la hoja y mide que toda tarjeta de capa sea legible **en su propio
+/// tema**: la miniatura puede ser oscura o clara (es un dibujo del mapa), pero
+/// la tinta y el fondo de la tarjeta son los del tema de la app.
+Future<void> _expectSheetCardsLegible(
+  WidgetTester tester, {
+  required bool appDark,
+}) async {
+  await tester.tap(find.byType(MapTileButton));
+  await tester.pumpAndSettle();
+
+  final expectedBrightness = appDark ? Brightness.dark : Brightness.light;
+  expect(
+    Theme.of(tester.element(_layerCard(MapTile.osm))).brightness,
+    expectedBrightness,
+  );
+
+  for (final tile in MapTile.values) {
+    final card = _cardOf(tester, tile);
+    expect(
+      colorContrast(card.ink, card.fill),
+      greaterThanOrEqualTo(4.5),
+      reason:
+          '${tile.shortLabel} ilegible (app ${appDark ? 'oscura' : 'clara'})',
+    );
+    expect(
+      colorContrast(card.secondary, card.fill),
+      greaterThanOrEqualTo(3.0),
+      reason: '${tile.provider} ilegible (app ${appDark ? 'oscura' : 'clara'})',
+    );
+    // Nadie pinta blanco/negro literales sobre la superficie de la hoja.
+    expect(card.ink, isNot(same(Colors.white)));
+    expect(card.ink, isNot(same(Colors.black)));
+  }
+}
+
+/// Brillo con el que se pinta la interfaz de la pantalla (el `Scaffold` raíz).
+/// Sin ámbitos de mapa, es SIEMPRE el de la app, sea cual sea el tile.
 Brightness _appBrightness(WidgetTester tester) =>
     Theme.of(tester.element(find.byType(Scaffold).first)).brightness;
 
-/// Mapa suelto con una tarjeta de vidrio encima: aínda el mecanismo del ámbito
-/// sin arrastrar providers del planeador.
+/// Mapa suelto con una etiqueta encima: aísla el resuelto del tile sin
+/// arrastrar providers del planeador.
 Future<void> _pumpScope(
   WidgetTester tester, {
   required bool appDark,
-  required bool? choice,
+  required MapTile? choice,
 }) async {
   final container = ProviderContainer(
     overrides: [
@@ -509,24 +608,18 @@ Future<void> _pumpScope(
       child: MaterialApp(
         theme: appDark ? AppTheme.dark() : AppTheme.light(),
         home: const Scaffold(
-          body: MapThemeScope(
-            child: Stack(
-              children: [
-                Positioned.fill(
-                  child: UrbanoMap(
-                    center: LatLng(-17.78, -63.15),
-                    zoom: 12,
-                    interactive: false,
-                    showTiles: false,
-                  ),
+          body: Stack(
+            children: [
+              Positioned.fill(
+                child: UrbanoMap(
+                  center: LatLng(-17.78, -63.15),
+                  zoom: 12,
+                  interactive: false,
+                  showTiles: false,
                 ),
-                Positioned(
-                  top: 8,
-                  left: 8,
-                  child: GlassCard(child: Text('Origen → destino')),
-                ),
-              ],
-            ),
+              ),
+              Positioned(top: 8, left: 8, child: Text('Origen → destino')),
+            ],
           ),
         ),
       ),
@@ -538,7 +631,7 @@ Future<void> _pumpScope(
 Future<ProviderContainer> _pumpPlanner(
   WidgetTester tester, {
   required bool appDark,
-  required bool? choice,
+  required MapTile? choice,
   required MemoryMapThemeStore store,
 }) async {
   final container = ProviderContainer(

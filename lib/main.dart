@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import 'src/app.dart';
+import 'src/core/map/map_tile.dart';
 import 'src/core/map/maplibre_dispose_fix.dart';
 import 'src/core/theme/map_theme_controller.dart';
 import 'src/core/theme/theme_mode_controller.dart';
@@ -23,10 +24,10 @@ Future<void> main() async {
   // resuelto por adelantado, el mapa se construye una sola vez con su estilo
   // final y la carrera desaparece.
   final savedThemeMode = await _readSavedThemeMode();
-  // Lo MISMO para el brillo propio del mapa: si su preferencia se leyera en
+  // Lo MISMO para la capa propia del mapa: si su preferencia se leyera en
   // background, el mapa ya montado recibiría un segundo `setStyleString` al
   // terminar la carga y volvería la carrera con los managers de anotaciones.
-  final savedMapDark = await _readSavedMapDark();
+  final savedMapTile = await _readSavedMapTile();
 
   runApp(
     ProviderScope(
@@ -38,7 +39,7 @@ Future<void> main() async {
         // Se inyecta siempre (también `null` = «sigue al tema»): el valor ya
         // está resuelto, así que el controller no programa ninguna lectura.
         mapThemeControllerProvider.overrideWith(
-          () => MapThemeController.preloaded(savedMapDark),
+          () => MapThemeController.preloaded(savedMapTile),
         ),
       ],
       child: const UrbanoApp(),
@@ -56,8 +57,8 @@ Future<ThemeMode?> _readSavedThemeMode() async {
   }
 }
 
-/// Lee el modo propio del mapa (`null` = nunca eligió, sigue al tema de la app).
-Future<bool?> _readSavedMapDark() async {
+/// Lee la capa propia del mapa (`null` = nunca eligió, sigue al tema de la app).
+Future<MapTile?> _readSavedMapTile() async {
   try {
     return await SharedPreferencesMapThemeStore().load();
   } catch (_) {

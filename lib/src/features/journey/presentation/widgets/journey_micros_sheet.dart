@@ -8,7 +8,6 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/animation/motion.dart';
 import '../../../../core/location/location_service.dart';
 import '../../../../core/theme/app_theme.dart';
-import '../../../../core/theme/map_theme_scope.dart';
 import '../../../../core/utils/extensions.dart';
 import '../../../../core/widgets/empty_state.dart';
 import '../../../routes/data/route_models.dart';
@@ -21,8 +20,8 @@ import '../journey_providers.dart';
 import 'journey_micros_tile.dart';
 import 'micros_places_list.dart';
 
-part 'micros_panel_sections.dart';
 part 'micros_panel_helpers.dart';
+part 'micros_panel_sections.dart';
 
 /// Panel de **micros**: un cajón que se desliza de izquierda a derecha sobre
 /// el mapa (no un bottom sheet). Lista **todas** las líneas del sistema con
@@ -69,22 +68,16 @@ Future<void> showJourneyMicrosPanel(
       barrierColor: Colors.black.withValues(alpha: 0.45),
       transitionDuration: const Duration(milliseconds: 280),
       reverseTransitionDuration: Motion.release,
-      // El brillo propio del mapa se instala AQUÍ, por ENCIMA del panel entero:
-      // el panel es una RUTA montada en el `Overlay` del Navigator (fuera del
-      // ámbito que pone la pantalla Viaje) y su `build` lee `context.colors`
-      // para pintar el buscador, las tarjetas y el encabezado. Instalándolo aquí
-      // ese `context` ya ve el modo del mapa; si se instalara solo dentro del
-      // `build`, los colores que ese `build` captura seguirían siendo los de la
-      // app (letra oscura sobre vidrio oscuro con mapa oscuro + app clara).
-      pageBuilder: (_, _, _) => MapThemeScope(
-        child: _MicrosPanel(
-          ref: ref,
-          session: session,
-          activeDirectionKeys: activeDirectionKeys,
-          onToggleDirection: onToggleDirection,
-          onClearAll: onClearAll,
-          onFramePlaces: onFramePlaces,
-        ),
+      // El panel es chrome de la app (es una RUTA montada en el `Overlay` del
+      // Navigator, fuera del mapa): se pinta siempre con el tema de la app, el
+      // mismo que ve el resto de la pantalla Viaje.
+      pageBuilder: (_, _, _) => _MicrosPanel(
+        ref: ref,
+        session: session,
+        activeDirectionKeys: activeDirectionKeys,
+        onToggleDirection: onToggleDirection,
+        onClearAll: onClearAll,
+        onFramePlaces: onFramePlaces,
       ),
       // Entrada desde la izquierda: el panel se desliza hacia adentro
       // mientras el scrim (barrera oscura) se funde con la misma curva.

@@ -3,5 +3,33 @@
     // Mantenga el puntero para ver las descripciones de los existentes atributos.
     // Para más información, visite: https://go.microsoft.com/fwlink/?linkid=830387
     "version": "0.2.0",
-    "configurations": []
+    "configurations": [
+        {
+            // App + backend en la misma máquina (desktop / chrome).
+            "name": "urbano (local)",
+            "request": "launch",
+            "type": "dart",
+            "args": [
+                "--dart-define=API_BASE_URL=http://localhost:3000/api/v1",
+                "--dart-define-from-file=config/env.json"
+            ]
+        },
+        {
+            // Dispositivo físico en la misma red: API_BASE_URL es la LAN del host.
+            "name": "urbano (dispositivo)",
+            "request": "launch",
+            "type": "dart",
+            "args": ["--dart-define-from-file=config/env.json"]
+        },
+        {
+            // Emulador de Android: el host se ve como 10.0.2.2.
+            "name": "urbano (emulador android)",
+            "request": "launch",
+            "type": "dart",
+            "args": [
+                "--dart-define=API_BASE_URL=http://10.0.2.2:3000/api/v1",
+                "--dart-define-from-file=config/env.json"
+            ]
+        }
+    ]
 }

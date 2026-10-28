@@ -5,10 +5,9 @@ import 'package:latlong2/latlong.dart';
 import '../../../core/location/location_fab.dart';
 import '../../../core/map/map.dart';
 import '../../../core/theme/app_theme.dart';
-import '../../../core/theme/map_theme_scope.dart';
 import '../../../core/utils/extensions.dart';
 import '../../../core/utils/location.dart';
-import '../../../core/widgets/map_theme_toggle_button.dart';
+import '../../../core/widgets/map_tile_button.dart';
 import '../../../core/widgets/urbano_map.dart';
 import '../data/journey_repository.dart';
 
@@ -193,164 +192,156 @@ class _MapPickerScreenState extends ConsumerState<MapPickerScreen> {
         ? (ref.watch(myLocationProvider).valueOrNull ?? _santaCruz)
         : LatLng(widget.initial!.lat, widget.initial!.lon);
 
+    final colors = context.colors;
+    final text = context.text;
+
     return Scaffold(
-      // Selector de punto: el mapa y sus flotantes (título, chip de coordenada,
-      // controles, FAB) comparten el brillo propio del mapa.
-      body: MapThemeScope.builder(
-        builder: (context) {
-          // Este `context` YA está dentro del ámbito: la píldora de título y el
-          // FAB se pintan con el brillo del mapa, no con el de la app.
-          final colors = context.colors;
-          final text = context.text;
-          return Stack(
-            fit: StackFit.expand,
-            children: [
-              // `Listener` no consume los gestos: solo observa. Marca cualquier
-              // toque del usuario para que el auto-centrado por GPS (ubicación
-              // inicial) NUNCA le gane a un gesto ya hecho: si el usuario ya
-              // movió el mapa, el punto elegido es el suyo.
-              Listener(
-                behavior: HitTestBehavior.translucent,
-                onPointerDown: (_) => _userInteracted = true,
-                child: UrbanoMap(
-                  controller: _mapController,
-                  center: initialCenter,
-                  zoom: 15,
-                  showTiles: widget.showTiles,
-                  myLocationEnabled: locationReady,
-                  onMapReady: _onMapReady,
-                  onPositionChanged: _onPositionChanged,
+      // Selector de punto: solo el mapa base sigue al tile elegido; título,
+      // chip de coordenada, controles y FAB usan siempre el tema de la app.
+      body: Stack(
+        fit: StackFit.expand,
+        children: [
+          // `Listener` no consume los gestos: solo observa. Marca cualquier
+          // toque del usuario para que el auto-centrado por GPS (ubicación
+          // inicial) NUNCA le gane a un gesto ya hecho: si el usuario ya
+          // movió el mapa, el punto elegido es el suyo.
+          Listener(
+            behavior: HitTestBehavior.translucent,
+            onPointerDown: (_) => _userInteracted = true,
+            child: UrbanoMap(
+              controller: _mapController,
+              center: initialCenter,
+              zoom: 15,
+              showTiles: widget.showTiles,
+              myLocationEnabled: locationReady,
+              onMapReady: _onMapReady,
+              onPositionChanged: _onPositionChanged,
+            ),
+          ),
+          // Pin fijo en el centro del mapa (la sombra marca el punto exacto).
+          Center(child: _buildCenterPin(context)),
+          // Controles de zoom (derecha).
+          Positioned(
+            right: 16,
+            top: MediaQuery.of(context).padding.top + 72,
+            child: Column(
+              children: [
+                _CircleButton(
+                  icon: Icons.add_rounded,
+                  tooltip: 'Acercar',
+                  onTap: _mapController.zoomIn,
                 ),
-              ),
-              // Pin fijo en el centro del mapa (la sombra marca el punto exacto).
-              Center(child: _buildCenterPin(context)),
-              // Controles de zoom (derecha).
-              Positioned(
-                right: 16,
-                top: MediaQuery.of(context).padding.top + 72,
-                child: Column(
-                  children: [
-                    _CircleButton(
-                      icon: Icons.add_rounded,
-                      tooltip: 'Acercar',
-                      onTap: _mapController.zoomIn,
-                    ),
-                    const SizedBox(height: 10),
-                    _CircleButton(
-                      icon: Icons.remove_rounded,
-                      tooltip: 'Alejar',
-                      onTap: _mapController.zoomOut,
-                    ),
-                    const SizedBox(height: 10),
-                    // Brillo del mapa (independiente del tema de la app).
-                    const MapThemeToggleButton(),
-                  ],
+                const SizedBox(height: 10),
+                _CircleButton(
+                  icon: Icons.remove_rounded,
+                  tooltip: 'Alejar',
+                  onTap: _mapController.zoomOut,
                 ),
-              ),
-              // Barra superior: volver + título.
-              Positioned(
-                top: MediaQuery.of(context).padding.top + 8,
-                left: 16,
-                right: 16,
-                child: Row(
-                  children: [
-                    _CircleButton(
-                      icon: Icons.arrow_back_rounded,
-                      tooltip: 'Volver',
-                      onTap: () => Navigator.of(context).maybePop(),
-                    ),
-                    const SizedBox(width: 10),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 14,
-                        vertical: 9,
-                      ),
-                      decoration: BoxDecoration(
-                        color: colors.surface,
-                        borderRadius: BorderRadius.circular(AppRadius.pill),
-                        border: Border.all(color: colors.outlineVariant),
-                        boxShadow: const [
-                          BoxShadow(
-                            color: Color(0x14000000),
-                            blurRadius: 8,
-                            offset: Offset(0, 3),
-                          ),
-                        ],
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            Icons.open_with_rounded,
-                            size: 15,
-                            color: colors.primary,
-                          ),
-                          const SizedBox(width: 7),
-                          Text(
-                            widget.title,
-                            style: text.labelLarge?.copyWith(
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
+                const SizedBox(height: 10),
+                // Tile del mapa (independiente del tema de la app).
+                const MapTileButton(),
+              ],
+            ),
+          ),
+          // Barra superior: volver + título.
+          Positioned(
+            top: MediaQuery.of(context).padding.top + 8,
+            left: 16,
+            right: 16,
+            child: Row(
+              children: [
+                _CircleButton(
+                  icon: Icons.arrow_back_rounded,
+                  tooltip: 'Volver',
+                  onTap: () => Navigator.of(context).maybePop(),
                 ),
-              ),
-              // Controles inferiores: parada cercana + acciones.
-              Positioned(
-                left: 16,
-                right: 16,
-                bottom: MediaQuery.of(context).padding.bottom + 16,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    // Coordenada EXACTA que se va a devolver (5 decimales ≈ 1 m):
-                    // se actualiza EN VIVO mientras el mapa se desplaza
-                    // (ValueNotifier: reformar solo este chip, sin tocar la parada
-                    // cercana ni el Scaffold) y refleja lo que devolverá `_confirm()`.
-                    ValueListenableBuilder<JourneyPoint>(
-                      valueListenable: _visiblePoint,
-                      builder: (_, point, _) => _ChosenPointChip(point: point),
-                    ),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        // FAB de ubicación con estados reales (GPS apagado /
-                        // permiso pendiente / bloqueado / listo).
-                        LocationFab(
-                          following: false,
-                          onFollowChanged: (enabled) {
-                            if (enabled && !_locating) _goToMyLocation();
-                          },
+                const SizedBox(width: 10),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 9,
+                  ),
+                  decoration: BoxDecoration(
+                    color: colors.surface,
+                    borderRadius: BorderRadius.circular(AppRadius.pill),
+                    border: Border.all(color: colors.outlineVariant),
+                    boxShadow: const [
+                      BoxShadow(
+                        color: Color(0x14000000),
+                        blurRadius: 8,
+                        offset: Offset(0, 3),
+                      ),
+                    ],
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.open_with_rounded,
+                        size: 15,
+                        color: colors.primary,
+                      ),
+                      const SizedBox(width: 7),
+                      Text(
+                        widget.title,
+                        style: text.labelLarge?.copyWith(
+                          fontWeight: FontWeight.w800,
                         ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: FloatingActionButton.extended(
-                            heroTag: 'map-picker-use-point',
-                            onPressed: _confirm,
-                            backgroundColor: colors.primary,
-                            foregroundColor: colors.onPrimary,
-                            elevation: 3,
-                            icon: const Icon(
-                              Icons.check_circle_rounded,
-                              size: 22,
-                            ),
-                            label: const Text(
-                              'Usar este punto',
-                              style: TextStyle(fontWeight: FontWeight.w800),
-                            ),
-                          ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          // Controles inferiores: parada cercana + acciones.
+          Positioned(
+            left: 16,
+            right: 16,
+            bottom: MediaQuery.of(context).padding.bottom + 16,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Coordenada EXACTA que se va a devolver (5 decimales ≈ 1 m):
+                // se actualiza EN VIVO mientras el mapa se desplaza
+                // (ValueNotifier: reformar solo este chip, sin tocar la parada
+                // cercana ni el Scaffold) y refleja lo que devolverá `_confirm()`.
+                ValueListenableBuilder<JourneyPoint>(
+                  valueListenable: _visiblePoint,
+                  builder: (_, point, _) => _ChosenPointChip(point: point),
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    // FAB de ubicación con estados reales (GPS apagado /
+                    // permiso pendiente / bloqueado / listo).
+                    LocationFab(
+                      following: false,
+                      onFollowChanged: (enabled) {
+                        if (enabled && !_locating) _goToMyLocation();
+                      },
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: FloatingActionButton.extended(
+                        heroTag: 'map-picker-use-point',
+                        onPressed: _confirm,
+                        backgroundColor: colors.primary,
+                        foregroundColor: colors.onPrimary,
+                        elevation: 3,
+                        icon: const Icon(Icons.check_circle_rounded, size: 22),
+                        label: const Text(
+                          'Usar este punto',
+                          style: TextStyle(fontWeight: FontWeight.w800),
                         ),
-                      ],
+                      ),
                     ),
                   ],
                 ),
-              ),
-            ],
-          );
-        },
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
