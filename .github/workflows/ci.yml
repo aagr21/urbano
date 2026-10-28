@@ -3,10 +3,9 @@
 #
 # - Flutter: el trío obligatorio (format + analyze + test); nunca necesita
 #   backend ni plugins nativos — `FLUTTER_TEST` fuerza `FakeMapEngine`.
-# - Backend: unit + build SIN base de datos (los e2e necesitan Docker +
-#   feed importado; no corren aquí — quedan para un job con servicios).
-#
-#name: CI
+# - Backend: unit + build sin DB, y un job e2e aparte que levanta PostGIS
+#   como servicio, importa el feed real y corre los specs e2e.
+name: CI
 
 on:
   push:
@@ -47,3 +46,47 @@ jobs:
         run: npm test
       - name: build
         run: npm run build
+
+  # E2E contra Postgres/PostGIS real (servicio): importa el feed real y
+  # corre los specs e2e (journey/rutas/stops).
+  # El feed (`backend/gtfs.zip`) está en el repo; la app crea extensiones y
+  # esquemas al arrancar (DB_SYNCHRONIZE), así que no se necesita init SQL.
+  backend-e2e:
+    name: Backend (e2e con PostGIS)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    services:
+      postgres:
+        image: postgis/postgis:16-3.4
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: urbano
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DB_HOST: localhost
+      DB_PORT: 5432
+      DB_USERNAME: postgres
+      DB_PASSWORD: postgres
+      DB_DATABASE: urbano
+      DB_SYNCHRONIZE: "true"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci
+      - name: importar feed GTFS
+        run: npm run import:gtfs
+      - name: e2e
+        run: npm run test:e2e
