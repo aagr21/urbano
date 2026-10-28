@@ -1,0 +1,51 @@
+name: urbano
+description: "Urbano — planificador de micros urbanos de Santa Cruz de la Sierra, Bolivia."
+publish_to: "none"
+
+version: 1.0.0+1
+
+environment:
+    sdk: ^3.13.5
+
+dependencies:
+    flutter:
+        sdk: flutter
+    flutter_localizations:
+        sdk: flutter
+
+    # Estado
+    flutter_riverpod: ^2.6.1
+
+    # HTTP
+    dio: ^5.7.0
+
+    # Navegación
+    go_router: ^14.6.2
+
+    # Persistencia ligera (preferencia de tema claro/oscuro)
+    shared_preferences: ^2.5.6
+
+    # Mapa (sin API keys, tiles OSM)
+    latlong2: ^0.9.1
+
+    # GPS
+    geolocator: ^13.0.2
+
+    # Utilidades / UI
+    intl: ^0.20.3
+    google_fonts: ^6.2.1
+    maplibre_gl: ^0.27.1
+
+dev_dependencies:
+    flutter_test:
+        sdk: flutter
+    flutter_lints: ^6.0.0
+
+flutter:
+    uses-material-design: true
+
+    # Fuentes empaquetadas (Inter cuerpo / Plus Jakarta Sans títulos).
+    # google_fonts las localiza por nombre en assets/fonts, así que la app
+    # arranca offline sin parpadeo y los tests no intentan descargar nada.
+    assets:
+        - assets/fonts/

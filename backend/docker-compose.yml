@@ -1,0 +1,39 @@
+services:
+  db:
+    image: postgis/postgis:17-3.4
+    container_name: urbano-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: urbano
+      POSTGRES_USER: urbano
+      POSTGRES_PASSWORD: urbano
+    ports:
+      # 5432 puede estar ocupado por otro proyecto; ajusta DB_PORT en .env si hace falta
+      - "${DB_PORT_HOST:-5436}:5432"
+    volumes:
+      - urbano_pgdata:/var/lib/postgresql/data
+      - ./docker-init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U urbano -d urbano"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+
+  # OpenTripPlanner 2 (GTFS + OSM): motor de ruteo puerta a puerta con las
+  # caminatas trazadas por la red viaria. Ver backend/otp-data/README.md.
+  otp:
+    image: opentripplanner/opentripplanner:latest
+    container_name: urbano-otp
+    restart: unless-stopped
+    ports:
+      # 8081 en el host para no chocar con la API (3000)
+      - "${OTP_PORT_HOST:-8081}:8080"
+    environment:
+      JAVA_TOOL_OPTIONS: "-Xmx6g"
+    volumes:
+      - ./otp-data:/var/opentripplanner
+    command: ["--load", "--serve"]
+
+volumes:
+  urbano_pgdata:

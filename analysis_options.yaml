@@ -1,0 +1,44 @@
+# Analizador estático de Urbano.
+#
+# `flutter analyze` debe salir en CERO: las reglas de abajo no son sugerencias,
+# son el estilo acordado del repo (contraste por tokens, radios por AppRadius,
+# literales `const`, sin contenedores inútiles).
+include: package:flutter_lints/flutter.yaml
+
+analyzer:
+    exclude:
+        - build/**
+        - android/**
+        - ios/**
+        - web/**
+        - windows/**
+        - macos/**
+        - linux/**
+    language:
+        # Sin coladas implícitas a dynamic: el modelo dinámico ya vive acotado en
+        # `fromJson` (DTO), fuera de ahí el tipo se declara.
+        strict-casts: true
+        strict-raw-types: true
+
+linter:
+    rules:
+        - always_declare_return_types
+        - avoid_redundant_argument_values
+        - avoid_returning_null_for_void
+        - avoid_unnecessary_containers
+        - avoid_void_async
+        - close_sinks
+        - directives_ordering
+        - null_check_on_nullable_type_parameter
+        - prefer_const_constructors
+        - prefer_const_declarations
+        - prefer_final_fields
+        - prefer_final_in_for_each
+        - prefer_final_locals
+        - prefer_if_null_operators
+        - prefer_single_quotes
+        - require_trailing_commas
+        - sort_child_properties_last
+        - throw_in_finally
+        - use_named_constants
+        - use_super_parameters

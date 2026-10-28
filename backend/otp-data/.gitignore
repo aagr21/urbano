@@ -1,0 +1,6 @@
+# Datos pesados para el grafo de OpenTripPlanner — nunca se versionan.
+# gtfs.zip se copia/actualiza desde la raíz del backend; el .osm.pbf se
+# descarga con el script del README. graph.obj lo genera `--build --save`.
+*
+!.gitignore
+!README.md
