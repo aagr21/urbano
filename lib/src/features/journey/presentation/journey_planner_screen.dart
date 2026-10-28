@@ -6,14 +6,12 @@ import 'package:go_router/go_router.dart';
 import 'package:latlong2/latlong.dart';
 
 import '../../../core/map/map.dart';
-import '../../../core/theme/app_colors.dart';
-import '../../../core/utils/debouncer.dart';
 import '../../../core/utils/extensions.dart';
 import '../../../core/utils/location.dart';
 import '../../routes/data/route_models.dart';
-import '../../routes/data/route_repository.dart';
 import '../data/journey_models.dart';
 import '../data/journey_repository.dart';
+import 'journey_planner_controller.dart';
 import 'journey_providers.dart';
 import 'widgets/journey_live_map.dart';
 import 'widgets/journey_map_chips.dart';
@@ -40,7 +38,9 @@ import 'widgets/journey_status_panel.dart';
 /// (GPS apagado / permiso pendiente / bloqueado / listo) y flujo de ajustes.
 ///
 /// La presentación vive en `widgets/` (callback a callback, prop a prop);
-/// el estado y los gestos del planeador viven aquí, en el `State`.
+/// el ESTADO del planeador vive en [journeyPlannerControllerProvider]
+/// (debounce, barrera anti-zoom, capas de micros) y aquí queda solo el
+/// cableado UI: `GlobalKey` del mapa, hoja arrastrable y panel abierto.
 class JourneyPlannerScreen extends ConsumerStatefulWidget {
   const JourneyPlannerScreen({super.key});
 
@@ -51,107 +51,24 @@ class JourneyPlannerScreen extends ConsumerStatefulWidget {
 
 class _JourneyPlannerScreenState extends ConsumerState<JourneyPlannerScreen> {
   // ------------------------------------------------------------------
-  // Planeador: origen/destino/hora/planificar
-  // ------------------------------------------------------------------
-  JourneyPlace? _origin;
-  JourneyPlace? _destination;
-
-  /// Puntos que viajan a la consulta de planificación. Los campos muestran
-  /// [_origin]/[_destination] (que al MOVER un extremo arrastrado se
-  /// actualizan al instante, en cada evento del arrastre); estos se comprometen
-  /// con debounce para no re-planificar con micro-movimientos. Selector, swap,
-  /// limpiar y planificar los mantienen al día al momento.
-  JourneyPlace? _planOrigin;
-  JourneyPlace? _planDestination;
-  String? _time; // HH:mm
-  bool _submitted = false;
-  int? _expandedIndex;
-
-  /// `true` cuando el panel de origen/destino está desplegado sobre el mapa.
-  /// Arranca cerrado: el mapa es el protagonista y el panel se abre con la
-  /// píldora inferior "¿A dónde vas?".
-  bool _panelOpen = false;
-
-  /// Opción mostrada en el mapa (índice 0 por defecto).
-  int _selectedOptionIndex = 0;
-
-  /// Última respuesta con datos: mantiene el viaje visible mientras se
-  /// recalcula tras arrastrar el origen/destino.
-  List<JourneyOption>? _lastOptions;
-
-  /// `true` entre el drop del marcador y la aplicación del nuevo punto
-  /// (debounce para no re-planificar con micro-movimientos).
-  bool _replanPending = false;
-
-  /// Un debounce POR EXTREMO: compartir uno solo hacía que soltar el
-  /// destino poco después del origen CANCELARA el cambio del origen (el
-  /// marcador se quedaba en el punto soltado, pero el viaje se planificaba
-  /// con el punto viejo).
-  final _replanOriginDebouncer = Debouncer(
-    delay: const Duration(milliseconds: 600),
-  );
-  final _replanDestinationDebouncer = Debouncer(
-    delay: const Duration(milliseconds: 600),
-  );
-
-  bool get _ready => _origin != null && _destination != null;
-
-  /// Distancia mínima (línea recta) entre origen y destino para planificar
-  /// en transporte: por debajo, caminar es más rápido. Coincide con el guard
-  /// del backend (`MIN_TRANSIT_DISTANCE_M` en journey.service.ts).
-  static const _minTransitDistanceM = 150.0;
-
-  /// Distancia en línea recta entre los dos puntos elegidos, o `null` si
-  /// aún falta alguno.
-  double? get _endpointsDistanceM {
-    final origin = _origin.pointOrNull;
-    final destination = _destination.pointOrNull;
-    if (origin == null || destination == null) return null;
-    return const Distance().as(
-      LengthUnit.Meter,
-      LatLng(origin.lat, origin.lon),
-      LatLng(destination.lat, destination.lon),
-    );
-  }
-
-  /// Origen y destino están (casi) en el mismo sitio: no hay viaje que
-  /// planificar.
-  bool get _endpointsTooClose =>
-      (_endpointsDistanceM ?? double.infinity) < _minTransitDistanceM;
-
-  // ------------------------------------------------------------------
-  // Mapa (capas de rutas y gemelos del panel)
+  // UI pura del State: mapa, hoja arrastrable, panel
   // ------------------------------------------------------------------
   final _journeyMapKey = GlobalKey<JourneyResultMapState>();
   final _sheetController = DraggableScrollableController();
 
   double _sheetExtent = 0.45;
 
-  final Map<String, MapPolyline> _routeLines = {};
+  /// `true` cuando el panel de origen/destino está desplegado sobre el mapa.
+  /// Arranca cerrado: el mapa es el protagonista y el panel se abre con la
+  /// píldora inferior "¿A dónde vas?".
+  bool _panelOpen = false;
 
-  /// Insignia (número/nombre del micro) colocada sobre el punto medio de cada
-  /// recorrido activado, igual que en la planificación del viaje.
-  final Map<String, MapMarker> _routeMarkers = {};
-
-  /// Recorridos dibujados, por clave `routeId#directionId` (ida y vuelta son
-  /// capas independientes).
-  final Set<String> _visibleRouteKeys = {};
-  bool _loadingRoutes = false;
-
-  /// Momento del ÚLTIMO movimiento de cámara por GESTO del usuario.
-  ///
-  /// Alimenta la barrera anti-zoom de [_onEndpointMoved]: un "drop" de pin
-  /// inmediatamente después de un gesto del mapa (pellizco, pan) es un
-  /// fantasma del zoom, nunca un arrastre de verdad (un arrastre legítimo de
-  /// pin NO mueve la cámara: la arena se la queda el pin y el mapa está
-  /// quieto). Con esta ventana probamos el síntoma aunque exista una vía de
-  /// eventos del dispositivo que los tests de widget no pueden simular, y
-  /// definimos el recálculo por zoom de RAÍZ.
-  DateTime? _lastGestureCameraAt;
-
-  /// Ventana de [_lastGestureCameraAt] que separa "los dedos vienen de un
-  /// gesto del mapa" de "el usuario soltó un pin a propósito".
-  static const _endpointsDroppingGestureWindow = Duration(milliseconds: 700);
+  /// Última respuesta con datos y la consulta que la produjo: mantiene el
+  /// viaje visible mientras se recalcula tras arrastrar el origen/destino.
+  /// Se descarta al cambiar el extremo/hora/swap/limpiar (consulta vieja);
+  /// solo el replan DE un drag conserva la anterior hasta que llega la nueva.
+  JourneyQuery? _cachedQuery;
+  List<JourneyOption>? _cachedOptions;
 
   /// Abre/cierra el panel de origen/destino (con animación de despliegue).
   void _togglePanel() => setState(() => _panelOpen = !_panelOpen);
@@ -189,119 +106,22 @@ class _JourneyPlannerScreenState extends ConsumerState<JourneyPlannerScreen> {
   void dispose() {
     _sheetController.removeListener(_onSheetExtentChanged);
     _sheetController.dispose();
-    _replanOriginDebouncer.dispose();
-    _replanDestinationDebouncer.dispose();
     super.dispose();
   }
+
+  /// Notifier del planeador (lectura fuera de `build`).
+  JourneyPlannerController get _planner =>
+      ref.read(journeyPlannerControllerProvider.notifier);
 
   // ------------------------------------------------------------------
   // Viaje: origen/destino/hora/swap/planificar
   // ------------------------------------------------------------------
 
-  /// El origen/destino se movió en el mapa (durante el arrastre o al
-  /// soltarlo): el CAMPO refleja el punto en el ACTO (las coordenadas nuevas
-  /// se ven mientras el dedo arrastra), mientras que la consulta de
-  /// replanificación se compromete tras un breve debounce (para no
-  /// re-planificar con micro-movimientos).
-  void _onEndpointMoved({required bool isOrigin, required LatLng point}) {
-    final place = JourneyPlacePoint(lat: point.latitude, lon: point.longitude);
-    final debouncer = isOrigin
-        ? _replanOriginDebouncer
-        : _replanDestinationDebouncer;
-    // Pellizco de zoom cancelado: el detector devuelve el pin EXACTAMENTE a
-    // donde ya estaba (emite el punto de arranque). La consulta no cambia
-    // (misma clave del proveedor ⇒ sin refetch), así que se DESARMA el
-    // recalculo marcado durante el gesto en vez de programarlo.
-    final committedPoint =
-        (isOrigin ? _planOrigin : _planDestination).pointOrNull;
-    if (committedPoint != null &&
-        committedPoint.lat == point.latitude &&
-        committedPoint.lon == point.longitude) {
-      debouncer.cancel();
-      setState(() {
-        if (isOrigin) {
-          _origin = place;
-        } else {
-          _destination = place;
-        }
-        _replanPending = false;
-      });
-      return;
-    }
-    // BARRERA ANTI-ZOOM: si la cámara se movió por gesto hace muy poco, este
-    // drop del pin se produjo DENTRO de un gesto del mapa (pellizco/pan) y es
-    // un fantasma, no un arrastre deliberado: un arrastre real de pin deja la
-    // cámara quieta (la arena se la queda el pin). Se desarma el recálculo y
-    // el punto se restaura al comprometido.
-    final lastGesture = _lastGestureCameraAt;
-    if (lastGesture != null &&
-        DateTime.now().difference(lastGesture) <
-            _endpointsDroppingGestureWindow) {
-      debouncer.cancel();
-      final restored = (isOrigin ? _planOrigin : _planDestination);
-      final restoredPlace = switch (restored) {
-        null => place,
-        _ => restored,
-      };
-      setState(() {
-        if (isOrigin) {
-          _origin = restoredPlace;
-        } else {
-          _destination = restoredPlace;
-        }
-        _replanPending = false;
-      });
-      return;
-    }
-    debouncer.run(() {
-      if (!mounted) return;
-      setState(() {
-        if (isOrigin) {
-          _planOrigin = place;
-        } else {
-          _planDestination = place;
-        }
-        _replanPending = false;
-        _expandedIndex = null;
-        _selectedOptionIndex = 0;
-      });
-    });
-    setState(() {
-      if (isOrigin) {
-        _origin = place;
-      } else {
-        _destination = place;
-      }
-      _replanPending = true;
-    });
-  }
-
-  /// Descarta los resultados en memoria (nuevo origen/destino/hora).
-  void _invalidateResults() {
-    _replanOriginDebouncer.cancel();
-    _replanDestinationDebouncer.cancel();
-    _replanPending = false;
-    _lastOptions = null;
-  }
-
-  /// Compromete un lugar en el extremo (selector de lugares, "mi ubicación"
-  /// o punto del mapa): campo E plan al mismo valor, y limpiar la selección
-  /// de resultados (hubo cambio de extremo, lo anterior quedó viejo).
-  void _commitPlace(JourneyPlace place, {required bool isOrigin}) {
-    _invalidateResults();
-    setState(() {
-      if (isOrigin) {
-        _origin = place;
-        _planOrigin = place;
-      } else {
-        _destination = place;
-        _planDestination = place;
-      }
-      _submitted = false;
-      _expandedIndex = null;
-      _selectedOptionIndex = 0;
-    });
-    _framePickedEndpoints();
+  /// Descarta la caché del viaje (nuevo extremo/hora/swap/limpiar): la
+  /// respuesta anterior ya no representa lo que se ve en los campos.
+  void _discardCachedOptions() {
+    _cachedQuery = null;
+    _cachedOptions = null;
   }
 
   /// Selector completo de origen/destino: "Mi ubicación" (GPS), punto del
@@ -365,8 +185,12 @@ class _JourneyPlannerScreenState extends ConsumerState<JourneyPlannerScreen> {
   /// `queryParameters` (un solo `?`); concatenar otro `?` a mano rompía la
   /// primera clave del query y el selector perdía el título.
   Future<void> _pickFromMap({required bool isOrigin}) async {
+    final current =
+        (isOrigin
+                ? ref.read(journeyPlannerControllerProvider).origin
+                : ref.read(journeyPlannerControllerProvider).destination)
+            .pointOrNull;
     final params = <String, String>{'title': isOrigin ? 'Origen' : 'Destino'};
-    final current = (isOrigin ? _origin : _destination).pointOrNull;
     if (current != null) {
       params['lat'] = '${current.lat}';
       params['lon'] = '${current.lon}';
@@ -382,41 +206,55 @@ class _JourneyPlannerScreenState extends ConsumerState<JourneyPlannerScreen> {
     );
   }
 
+  /// Compromete un lugar en el extremo (selector de lugares, "mi ubicación"
+  /// o punto del mapa): la lógica vive en el controller; la pantalla aporta
+  /// el encuadre de cámara del mapa tras la selección.
+  void _commitPlace(JourneyPlace place, {required bool isOrigin}) {
+    _planner.setPlace(place, isOrigin: isOrigin);
+    _discardCachedOptions();
+    _framePickedEndpoints();
+  }
+
   /// Lleva la cámara hasta los extremos elegidos para que sus pines se vean.
   ///
-  /// Se ejecuta tras el `setState` de la selección: el mapa ya tiene el
-  /// marcador, pero su cámara no se mueve sola (el `center` solo aplica al
-  /// crearse), así que un punto elegido lejos del encuadre quedaba invisible.
+  /// Se ejecuta tras comprometer la selección: el mapa ya tiene el marcador,
+  /// pero su cámara no se mueve sola (el `center` solo aplica al crearse),
+  /// así que un punto elegido lejos del encuadre quedaba invisible.
   void _framePickedEndpoints() {
+    final planner = ref.read(journeyPlannerControllerProvider);
     final points = <LatLng>[
-      for (final place in [_origin.pointOrNull, _destination.pointOrNull])
+      for (final place in [
+        planner.origin.pointOrNull,
+        planner.destination.pointOrNull,
+      ])
         if (place case final p?) LatLng(p.lat, p.lon),
     ];
     _journeyMapKey.currentState?.fitToPoints(points);
   }
 
   Future<void> _pickTime() async {
-    final initial = _time == null
+    final current = ref.read(journeyPlannerControllerProvider).time;
+    final initial = current == null
         ? TimeOfDay.now()
         : TimeOfDay(
-            hour: int.tryParse(_time!.split(':')[0]) ?? TimeOfDay.now().hour,
-            minute: int.tryParse(_time!.split(':')[1]) ?? 0,
+            hour: int.tryParse(current.split(':')[0]) ?? TimeOfDay.now().hour,
+            minute: int.tryParse(current.split(':')[1]) ?? 0,
           );
     final picked = await showTimePicker(context: context, initialTime: initial);
     if (picked == null || !mounted) return;
-    _invalidateResults();
-    setState(() {
-      _time =
-          '${picked.hour.toString().padLeft(2, '0')}:${picked.minute.toString().padLeft(2, '0')}';
-      _submitted = false;
-    });
+    _planner.setTime(
+      '${picked.hour.toString().padLeft(2, '0')}:${picked.minute.toString().padLeft(2, '0')}',
+    );
+    _discardCachedOptions();
   }
 
   /// Envía la consulta, salvo que origen y destino estén en el mismo sitio
   /// (o casi): en ese caso avisa en vez de pedir un viaje imposible.
   void _submit() {
-    final distance = _endpointsDistanceM;
-    if (distance != null && distance < _minTransitDistanceM) {
+    final planner = ref.read(journeyPlannerControllerProvider);
+    final distance = planner.endpointsDistanceM;
+    if (distance != null &&
+        distance < JourneyPlannerState.minTransitDistanceM) {
       context.showSnack(
         distance < 1
             ? 'El origen y el destino son el mismo punto: mueve uno de ellos.'
@@ -426,121 +264,58 @@ class _JourneyPlannerScreenState extends ConsumerState<JourneyPlannerScreen> {
       );
       return;
     }
+    _planner.submit();
     setState(() {
-      // Planifica con lo que los campos muestran AHORA (por si quedó un
-      // drop pendiente de aplicar al cambiar la hora u otro campo).
-      _planOrigin = _origin;
-      _planDestination = _destination;
-      _submitted = true;
-      _expandedIndex = null;
       // Al planificar, el panel se guarda solo para dejar ver el viaje.
       _panelOpen = false;
     });
   }
 
   void _swap() {
-    _invalidateResults();
-    setState(() {
-      final origin = _origin;
-      _origin = _destination;
-      _destination = origin;
-      final planOrigin = _planOrigin;
-      _planOrigin = _planDestination;
-      _planDestination = planOrigin;
-      _submitted = false;
-      _selectedOptionIndex = 0;
-    });
+    _planner.swap();
+    _discardCachedOptions();
   }
 
   /// Vuelve al modo exploración: limpia origen/destino y resultados.
   void _clear() {
-    _invalidateResults();
-    setState(() {
-      _origin = null;
-      _destination = null;
-      _planOrigin = null;
-      _planDestination = null;
-      _submitted = false;
-      _expandedIndex = null;
-      _selectedOptionIndex = 0;
-    });
+    _planner.clear();
+    _discardCachedOptions();
+  }
+
+  /// El usuario marcó una opción en la hoja de resultados (o la expandió).
+  void _selectOption(int itemIndex) => _planner.selectOption(itemIndex);
+
+  /// Resultado del toggle de una dirección del panel de micros: solo los dos
+  /// casos con problema llegan al usuario como snacks.
+  Future<void> _toggleRouteDirection(
+    RouteSummary route,
+    int directionId,
+  ) async {
+    final outcome = await _planner.toggleRouteDirection(route, directionId);
+    if (!mounted) return;
+    switch (outcome) {
+      case MicroRouteToggleOutcome.missingShape:
+        context.showSnack('Esta ruta no tiene forma cargada.');
+      case MicroRouteToggleOutcome.failed:
+        context.showSnack(
+          'No pudimos cargar el recorrido de esa línea.',
+          isError: true,
+        );
+      case MicroRouteToggleOutcome.toggledOn:
+      case MicroRouteToggleOutcome.toggledOff:
+        break;
+    }
   }
 
   // ------------------------------------------------------------------
-  // Mapa: capas de micros (exploración)
+  // Mapa: movimiento de cámara y panel de micros
   // ------------------------------------------------------------------
 
   void _onMapMoved(MapCamera camera, bool hasGesture) {
     if (!hasGesture) return;
     // Sella el momento del gesto: la ventana de la barrera anti-zoom nace
-    // con el gesto, no con el drop del pin.
-    _lastGestureCameraAt = DateTime.now();
-  }
-
-  /// Dibuja/borra la polilínea de UNA dirección (0 = ida, 1 = vuelta) de un
-  /// micro; la forma la sirve `/routes/:id?directionId=`.
-  Future<void> _toggleRouteDirection(
-    RouteSummary route,
-    int directionId,
-  ) async {
-    final key = microDirectionKey(route.id, directionId);
-    if (_visibleRouteKeys.contains(key)) {
-      setState(() {
-        _visibleRouteKeys.remove(key);
-        _routeLines.remove(key);
-        _routeMarkers.remove(key);
-      });
-      return;
-    }
-
-    setState(() => _loadingRoutes = true);
-    try {
-      final detail = await ref
-          .read(routeRepositoryProvider)
-          .detail(route.id, directionId: directionId);
-      final shape = detail.shape;
-      if (shape == null || shape.points.length < 2) {
-        if (mounted) context.showSnack('Esta ruta no tiene forma cargada.');
-        return;
-      }
-      final points = shape.points;
-      final label = route.shortName.trim();
-      final color = AppColors.fromHex(detail.color);
-      if (!mounted) return;
-      setState(() {
-        _visibleRouteKeys.add(key);
-        _routeLines[key] = MapPolyline(
-          points: points,
-          color: color,
-          outline: true,
-        );
-        // Insignia del micro ENCIMA de su línea (número o nombre), con el
-        // mismo estilo que la planificación del viaje.
-        if (label.isNotEmpty) {
-          _routeMarkers[key] = MapMarker(
-            id: 'micro-route-$key',
-            point: routePathMidpoint(points),
-            width: routeBadgeWidth(label),
-            height: 24,
-            iconKey: 'route-badge-${route.id}-$label-${detail.color}',
-            child: MapRouteBadge(
-              key: ValueKey('micro-route-$key'),
-              label: label,
-              color: color,
-            ),
-          );
-        }
-      });
-    } catch (_) {
-      if (mounted) {
-        context.showSnack(
-          'No pudimos cargar el recorrido de esa línea.',
-          isError: true,
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _loadingRoutes = false);
-    }
+    // con el gesto, no con el drop del pin (la ventana vive en el controller).
+    _planner.noteGestureCameraMoved();
   }
 
   /// Panel de micros: dibujar/borrar los recorridos (ida/vuelta) de las líneas.
@@ -558,17 +333,12 @@ class _JourneyPlannerScreenState extends ConsumerState<JourneyPlannerScreen> {
     return showJourneyMicrosPanel(
       context,
       ref: ref,
-      activeDirectionKeys: _visibleRouteKeys,
+      activeDirectionKeys: ref.read(
+        journeyPlannerControllerProvider.select((s) => s.visibleRouteKeys),
+      ),
       onToggleDirection: _toggleRouteDirection,
-      onClearAll: () => setState(() {
-        _visibleRouteKeys.clear();
-        _routeLines.clear();
-        _routeMarkers.clear();
-      }),
-    ).then((_) {
-      // Los micros cambian estado fuera del sheet (recorridos añadidos).
-      if (mounted) setState(() {});
-    });
+      onClearAll: () => _planner.clearMicros(),
+    );
   }
 
   void _onSheetExtentChanged() {
@@ -594,41 +364,44 @@ class _JourneyPlannerScreenState extends ConsumerState<JourneyPlannerScreen> {
     // Pantalla completa del mapa: oculta los paneles flotantes y deja solo
     // el mapa con sus controles (la barra del shell la esconde UrbanoShell).
     final fullscreen = ref.watch(mapFullscreenProvider);
+    final planner = ref.watch(journeyPlannerControllerProvider);
 
     JourneyQuery? query;
-    AsyncValue<List<JourneyOption>>? result;
-    if (_submitted && _ready) {
+    if (planner.submitted && planner.ready) {
       query = JourneyQuery(
-        origin: _planOrigin ?? _origin!,
-        destination: _planDestination ?? _destination!,
-        time: _time,
+        origin: planner.planOrigin ?? planner.origin!,
+        destination: planner.planDestination ?? planner.destination!,
+        time: planner.time,
       );
-      result = ref.watch(journeyProvider(query));
     }
+    // Resultado vigente para la consulta actual.
+    final result = query == null ? null : ref.watch(journeyProvider(query));
 
-    // Última respuesta con datos: sirve para no perder el mapa mientras se
-    // recalcula el viaje (tras arrastrar origen/destino o cambiar la hora).
+    // La caché se refresca SOLO con datos frescos de la consulta actual: una
+    // respuesta cargada antes del último cambio de extremo/hora queda vieja.
     final fresh = result?.valueOrNull;
-    if (fresh != null) _lastOptions = fresh;
-    final lastOptions = _lastOptions;
-
-    final hasResults = lastOptions != null;
-    final bare = hasResults && lastOptions.isEmpty;
+    if (fresh != null && query != _cachedQuery) {
+      _cachedQuery = query;
+      _cachedOptions = fresh;
+    }
+    final cached = _cachedOptions;
+    final hasResults = cached != null;
+    final bare = cached != null && cached.isEmpty;
     final replanning =
-        hasResults && (_replanPending || (result?.isLoading ?? false));
+        hasResults && (planner.replanPending || (result?.isLoading ?? false));
     final refreshFailed =
         hasResults && (result?.hasError ?? false) && fresh == null;
-    final selectedIndex = bare || lastOptions == null
+    final selectedIndex = cached == null || cached.isEmpty
         ? 0
-        : _selectedOptionIndex.clamp(0, lastOptions.length - 1);
-    final mapOption = !hasResults || bare
+        : planner.selectedOptionIndex.clamp(0, cached.length - 1);
+    final mapOption = !hasResults || cached.isEmpty
         ? _bareOption()
-        : lastOptions[selectedIndex];
+        : cached[selectedIndex];
 
     // El mapa prefiere lo que muestran los CAMPOS (que durante un arrastre de
     // pin van por delante del plan comprometido): así el pin sigue el dedo.
-    final pickedOrigin = _origin.pointOrNull;
-    final pickedDestination = _destination.pointOrNull;
+    final pickedOrigin = planner.origin.pointOrNull;
+    final pickedDestination = planner.destination.pointOrNull;
     final mapOrigin = pickedOrigin ?? query?.originPoint;
     final mapDestination = pickedDestination ?? query?.destinationPoint;
 
@@ -655,7 +428,7 @@ class _JourneyPlannerScreenState extends ConsumerState<JourneyPlannerScreen> {
           // mapa); con resultados, la hoja de resultados los sube.
           final controlsBottom = hasResults ? sheetTop + 12.0 : 24.0;
           final showStatusPanel =
-              !hasResults && _submitted && _ready && lastOptions == null;
+              !hasResults && planner.submitted && planner.ready;
 
           return Stack(
             children: [
@@ -673,10 +446,14 @@ class _JourneyPlannerScreenState extends ConsumerState<JourneyPlannerScreen> {
                     20,
                     mapBottomPad,
                   ),
-                  extraPolylines: _routeLines.values.toList(growable: false),
-                  extraMarkers: _routeMarkers.values.toList(growable: false),
-                  onEndpointMoved: (isOrigin, point) =>
-                      _onEndpointMoved(isOrigin: isOrigin, point: point),
+                  extraPolylines: planner.routeLines.values.toList(
+                    growable: false,
+                  ),
+                  extraMarkers: planner.routeMarkers.values.toList(
+                    growable: false,
+                  ),
+                  onEndpointMoved: (isOrigin, point) => _planner
+                      .endpointDragged(isOrigin: isOrigin, point: point),
                   // Tocar el pin de origen/destino lo edita: abre el selector
                   // encima del punto actual.
                   onEndpointTapped: (isOrigin) =>
@@ -724,10 +501,10 @@ class _JourneyPlannerScreenState extends ConsumerState<JourneyPlannerScreen> {
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
                                     JourneyPlannerCard(
-                                      origin: _origin,
-                                      destination: _destination,
-                                      time: _time,
-                                      ready: _ready,
+                                      origin: planner.origin,
+                                      destination: planner.destination,
+                                      time: planner.time,
+                                      ready: planner.ready,
                                       hasResults: hasResults,
                                       onSwap: _swap,
                                       onPickOrigin: () =>
@@ -760,7 +537,7 @@ class _JourneyPlannerScreenState extends ConsumerState<JourneyPlannerScreen> {
                         selectedIndex: selectedIndex,
                         replanning: replanning,
                         refreshFailed: refreshFailed,
-                        loadingRoutes: _loadingRoutes,
+                        loadingRoutes: planner.loadingRoutes,
                         onRetryRefresh: () {
                           final activeQuery = query;
                           if (activeQuery != null) {
@@ -781,7 +558,7 @@ class _JourneyPlannerScreenState extends ConsumerState<JourneyPlannerScreen> {
                   onZoomIn: () => _journeyMapKey.currentState?.zoomIn(),
                   onZoomOut: () => _journeyMapKey.currentState?.zoomOut(),
                   onOpenMicros: _openMicrosSheet,
-                  microsActive: _visibleRouteKeys.isNotEmpty,
+                  microsActive: planner.visibleRouteKeys.isNotEmpty,
                   fullscreen: fullscreen,
                   onToggleFullscreen: () =>
                       ref.read(mapFullscreenProvider.notifier).state =
@@ -793,15 +570,15 @@ class _JourneyPlannerScreenState extends ConsumerState<JourneyPlannerScreen> {
                 Positioned.fill(
                   child: JourneyResultsSheet(
                     controller: _sheetController,
-                    options: lastOptions,
+                    options: cached,
                     bare: bare,
                     selectedIndex: selectedIndex,
-                    expandedIndex: _expandedIndex,
-                    selectedOption: bare || lastOptions.isEmpty
+                    expandedIndex: planner.expandedIndex,
+                    selectedOption: bare || cached.isEmpty
                         ? _bareOption()
-                        : lastOptions[selectedIndex],
-                    endpointsTooClose: _endpointsTooClose,
-                    endpointsDistanceM: _endpointsDistanceM,
+                        : cached[selectedIndex],
+                    endpointsTooClose: planner.endpointsTooClose,
+                    endpointsDistanceM: planner.endpointsDistanceM,
                     onOptionSelected: _selectOption,
                   ),
                 ),
@@ -822,14 +599,14 @@ class _JourneyPlannerScreenState extends ConsumerState<JourneyPlannerScreen> {
                         JourneyStatusPanel(
                           query: query,
                           result: result!,
-                          endpointsTooClose: _endpointsTooClose,
-                          endpointsDistanceM: _endpointsDistanceM,
+                          endpointsTooClose: planner.endpointsTooClose,
+                          endpointsDistanceM: planner.endpointsDistanceM,
                         ),
                         const SizedBox(height: 12),
                       ],
                       JourneyPlannerTrigger(
-                        originLabel: _origin?.label,
-                        destinationLabel: _destination?.label,
+                        originLabel: planner.origin?.label,
+                        destinationLabel: planner.destination?.label,
                         panelOpen: _panelOpen,
                         onTap: _togglePanel,
                       ),
@@ -841,15 +618,6 @@ class _JourneyPlannerScreenState extends ConsumerState<JourneyPlannerScreen> {
         },
       ),
     );
-  }
-
-  /// El usuario marcó una opción en la hoja de resultados (o la expandió).
-  void _selectOption(int itemIndex) {
-    setState(() {
-      final collapsing = _expandedIndex == itemIndex;
-      _selectedOptionIndex = itemIndex;
-      _expandedIndex = collapsing ? null : itemIndex;
-    });
   }
 
   /// Opción "vacía" para mostrar el mapa (con origen/destino) cuando la
