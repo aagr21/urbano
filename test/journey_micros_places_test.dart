@@ -84,22 +84,30 @@ class _PanelHarness {
 
   final ProviderContainer _container;
   final JourneyMicrosSession session;
-  final Set<String> active = {};
   final List<String> toggleCalls = [];
   final List<List<({double lat, double lon})>> frames = [];
 
+  /// Claves activas: viven en el controller (el panel las mira con watch).
+  Set<String> get active =>
+      _container.read(journeyPlannerControllerProvider).visibleRouteKeys;
+
   List<MapMarker> get placeMarkers =>
       _container.read(journeyPlannerControllerProvider).placeMarkers;
+
+  void _setActive(Set<String> keys) {
+    final notifier = _container.read(journeyPlannerControllerProvider.notifier);
+    notifier.state = notifier.state.copyWith(visibleRouteKeys: keys);
+  }
 
   void openPanel(WidgetRef ref) {
     unawaited(
       showJourneyMicrosPanel(
         ref.context,
         ref: ref,
-        activeDirectionKeys: () => active,
         onToggleDirection: (micro, directionId) async {
-          toggleCalls.add('${micro.id}#$directionId');
-          active.add('${micro.id}#$directionId');
+          final key = '${micro.id}#$directionId';
+          toggleCalls.add(key);
+          _setActive({...active, key});
         },
         onClearAll: () {},
         onFramePlaces: frames.add,

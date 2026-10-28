@@ -37,7 +37,6 @@ part 'micros_panel_sections.dart';
 Future<void> showJourneyMicrosPanel(
   BuildContext context, {
   required WidgetRef ref,
-  required Set<String> Function() activeDirectionKeys,
   required Future<void> Function(RouteSummary micro, int directionId)
   onToggleDirection,
   required VoidCallback onClearAll,
@@ -74,7 +73,6 @@ Future<void> showJourneyMicrosPanel(
       pageBuilder: (_, _, _) => _MicrosPanel(
         ref: ref,
         session: session,
-        activeDirectionKeys: activeDirectionKeys,
         onToggleDirection: onToggleDirection,
         onClearAll: onClearAll,
         onFramePlaces: onFramePlaces,
@@ -107,16 +105,15 @@ Future<void> showJourneyMicrosPanel(
 
 /// Panel lateral de micros: fondo `surface`, esquinas redondeadas a la
 /// derecha y el listado a toda altura. El estado de verdad de los recorridos
-/// activos vive en el **controller** del planeador
-/// (`journeyPlannerControllerProvider.visibleRouteKeys`, llega por el getter
-/// [activeDirectionKeys]) y el estado de trabajo (búsqueda, scroll,
-/// detalles) en la sesión; en este `State` solo queda lo efímero: el toggle
-/// en vuelo (`_pendingKey`) y las animaciones de entrada/cierre.
-class _MicrosPanel extends StatefulWidget {
+/// activos vive en el **controller** del planeador (`ref.watch` de
+/// `journeyPlannerControllerProvider.visibleRouteKeys`) y el estado de
+/// trabajo (búsqueda, scroll, detalles) en la sesión; en este `State` solo
+/// queda lo efímero: el toggle en vuelo (`_pendingKey`) y las animaciones de
+/// entrada/cierre.
+class _MicrosPanel extends ConsumerStatefulWidget {
   const _MicrosPanel({
     required this.ref,
     required this.session,
-    required this.activeDirectionKeys,
     required this.onToggleDirection,
     required this.onClearAll,
     this.onFramePlaces,
@@ -127,7 +124,6 @@ class _MicrosPanel extends StatefulWidget {
 
   /// Estado que sobrevive a cerrar el panel.
   final JourneyMicrosSession session;
-  final Set<String> Function() activeDirectionKeys;
   final Future<void> Function(RouteSummary micro, int directionId)
   onToggleDirection;
   final VoidCallback onClearAll;
@@ -138,10 +134,10 @@ class _MicrosPanel extends StatefulWidget {
   final void Function(List<({double lat, double lon})> points)? onFramePlaces;
 
   @override
-  State<_MicrosPanel> createState() => _MicrosPanelState();
+  ConsumerState<_MicrosPanel> createState() => _MicrosPanelState();
 }
 
-class _MicrosPanelState extends State<_MicrosPanel>
+class _MicrosPanelState extends ConsumerState<_MicrosPanel>
     with TickerProviderStateMixin {
   /// Reproducir UNA sola vez al abrir el panel (no en cada toggle/rebuild):
   /// controlador de entrada que escalona el fundido+deslizamiento de las
@@ -219,10 +215,12 @@ class _MicrosPanelState extends State<_MicrosPanel>
 
   bool get _locked => _pendingKey != null;
 
-  /// Claves activas AHORA: el widget entrega un GETTER, no una copia — el
-  /// snapshot por valor hacía que un toggle quedara pintado en el botón
-  /// equivocado (stale) hasta reabrir el panel.
-  Set<String> get _activeKeys => widget.activeDirectionKeys();
+  /// Claves activas AHORA, vivas del controller del planeador: este `ref.watch`
+  /// VUELVE a construir la Red cuando algo dibuja o borra un recorrido (antes
+  /// el widget entregaba un getter prestado y la frescura dependía de que
+  /// alguien llamara a un `setState` a mano).
+  Set<String> get _activeKeys =>
+      ref.watch(journeyPlannerControllerProvider).visibleRouteKeys;
 
   /// Catálogo de líneas (persistido en la sesión).
   List<RouteSummary> get _micros => widget.session.micros;
@@ -305,7 +303,7 @@ class _MicrosPanelState extends State<_MicrosPanel>
     try {
       if (!widget.session.details.containsKey(micro.id)) {
         try {
-          final detail = await widget.ref
+          final detail = await ref
               .read(routeRepositoryProvider)
               .detail(micro.id);
           widget.session.details[micro.id] = detail;
@@ -343,7 +341,7 @@ class _MicrosPanelState extends State<_MicrosPanel>
   /// "Jalar para actualizar": vuelve a pagar `/routes` y reemplaza el
   /// catálogo de la sesión (las líneas activas en el mapa no se tocan).
   Future<void> _refresh() async {
-    final micros = await _fetchAllMicros(widget.ref);
+    final micros = await _fetchAllMicros(ref);
     if (micros.isEmpty || !mounted) return;
     setState(() {
       widget.session.micros = micros;
@@ -416,7 +414,7 @@ class _MicrosPanelState extends State<_MicrosPanel>
   /// ver el listado de [stopNearbyProvider]. Sin ubicación queda la guía.
   Future<void> _applyMyLocation() async {
     if (_locked) return;
-    final me = await widget.ref.read(myLocationProvider.future);
+    final me = await ref.read(myLocationProvider.future);
     if (!mounted || me == null) return;
     setState(() {
       widget.session.placesQuery = '';
@@ -427,7 +425,7 @@ class _MicrosPanelState extends State<_MicrosPanel>
   /// Notifier del planeador: dueño de los marcadores del mapa (el mapa vive
   /// debajo del cajón, en la pantalla base, no aquí).
   JourneyPlannerController get _planner =>
-      widget.ref.read(journeyPlannerControllerProvider.notifier);
+      ref.read(journeyPlannerControllerProvider.notifier);
 
   /// «Marcar en el mapa» del modo LUGARES: abre el selector de punto (el
   /// MISMO `/journey/pick` que origen/destino) y usa lo elegido como el lugar

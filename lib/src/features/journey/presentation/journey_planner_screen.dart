@@ -307,10 +307,6 @@ class _JourneyPlannerScreenState extends ConsumerState<JourneyPlannerScreen> {
     return showJourneyMicrosPanel(
       context,
       ref: ref,
-      // Getter, no snapshot: el panel pide la lista en CADA build suyo, así
-      // que 'Ver ruta'/'Ocultar' siempre refleja el estado real del controller.
-      activeDirectionKeys: () =>
-          ref.read(journeyPlannerControllerProvider).visibleRouteKeys,
       onToggleDirection: _toggleRouteDirection,
       onClearAll: () => _planner.clearMicros(),
       // Encuadra el mapa sobre el lugar marcado y sus paradas para que el pin

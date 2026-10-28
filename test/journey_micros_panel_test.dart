@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:urbano/src/core/theme/app_colors.dart';
 import 'package:urbano/src/core/theme/app_theme.dart';
 import 'package:urbano/src/features/journey/presentation/journey_markers.dart';
+import 'package:urbano/src/features/journey/presentation/journey_planner_controller.dart';
 import 'package:urbano/src/features/journey/presentation/widgets/journey_micros_sheet.dart';
 import 'package:urbano/src/features/routes/data/route_models.dart';
 import 'package:urbano/src/features/routes/data/route_repository.dart';
@@ -37,24 +38,53 @@ List<RouteSummary> _tresLineas() => [
   _route('105', 'Línea 105 · Centro'),
 ];
 
-/// Estado compartido entre el harness y el panel: el panel recibe el MISMO
-/// `Set` que muta el harness (igual que `_visibleRouteKeys` en la pantalla).
+/// Estado compartido entre el harness y el panel: las claves activas están en
+/// el controller del planeador (el panel las mira con `ref.watch`), el
+/// harness solo intenta el guard a través del notifier.
 class _Harness {
-  _Harness({Set<String> active = const {}}) : active = {...active};
+  _Harness({Set<String> active = const {}}) : _seed = active;
 
-  final Set<String> active;
+  final Set<String> _seed;
+  WidgetRef? ref;
   final List<String> toggles = [];
   int clears = 0;
+
+  /// Conecta el harness al arbol de providers y siembra el estado inicial.
+  /// El seed va POST-FRAME: modificar un provider dentro del `build` del
+  /// Consumer es ilegal («Tried to modify a provider while the widget tree
+  /// was building»).
+  void attach(WidgetRef newRef) {
+    ref = newRef;
+    if (_seed.isEmpty) return;
+    if (_attached) return;
+    _attached = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) => _seedActive(_seed));
+  }
+
+  bool _attached = false;
+
+  Set<String> get active =>
+      ref!.read(journeyPlannerControllerProvider).visibleRouteKeys;
 
   void toggle(RouteSummary micro, int directionId) {
     final key = microDirectionKey(micro.id, directionId);
     toggles.add(key);
-    active.contains(key) ? active.remove(key) : active.add(key);
+    final current = active;
+    _seedActive(
+      current.contains(key)
+          ? {...current.where((k) => k != key)}
+          : {...current, key},
+    );
   }
 
   void clearAll() {
     clears++;
-    active.clear();
+    _seedActive(const {});
+  }
+
+  void _seedActive(Set<String> keys) {
+    final notifier = ref!.read(journeyPlannerControllerProvider.notifier);
+    notifier.state = notifier.state.copyWith(visibleRouteKeys: keys);
   }
 }
 
@@ -64,21 +94,23 @@ Widget _app(FakeRouteRepository repo, _Harness state, {bool dark = false}) =>
       child: MaterialApp(
         theme: dark ? AppTheme.dark() : AppTheme.light(),
         home: Consumer(
-          builder: (context, ref, _) => Scaffold(
-            body: Center(
-              child: TextButton(
-                onPressed: () => showJourneyMicrosPanel(
-                  context,
-                  ref: ref,
-                  activeDirectionKeys: () => state.active,
-                  onToggleDirection: (micro, directionId) async =>
-                      state.toggle(micro, directionId),
-                  onClearAll: state.clearAll,
+          builder: (context, ref, _) {
+            state.attach(ref);
+            return Scaffold(
+              body: Center(
+                child: TextButton(
+                  onPressed: () => showJourneyMicrosPanel(
+                    context,
+                    ref: ref,
+                    onToggleDirection: (micro, directionId) async =>
+                        state.toggle(micro, directionId),
+                    onClearAll: state.clearAll,
+                  ),
+                  child: const Text('abrir micros'),
                 ),
-                child: const Text('abrir micros'),
               ),
-            ),
-          ),
+            );
+          },
         ),
       ),
     );
