@@ -108,12 +108,17 @@ class LocationService {
     return true;
   }
 
-  /// Posición actual (precisión alta).
+  /// Posición actual de UN SOLO uso («cerca de mí», centrado inicial).
+  ///
+  /// `medium` en vez de `high`: para nivel calle sobra, la fijación llega
+  /// antes y el radio GNSS trabaja menos posición por punto (batería y
+  /// calor). Los tracks continuos no usan [LocationService] sino la capa
+  /// nativa del mapa (ver LiveMapLayer, solo con seguimiento activo).
   Future<LatLng> currentPosition() async {
     try {
       final position = await Geolocator.getCurrentPosition(
         locationSettings: const LocationSettings(
-          accuracy: LocationAccuracy.high,
+          accuracy: LocationAccuracy.medium,
         ),
       );
       return LatLng(position.latitude, position.longitude);

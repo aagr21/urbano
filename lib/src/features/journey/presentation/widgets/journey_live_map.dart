@@ -95,7 +95,14 @@ class LiveMapLayer extends ConsumerWidget {
       onOriginTap: () => onEndpointTapped(true),
       onDestinationTap: () => onEndpointTapped(false),
       onPositionChanged: onPositionChanged,
-      myLocationEnabled: locationReady,
+      // BATERÍA: la capa nativa de ubicación de MapLibre pide su PROPIA
+      // señal GPS continua (alta precisión, sin control nuestro) mientras
+      // esté encendida — por eso SOLO se activa con el seguimiento activo.
+      // Antes era `locationReady`: con permiso concedido el GPS quedaba
+      // encendido para siempre, seguir viajando o no, y el teléfono se
+      // calentaba. Fuera del seguimiento, el centrado inicial usa la
+      // lectura puntual de [myLocationProvider] (un solo fix).
+      myLocationEnabled: tracking,
       followMyLocation: tracking,
       onTrackingDismissed: () =>
           ref.read(followLocationProvider.notifier).state = false,
