@@ -42,6 +42,13 @@ abstract final class AppRadius {
   );
 }
 
+/// Tamaño ÚNICO (lado) de los botones de control sobre el mapa: zoom,
+/// ubicación, micros, brillo y pantalla completa comparten diámetro — un
+/// solo número para que ningún estilo de botón crezca por su cuenta.
+abstract final class AppControl {
+  static const double mapButton = 44.0;
+}
+
 /// Degradado de marca reutilizable: va de la orilla (verde agua brillante) a
 /// la laguna profunda. La mitad del recorrido ya es verde agua sólido
 /// (paradas inclinadas hacia el color principal) para que la identidad se

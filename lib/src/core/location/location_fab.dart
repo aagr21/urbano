@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../animation/motion.dart';
+import '../theme/app_theme.dart';
 import '../utils/extensions.dart';
 import 'location_controller.dart';
 
@@ -31,13 +32,11 @@ class LocationFab extends ConsumerStatefulWidget {
     super.key,
     required this.following,
     required this.onFollowChanged,
-    this.heroTag = 'location-fab',
   });
 
   /// `true` si la cámara está siguiendo al usuario.
   final bool following;
   final ValueChanged<bool> onFollowChanged;
-  final Object heroTag;
   @override
   ConsumerState<LocationFab> createState() => _LocationFabState();
 }
@@ -106,42 +105,72 @@ class _LocationFabState extends ConsumerState<LocationFab>
     }
     final background = error ? colors.error : colors.primary;
     final foreground = error ? colors.onError : colors.onPrimary;
-    return FloatingActionButton.small(
-      heroTag: widget.heroTag,
-      tooltip: tooltip,
-      backgroundColor: background,
-      foregroundColor: foreground,
-      onPressed: () => _onPressed(location),
-      child: Stack(
-        clipBehavior: Clip.none,
-        children: [
-          Icon(icon),
-          if (error)
-            Positioned(
-              right: 0,
-              bottom: 0,
-              // El punto rojo aparece justo cuando el GPS se apaga o se bloquea
-              // el permiso: entra con un pequeño rebote para que el cambio de
-              // estado se note sin tener que leer el icono (mismo lenguaje que
-              // el punto del botón de micros).
-              child: TweenAnimationBuilder<double>(
-                tween: Tween(begin: 0.2, end: 1),
-                duration: Motion.transition,
-                curve: Curves.easeOutBack,
-                builder: (context, scale, child) =>
-                    Transform.scale(scale: scale, child: child),
-                child: Container(
-                  width: 11,
-                  height: 11,
-                  decoration: BoxDecoration(
-                    color: colors.error,
-                    shape: BoxShape.circle,
-                    border: Border.all(color: colors.surface, width: 2),
+    // Botón circular del MISMO diámetro que el resto de la columna de
+    // controles del mapa ([AppControl.mapButton]) — antes era un
+    // `FloatingActionButton.small` (40 px, ícono 24) y se veía distinto al
+    // lado de los zoom. La superficie elevada + borde también son la misma
+    // familia; el relleno (primary/error) es su señal de estado.
+    return PressScale(
+      scale: 0.92,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: background,
+          shape: BoxShape.circle,
+          border: Border.all(color: foreground.withValues(alpha: 0.35)),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x1F000000),
+              blurRadius: 10,
+              offset: Offset(0, 4),
+            ),
+          ],
+        ),
+        child: SizedBox(
+          width: AppControl.mapButton,
+          height: AppControl.mapButton,
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              customBorder: const CircleBorder(),
+              onTap: () => _onPressed(location),
+              child: Stack(
+                alignment: Alignment.center,
+                clipBehavior: Clip.none,
+                children: [
+                  Tooltip(
+                    message: tooltip,
+                    child: Icon(icon, size: 20, color: foreground),
                   ),
-                ),
+                  if (error)
+                    Positioned(
+                      right: 3,
+                      bottom: 3,
+                      // El punto rojo aparece justo cuando el GPS se apaga o se
+                      // bloquea el permiso: entra con un pequeño rebote para que
+                      // el cambio de estado se note sin tener que leer el icono
+                      // (mismo lenguaje que el punto del botón de micros).
+                      child: TweenAnimationBuilder<double>(
+                        tween: Tween(begin: 0.2, end: 1),
+                        duration: Motion.transition,
+                        curve: Curves.easeOutBack,
+                        builder: (context, scale, child) =>
+                            Transform.scale(scale: scale, child: child),
+                        child: Container(
+                          width: 11,
+                          height: 11,
+                          decoration: BoxDecoration(
+                            color: colors.error,
+                            shape: BoxShape.circle,
+                            border: Border.all(color: colors.surface, width: 2),
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
               ),
             ),
-        ],
+          ),
+        ),
       ),
     );
   }

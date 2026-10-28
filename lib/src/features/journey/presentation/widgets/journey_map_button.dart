@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/animation/motion.dart';
+import '../../../../core/theme/app_theme.dart';
 import '../../../../core/utils/extensions.dart';
 
 /// Botón circular flotante sobre el mapa (zoom, micros, swap de la
@@ -27,6 +28,8 @@ class MapCircleButton extends StatelessWidget {
     return PressScale(
       scale: 0.92,
       child: Container(
+        width: AppControl.mapButton,
+        height: AppControl.mapButton,
         decoration: BoxDecoration(
           color: colors.surface,
           shape: BoxShape.circle,
@@ -41,7 +44,11 @@ class MapCircleButton extends StatelessWidget {
         ),
         child: IconButton(
           tooltip: tooltip,
-          visualDensity: VisualDensity.compact,
+          padding: EdgeInsets.zero,
+          constraints: const BoxConstraints.tightFor(
+            width: AppControl.mapButton,
+            height: AppControl.mapButton,
+          ),
           onPressed: onTap,
           icon: Icon(icon, size: 20, color: colors.primary),
         ),

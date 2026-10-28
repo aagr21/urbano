@@ -243,7 +243,7 @@ class _MapPickerScreenState extends ConsumerState<MapPickerScreen> {
                     ),
                     const SizedBox(height: 10),
                     // Brillo del mapa (independiente del tema de la app).
-                    const MapThemeToggleButton(compact: true),
+                    const MapThemeToggleButton(),
                   ],
                 ),
               ),
@@ -320,7 +320,6 @@ class _MapPickerScreenState extends ConsumerState<MapPickerScreen> {
                         // FAB de ubicación con estados reales (GPS apagado /
                         // permiso pendiente / bloqueado / listo).
                         LocationFab(
-                          heroTag: 'picker-location',
                           following: false,
                           onFollowChanged: (enabled) {
                             if (enabled && !_locating) _goToMyLocation();

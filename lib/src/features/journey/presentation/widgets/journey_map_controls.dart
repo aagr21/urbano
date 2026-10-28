@@ -52,11 +52,7 @@ class JourneyMapControls extends StatelessWidget {
           onTap: onZoomOut,
         ),
         const SizedBox(height: 10),
-        LocationFab(
-          following: tracking,
-          onFollowChanged: onFollowChanged,
-          heroTag: 'journey-location',
-        ),
+        LocationFab(following: tracking, onFollowChanged: onFollowChanged),
         const SizedBox(height: 10),
         _MicrosButton(active: microsActive, onTap: onOpenMicros),
         const SizedBox(height: 10),
