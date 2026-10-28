@@ -91,6 +91,33 @@ bloqueado → ajustes de la app. `LocationFab` traduce cada estado a
 icono/color/tooltip y se reutiliza en la pantalla fusionada y en el
 selector de punto.
 
+### 🧮 La vista de resultados del planeador (`journey_results_view.dart`)
+
+El "modo resultados" de `/journey` — qué consulta está vigente, qué opciones
+mostrar sin parpadear durante un recálculo y qué pinta el mapa — vive en un
+módulo con UN punto de entrada: `journeyResultsProvider`, que emite una
+proyección inmutable `JourneyResultsView` (query, options, hasResults, bare,
+replanning, refreshFailed, selectedIndex, mapOption, mapOrigin/destination).
+
+- La pantalla ya no reconstruye `JourneyQuery` a mano ni muta caché dentro de
+  `build`: el `Notifier` de la vista watchea al controller del planeador y a
+  la consulta (`journeyProvider` family, que no se mueve) y deriva todo.
+- La regla de frescura del caché es la parte más sutil y por eso es text:
+  el caché se refresca SOLO con respuesta de la consulta ACTUAL; cambiar
+  extremo/hora/swap/limpiar pone `submitted: false` en el controller → la
+  consulta muere → el caché muere con ella (antes era un
+  `_discardCachedOptions()` explícito en 5 call sites de la pantalla).
+- El mapa prefiere los CAMPOS sobre los planificados: durante un arrastre
+  de pin el pin sigue al dedo mientras la hoja sigue mostrando el viaje
+  anterior.
+- La pantalla mantiene exclusivamente lo UI: `_panelOpen`, `_sheetExtent`,
+  `GlobalKey` del mapa y callbacks.
+
+Queda con especificación unitaria en `test/journey_results_view_test.dart`
+(12 casos: exploración, adopción, drag con caché conservado, replan
+comprometido, descarte por extremo/hora/swap/clear, clamp de selección,
+fallo con y sin caché, reintento) — sin widgets ni red.
+
 ### 📍 Viaje en el mapa
 El selector de origen/destino usa un pin **fijo en el
 centro** (patrón Uber: se mueve el mapa, no el pin; la coordenada elegida es

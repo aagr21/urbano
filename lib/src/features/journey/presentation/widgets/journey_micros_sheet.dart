@@ -114,10 +114,11 @@ Future<void> showJourneyMicrosPanel(
 
 /// Panel lateral de micros: fondo `surface`, esquinas redondeadas a la
 /// derecha y el listado a toda altura. El estado de verdad de los recorridos
-/// activos vive en la pantalla padre (`_visibleRouteKeys`, pasado por
-/// referencia) y el estado de trabajo (búsqueda, scroll, detalles) en la
-/// sesión; en este `State` solo queda lo efímero: el toggle en vuelo
-/// (`_pendingKey`) y las animaciones de entrada/cierre.
+/// activos vive en el **controller** del planeador
+/// (`journeyPlannerControllerProvider.visibleRouteKeys`, llega por el getter
+/// [activeDirectionKeys]) y el estado de trabajo (búsqueda, scroll,
+/// detalles) en la sesión; en este `State` solo queda lo efímero: el toggle
+/// en vuelo (`_pendingKey`) y las animaciones de entrada/cierre.
 class _MicrosPanel extends StatefulWidget {
   const _MicrosPanel({
     required this.ref,

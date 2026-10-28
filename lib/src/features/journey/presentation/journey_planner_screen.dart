@@ -12,10 +12,10 @@ import '../../../core/utils/extensions.dart';
 import '../../../core/utils/location.dart';
 import '../../../core/utils/time_formatters.dart';
 import '../../routes/data/route_models.dart';
-import '../data/journey_models.dart';
 import '../data/journey_repository.dart';
 import 'journey_planner_controller.dart';
 import 'journey_providers.dart';
+import 'journey_results_view.dart';
 import 'widgets/journey_live_map.dart';
 import 'widgets/journey_map_chips.dart';
 import 'widgets/journey_micros_sheet.dart';
@@ -64,13 +64,6 @@ class _JourneyPlannerScreenState extends ConsumerState<JourneyPlannerScreen> {
   /// píldora inferior "¿A dónde vas?".
   bool _panelOpen = false;
 
-  /// Última respuesta con datos y la consulta que la produjo: mantiene el
-  /// viaje visible mientras se recalcula tras arrastrar el origen/destino.
-  /// Se descarta al cambiar el extremo/hora/swap/limpiar (consulta vieja);
-  /// solo el replan DE un drag conserva la anterior hasta que llega la nueva.
-  JourneyQuery? _cachedQuery;
-  List<JourneyOption>? _cachedOptions;
-
   /// Abre/cierra el panel de origen/destino (con animación de despliegue).
   void _togglePanel() => setState(() => _panelOpen = !_panelOpen);
   @override
@@ -114,13 +107,6 @@ class _JourneyPlannerScreenState extends ConsumerState<JourneyPlannerScreen> {
   // ------------------------------------------------------------------
   // Viaje: origen/destino/hora/swap/planificar
   // ------------------------------------------------------------------
-  /// Descarta la caché del viaje (nuevo extremo/hora/swap/limpiar): la
-  /// respuesta anterior ya no representa lo que se ve en los campos.
-  void _discardCachedOptions() {
-    _cachedQuery = null;
-    _cachedOptions = null;
-  }
-
   /// Selector completo de origen/destino: "Mi ubicación" (GPS), punto del
   /// mapa o un lugar popular de Santa Cruz.
   Future<void> _pickPlace({required bool isOrigin}) async {
@@ -208,7 +194,6 @@ class _JourneyPlannerScreenState extends ConsumerState<JourneyPlannerScreen> {
   /// el encuadre de cámara del mapa tras la selección.
   void _commitPlace(JourneyPlace place, {required bool isOrigin}) {
     _planner.setPlace(place, isOrigin: isOrigin);
-    _discardCachedOptions();
     _framePickedEndpoints();
   }
 
@@ -239,7 +224,6 @@ class _JourneyPlannerScreenState extends ConsumerState<JourneyPlannerScreen> {
     final picked = await showTimePicker(context: context, initialTime: initial);
     if (picked == null || !mounted) return;
     _planner.setTime(GtfsTime.formatHm(picked.hour, picked.minute));
-    _discardCachedOptions();
   }
 
   /// Envía la consulta, salvo que origen y destino estén en el mismo sitio
@@ -267,13 +251,11 @@ class _JourneyPlannerScreenState extends ConsumerState<JourneyPlannerScreen> {
 
   void _swap() {
     _planner.swap();
-    _discardCachedOptions();
   }
 
   /// Vuelve al modo exploración: limpia origen/destino y resultados.
   void _clear() {
     _planner.clear();
-    _discardCachedOptions();
   }
 
   /// El usuario marcó una opción en la hoja de resultados (o la expandió).
@@ -365,42 +347,23 @@ class _JourneyPlannerScreenState extends ConsumerState<JourneyPlannerScreen> {
     // el mapa con sus controles (la barra del shell la esconde UrbanoShell).
     final fullscreen = ref.watch(mapFullscreenProvider);
     final planner = ref.watch(journeyPlannerControllerProvider);
-    JourneyQuery? query;
-    if (planner.submitted && planner.ready) {
-      query = JourneyQuery(
-        origin: planner.planOrigin ?? planner.origin!,
-        destination: planner.planDestination ?? planner.destination!,
-        time: planner.time,
-      );
-    }
-    // Resultado vigente para la consulta actual.
-    final result = query == null ? null : ref.watch(journeyProvider(query));
-    // La caché se refresca SOLO con datos frescos de la consulta actual: una
-    // respuesta cargada antes del último cambio de extremo/hora queda vieja.
-    final fresh = result?.valueOrNull;
-    if (fresh != null && query != _cachedQuery) {
-      _cachedQuery = query;
-      _cachedOptions = fresh;
-    }
-    final cached = _cachedOptions;
-    final hasResults = cached != null;
-    final bare = cached != null && cached.isEmpty;
-    final replanning =
-        hasResults && (planner.replanPending || (result?.isLoading ?? false));
-    final refreshFailed =
-        hasResults && (result?.hasError ?? false) && fresh == null;
-    final selectedIndex = cached == null || cached.isEmpty
-        ? 0
-        : planner.selectedOptionIndex.clamp(0, cached.length - 1);
-    final mapOption = !hasResults || cached.isEmpty
-        ? _bareOption()
-        : cached[selectedIndex];
-    // El mapa prefiere lo que muestran los CAMPOS (que durante un arrastre de
-    // pin van por delante del plan comprometido): así el pin sigue el dedo.
-    final pickedOrigin = planner.origin.pointOrNull;
-    final pickedDestination = planner.destination.pointOrNull;
-    final mapOrigin = pickedOrigin ?? query?.originPoint;
-    final mapDestination = pickedDestination ?? query?.destinationPoint;
+    // Vista de resultados: TODO lo derivado del viaje (consulta efectiva,
+    // caché con su regla de frescura, selección acotada, opción del mapa,
+    // extremos para el mapa) llega contado desde [journeyResultsProvider].
+    // La pantalla ya no reconstruye `JourneyQuery` a mano ni muta caché
+    // dentro de `build` (impl. y spec: `journey_results_view.dart`).
+    final results = ref.watch(journeyResultsProvider);
+    final query = results.query;
+    final result = results.result;
+    final cached = results.options;
+    final hasResults = results.hasResults;
+    final bare = results.bare;
+    final replanning = results.replanning;
+    final refreshFailed = results.refreshFailed;
+    final selectedIndex = results.selectedIndex;
+    final mapOption = results.mapOption;
+    final mapOrigin = results.mapOrigin;
+    final mapDestination = results.mapDestination;
     return Scaffold(
       // Brillo PROPIO del mapa: este ámbito decide el estilo de los tiles y,
       // con él, los colores de TODO lo que flota sobre el mapa (tarjeta de
@@ -540,12 +503,9 @@ class _JourneyPlannerScreenState extends ConsumerState<JourneyPlannerScreen> {
                           replanning: replanning,
                           refreshFailed: refreshFailed,
                           loadingRoutes: planner.loadingRoutes,
-                          onRetryRefresh: () {
-                            final activeQuery = query;
-                            if (activeQuery != null) {
-                              ref.invalidate(journeyProvider(activeQuery));
-                            }
-                          },
+                          onRetryRefresh: () => ref
+                              .read(journeyResultsProvider.notifier)
+                              .retryRefresh(),
                         ),
                       ],
                     ),
@@ -572,13 +532,11 @@ class _JourneyPlannerScreenState extends ConsumerState<JourneyPlannerScreen> {
                   Positioned.fill(
                     child: JourneyResultsSheet(
                       controller: _sheetController,
-                      options: cached,
+                      options: cached!,
                       bare: bare,
                       selectedIndex: selectedIndex,
                       expandedIndex: planner.expandedIndex,
-                      selectedOption: bare || cached.isEmpty
-                          ? _bareOption()
-                          : cached[selectedIndex],
+                      selectedOption: mapOption,
                       endpointsTooClose: planner.endpointsTooClose,
                       endpointsDistanceM: planner.endpointsDistanceM,
                       onOptionSelected: _selectOption,
@@ -622,14 +580,4 @@ class _JourneyPlannerScreenState extends ConsumerState<JourneyPlannerScreen> {
       ),
     );
   }
-
-  /// Opción "vacía" para mostrar el mapa (con origen/destino) cuando la
-  /// respuesta no trae ninguna ruta.
-  static JourneyOption _bareOption() => const JourneyOption(
-    type: JourneyType.direct,
-    departAt: '',
-    arriveAt: '',
-    durationMinutes: 0,
-    legs: [],
-  );
 }
