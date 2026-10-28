@@ -5,15 +5,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 
 import '../theme/app_colors.dart';
-
 import 'map_types.dart';
 
 /// Rasteriza el `child` de un [MapMarker] a PNG para `addImage` de MapLibre.
 ///
 /// El widget se monta un instante fuera de pantalla en el [Overlay] raíz, se
 /// captura con `RepaintBoundary.toImage` y se cachea por
-/// [MapMarker.imageCacheKey] (runtimeType + `iconKey` + tamaño), así varias
-/// paradas con el mismo aspecto comparten imagen.
+/// [MapMarker.imageCacheKey] (runtimeType + `iconKey` + tamaño) más el brillo
+/// con el que se pintó, así varias paradas con el mismo aspecto comparten
+/// imagen pero no la comparten un pin del mapa claro y del mapa oscuro.
 class MarkerRasterizer {
   MarkerRasterizer._();
 
@@ -35,7 +35,14 @@ class MarkerRasterizer {
     MapMarker marker, {
     double pixelRatio = 3,
   }) async {
-    final key = '${marker.imageCacheKey}@${pixelRatio.toStringAsFixed(2)}';
+    // El brillo del llamador es el del MAPA (ver `MapThemeScope`), no el de la
+    // app: el mapa puede estar fijado en oscuro con la app clara. Forma parte de
+    // la clave porque al cambiar de brillo el motor recarga el estilo y vuelve a
+    // pedir el icono; si la clave fuera ciega al brillo devolviera el PNG viejo.
+    final theme = Theme.of(context);
+    final key =
+        '${marker.imageCacheKey}@${theme.brightness.name}'
+        '@${pixelRatio.toStringAsFixed(2)}';
     final cached = _cache[key];
     if (cached != null) return cached;
 
@@ -56,7 +63,11 @@ class MarkerRasterizer {
             child: SizedBox(
               width: marker.width,
               height: marker.height,
-              child: marker.child,
+              // El `Overlay` raíz cuelga POR ENCIMA del `MapThemeScope`, así que
+              // allí `Theme.of` devuelve el tema de la app. Sin reinstalar el del
+              // llamador, cualquier marcador que lea `context.colors` saldría
+              // rasterizado con la letra del tema equivocado (cruce de temas).
+              child: Theme(data: theme, child: marker.child),
             ),
           ),
         ),

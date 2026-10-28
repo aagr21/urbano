@@ -91,6 +91,32 @@ void main() {
       await Future<void>.delayed(Duration.zero);
       expect(container.read(themeModeControllerProvider), ThemeMode.system);
     });
+
+    // Regresión STYLE_NOT_READY: cuando `main()` pre-carga el modo guardado y
+    // lo inyecta, `build()` debe devolverlo YA y no cambiarlo después. Si lo
+    // cambiara en un microtask posterior, `MaterialApp` reharía el brillo con
+    // el mapa montado → segundo `setStyleString` → carrera en el plugin.
+    test(
+      'modo pre-cargado se aplica síncrono y no cambia en background',
+      () async {
+        final store = MemoryThemeModeStore(ThemeMode.dark);
+        final container = ProviderContainer(
+          overrides: [
+            themeModeStoreProvider.overrideWithValue(store),
+            themeModeControllerProvider.overrideWith(
+              () => ThemeModeController(ThemeMode.dark),
+            ),
+          ],
+        );
+        addTearDown(container.dispose);
+
+        // Primer read: ya viene resuelto (no `system` transitorio).
+        expect(container.read(themeModeControllerProvider), ThemeMode.dark);
+        // Ni un frame posterior lo mueve: el mapa verá un único estilo.
+        await Future<void>.delayed(Duration.zero);
+        expect(container.read(themeModeControllerProvider), ThemeMode.dark);
+      },
+    );
   });
 
   group('Selector de modo en la pantalla de Info', () {

@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../core/animation/motion.dart';
 import '../../../../core/config/env.dart';
+import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/theme/typography.dart';
 import '../../../../core/utils/extensions.dart';
@@ -23,6 +24,25 @@ class HomeHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final text = context.text;
+    // El buscador pisa el degradado de marca, que es el mismo con tema claro,
+    // tema oscuro y con el mapa en cualquiera de sus dos modos. Heredar el
+    // `inputDecorationTheme` lo rompía cruzado: en oscuro su vidrio (blanco al
+    // 6%) desaparece sobre el verde y en claro la tinta del tema es casi negra
+    // sobre un degradado saturado. Se fija un vidrio casi opaco y TODO lo que se
+    // pinta sobre él (letra, placeholder, íconos, borde, cursor) se mide contra
+    // el fondo realmente pintado, no contra `context.colors`.
+    final fieldGlass = Colors.white.withValues(alpha: 0.94);
+    // Se mide contra `aqua`, el extremo MÁS CLARO del degradado: es el peor
+    // caso para una tinta oscura, así el resultado vale también sobre
+    // `primary`/`primaryDark` (donde el contraste sube) y con cualquier tema.
+    final fieldBg = Color.lerp(AppColors.aqua, Colors.white, 0.94)!;
+    final fieldInk = AppColors.legible(AppColors.ink, fieldBg);
+    final fieldHint = AppColors.legible(AppColors.inkSoft, fieldBg);
+    final fieldEdge = AppColors.legible(
+      AppColors.primary,
+      fieldBg,
+      minContrast: 3,
+    );
 
     return ClipRRect(
       borderRadius: const BorderRadius.vertical(
@@ -101,19 +121,36 @@ class HomeHeader extends StatelessWidget {
                   builder: (context, value, _) => TextField(
                     controller: controller,
                     textInputAction: TextInputAction.search,
-                    style: text.bodyMedium?.copyWith(
-                      color: context.colors.onSurface,
-                    ),
+                    cursorColor: fieldInk,
+                    style: text.bodyMedium?.copyWith(color: fieldInk),
                     decoration: InputDecoration(
                       hintText: 'Busca rutas…',
+                      hintStyle: text.bodyMedium?.copyWith(color: fieldHint),
+                      filled: true,
+                      fillColor: fieldGlass,
+                      prefixIconColor: fieldHint,
+                      suffixIconColor: fieldHint,
                       prefixIcon: const Icon(Icons.search_rounded),
                       suffixIcon: value.text.isEmpty
                           ? null
                           : IconButton(
                               tooltip: 'Limpiar',
                               onPressed: controller.clear,
-                              icon: const Icon(Icons.close_rounded),
+                              icon: Icon(Icons.close_rounded, color: fieldInk),
                             ),
+                      // Píldora con borde propio: sin él, el vidrio blanco sobre
+                      // el verde no marca dónde empieza el campo.
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(AppRadius.pill),
+                        borderSide: BorderSide(color: fieldEdge, width: 1.2),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(AppRadius.pill),
+                        borderSide: BorderSide(
+                          color: AppColors.legible(AppColors.primary, fieldBg),
+                          width: 1.8,
+                        ),
+                      ),
                     ),
                   ),
                 ),

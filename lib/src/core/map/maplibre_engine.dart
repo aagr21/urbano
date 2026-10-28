@@ -3,6 +3,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show PlatformException;
 import 'package:latlong2/latlong.dart';
 import 'package:maplibre_gl/maplibre_gl.dart' as ml;
 
@@ -98,6 +99,17 @@ class MapLibreEngineState extends State<MapLibreEngine>
     if (!identical(oldWidget.controller, widget.controller)) {
       oldWidget.controller?.detach(this);
       widget.controller?.attach(this);
+    }
+    // CAMBIÓ el estilo (p. ej. claro↔oscuro al restaurar el modo de tema
+    // guardado unos instantes después del arranque): el plugin va a llamar
+    // `setStyleString` y el estilo NATIVO queda nulo/medio cargado hasta el
+    // próximo `onStyleLoaded`. Hay que dejar de sincronizar hasta entonces,
+    // o los `symbol#add`/`style#addImage`/`line#add` de `_syncAll` reventarían
+    // con `PlatformException(STYLE_NOT_READY)` contra un estilo sin cargar.
+    // `_onStyleLoaded` pondrá la bandera otra vez en `true` y re-encolará el
+    // dibujo cuando el nuevo estilo esté listo.
+    if (oldWidget.scene.styleString != widget.scene.styleString) {
+      _styleLoaded = false;
     }
     _scheduleSync();
   }
@@ -352,6 +364,10 @@ class MapLibreEngineState extends State<MapLibreEngine>
     // El override se registra aunque la plataforma aún no exista: la primera
     // sincronización coloca el marcador en ese punto.
     _markerOverrides[markerId] = point;
+    // Sin estilo cargado (ventana de recarga) NO se toca el manager: el
+    // `symbol#set` reventaría con `STYLE_NOT_READY`. El override ya quedó
+    // guardado, así que `_syncMarkers` lo aplicará cuando el estilo vuelva.
+    if (!_styleLoaded) return;
     final map = _map;
     final manager = map?.symbolManager;
     if (manager == null) return;
@@ -395,6 +411,16 @@ class MapLibreEngineState extends State<MapLibreEngine>
         }
         if (!_syncQueued || !mounted) break;
       }
+    } on PlatformException catch (e) {
+      // Defensa en profundidad contra la ventana de recarga de estilo: si un
+      // `symbol#add`/`style#addImage`/`line#add` llega justo cuando el plugin
+      // está swapping el estilo (p. ej. al aplicar el tema guardado tras el
+      // primer frame), el nativo responde `STYLE_NOT_READY`. En vez de dejar
+      // el error sin capturar (ruido en consola y dibujo perdido), marcamos
+      // el estilo como no-cargado y dejamos que el próximo `onStyleLoaded`
+      // re-sincronice todo. Cualquier otra `PlatformException` se propaga.
+      if (e.code != 'STYLE_NOT_READY') rethrow;
+      _styleLoaded = false;
     } finally {
       _syncing = false;
     }

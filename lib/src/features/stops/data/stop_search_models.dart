@@ -11,17 +11,28 @@ class StopHit {
     this.distanceMeters,
   });
 
-  factory StopHit.fromJson(Map<String, dynamic> json) => StopHit(
-    id: json['id'] as String? ?? '',
-    name: json['name'] as String? ?? '',
-    lat: (json['lat'] as num?)?.toDouble() ?? 0,
-    lon: (json['lon'] as num?)?.toDouble() ?? 0,
-    distanceMeters: (json['distanceMeters'] as num?)?.toDouble(),
-    routes: ((json['routes'] as List?) ?? const [])
-        .whereType<Map<String, dynamic>>()
-        .map(StopRouteRef.fromJson)
-        .toList(growable: false),
-  );
+  factory StopHit.fromJson(Map<String, dynamic> json) {
+    // Dedup: el feed puede declarar la MISMA línea dos veces en una parada
+    // (p. ej. por dos trips/orientaciones). Mostrar el mismo número repetido
+    // en el resultado es redundante y confuso, así que nos quedamos con la
+    // primera aparición por `id`.
+    final seen = <String>{};
+    final routes = <StopRouteRef>[];
+    for (final raw
+        in ((json['routes'] as List?) ?? const [])
+            .whereType<Map<String, dynamic>>()) {
+      final route = StopRouteRef.fromJson(raw);
+      if (seen.add(route.id)) routes.add(route);
+    }
+    return StopHit(
+      id: json['id'] as String? ?? '',
+      name: json['name'] as String? ?? '',
+      lat: (json['lat'] as num?)?.toDouble() ?? 0,
+      lon: (json['lon'] as num?)?.toDouble() ?? 0,
+      distanceMeters: (json['distanceMeters'] as num?)?.toDouble(),
+      routes: routes,
+    );
+  }
 
   final String id;
   final String name;

@@ -42,9 +42,14 @@ class GlassCard extends StatelessWidget {
           decoration: BoxDecoration(
             color: surface,
             borderRadius: effectiveRadius,
+            // El filo del vidrio se mide contra el MAPA que tiene detrás, no
+            // contra el tema: en oscuro un blanco al 12% sobre un lienzo
+            // `#292929` desaparecía y la tarjeta flotaba sin límite. Con 0.35
+            // el borde supera 3:1 contra ese lienzo (WCAG 1.4.11, fronteras
+            // significativas) sin volverse una caja opaca.
             border: Border.all(
               color: isDark
-                  ? Colors.white.withValues(alpha: 0.12)
+                  ? Colors.white.withValues(alpha: 0.35)
                   : Colors.white.withValues(alpha: 0.9),
             ),
           ),

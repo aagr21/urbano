@@ -49,6 +49,17 @@ class SharedPreferencesThemeModeStore implements ThemeModeStore {
 /// - [setMode] aplica el cambio al instante y lo persiste para la próxima
 ///   sesión.
 class ThemeModeController extends Notifier<ThemeMode> {
+  /// `main()` restaura el modo guardado ANTES del primer frame y lo inyecta
+  /// aquí. Cuando ya viene resuelto, [build] no programa ninguna restauración
+  /// asíncrona: así `MaterialApp` no cambia de brillo una vez montado el mapa,
+  /// lo que dispararía un segundo `setStyleString` que compite con la carga
+  /// del estilo inicial y hace que los managers de anotaciones del plugin
+  /// revienten con `PlatformException(STYLE_NOT_READY)`.
+  ThemeModeController([this._initialMode]);
+
+  /// Modo ya resuelto en el arranque (`null` → restaurar en background).
+  final ThemeMode? _initialMode;
+
   /// Invalida restauraciones de una generación anterior si el provider se
   /// reconstruye (mismo guard del controller de ubicación: Riverpod reutiliza
   /// la instancia entre rebuilds).
@@ -63,7 +74,15 @@ class ThemeModeController extends Notifier<ThemeMode> {
       if (generation == _generation) _generation++;
     });
 
-    // La carga es asíncrona: mientras tanto la app usa el modo del sistema.
+    final initial = _initialMode;
+    if (initial != null) {
+      // Modo restaurado antes del primer frame: no hay nada que cambiar en
+      // vuelo, así que el mapa se construye una sola vez con su estilo final.
+      return initial;
+    }
+
+    // Sin modo pre-cargado (tests, o primera ejecución sin preferencia):
+    // mientras la carga está en vuelo la app usa el modo del sistema.
     unawaited(_load(generation));
     return ThemeMode.system;
   }
