@@ -1,10 +1,51 @@
-# Urbano 🚌
+<div align="center">
 
-**Muévete por Santa Cruz.** Planificador de micros urbanos de Santa Cruz de la
-Sierra, Bolivia — tipo Cruzero, pero moderno y bello. Flutter (Android · iOS ·
-Web) + backend NestJS con datos GTFS.
+<img src="docs/img/logo.svg" width="96" alt="Logo de Urbano"/>
 
-## Backend (NestJS + Postgres/PostGIS)
+# Urbano
+
+**Muévete por Santa Cruz.** 🚌
+
+Planificador de micros urbanos de Santa Cruz de la Sierra, Bolivia —
+tipo Cruzero, pero moderno y bello.
+Flutter (Android · iOS · Web) + backend NestJS con datos GTFS.
+
+[![CI](https://github.com/aagr21/urbano/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/aagr21/urbano/actions/workflows/ci.yml)&nbsp;
+[![Flutter](https://img.shields.io/badge/Flutter-stable-02569B?logo=flutter&logoColor=white)](https://docs.flutter.dev)&nbsp;
+[![NestJS](https://img.shields.io/badge/NestJS-11-E0234E?logo=nestjs&logoColor=white)](https://nestjs.com)&nbsp;
+[![PostGIS](https://img.shields.io/badge/PostgreSQL%20%2B%20PostGIS-geoespacial-336791?logo=postgresql&logoColor=white)](https://postgis.net)&nbsp;
+[![MapLibre](https://img.shields.io/badge/MapLibre-sin%20API%20keys-0EA5E9)](https://maplibre.org)&nbsp;
+[![GTFS](https://img.shields.io/badge/GTFS-Micros%20Santa%20Cruz-F59E0B)](docs/gtfs-dataset.md)
+
+</div>
+
+---
+
+## ✨ Características
+
+- **🗺️ Planner real de transporte** — origen y destino arrastrables sobre el
+  mapa, itinerarios con OTP2 (caminatas por la red viaria real) y degradado
+  elegante al planner interno PostGIS si OTP no está disponible.
+- **🚌 Panel de micros con vida** — el listado completo de líneas se desliza
+  desde la izquierda: busca por numeral, y cada línea enciende su recorrido
+  en el mapa con botones **Ida** / **Vuelta** independientes.
+- **📍 Modo Lugares** — «¿qué línea pasa por aquí?»: busca la esquina por texto,
+  usa tu GPS o **marca el punto directamente en el mapa**, y cada resultado
+  dibuja su ruta entera con un toque.
+- **🧭 Selector de punto al estilo Uber** — el mapa se mueve, el pin fijo se
+  queda; la coordenada devuelta es siempre la que se ve.
+- **⚡ GPS con estados reales** — GPS apagado / permiso pendiente / bloqueado /
+  listo, con flujo guiado a los ajustes del sistema.
+- **🎨 Identidad propia** — tokens estrictos de color/radios/espaciado, tema
+  claro y oscuro de primera clase, y un kit de motion sobrio (`Reveal`,
+  `PressScale`, `CountUp`, movimiento ambiente) sin amor por el circo.
+
+---
+
+## 🚀 Arranque rápido
+
+
+### 🔧 Backend (NestJS + Postgres/PostGIS)
 
 ```sh
 cd backend
@@ -21,7 +62,7 @@ Arquitectura hexagonal por feature (`src/modules/<feature>/{domain,application,
 infrastructure,presentation}`), contrato en `docs/api-contract.md`, dataset en
 `docs/gtfs-dataset.md`.
 
-## App Flutter
+### 📱 App Flutter
 
 ```sh
 flutter pub get
@@ -47,13 +88,13 @@ El contrato exacto del API vive en `docs/api-contract.md`.
 > `AndroidManifest.xml`. **iOS**: permiso de ubicación y `NSAllowsLocalNetworking`
 > en `Info.plist`.
 
-## Verificación
+## 🧪 Verificación
 
 ```sh
 dart format lib test
 flutter analyze     # sin issues (el analysis_options.yaml es estricto a propósito:
                     # strict-casts + strict-raw-types y ~23 lints de estilo; ver AGENTS.md)
-flutter test        # 155 tests offline (7 packages: dio, flutter, flutter_riverpod,
+flutter test        # la suite completa offline (parsers, formatters, widgets, (7 packages: dio, flutter, flutter_riverpod,
                     # flutter_test, geolocator, latlong2, maplibre_gl): parsers,
                     # formatters, API client, widgets, arrastre de marcadores (motor
                     # simulado), drag/replan, aislamiento del rebuild por GPS,
@@ -63,14 +104,14 @@ flutter build web --debug
 flutter build apk --debug
 ```
 
-### Integración extremo a extremo
+### 🔌 Integración extremo a extremo
 
 Con el backend levantado (ver arriba), `flutter test test/api_integration_test.dart`
 ejecuta los repositorios reales de la app contra la API y PostGIS: stats del
 feed, detalle con shape GeoJSON, próximas salidas y el planeador de viaje.
 Si el API está caído, esos tests se omiten con un mensaje.
 
-## Estructura
+## 🗂️ Estructura
 
 ```
 lib/
@@ -114,85 +155,97 @@ test/           # models, formatters, api_client, widget_test (Home mockeado),
                 # location_flow_test (sin red)
 ```
 
-## Decisiones de diseño
+## 🎨 Decisiones de diseño
 
-- **Identidad**: azul/turquesa `#0EA5E9`/`#0284C7` + acento ámbar `#F59E0B`,
-  neutros slate; semillas del `ColorScheme` en `app_theme.dart`.
-- **Tipografía**: Plus Jakarta Sans (títulos) + Inter (cuerpo) vía `google_fonts`.
-- **Radios 16–24**, sombras suaves, escala de espaciado 4/8, M3.
-- **Sin Google Maps**: motor **`maplibre_gl` 0.27.1** con tiles sin API keys
-  (tema claro: estilo vectorial OpenFreeMap _Positron_; tema oscuro: estilo
-  JSON inline con raster de CARTO), GPS con `geolocator`, microinteracciones
-  con el kit propio de motion (`core/animation/motion.dart`).
-- **Una sola pantalla-mapa**: Viaje y el antiguo Mapa se fusionaron en
-  `/journey`, un mapa a pantalla completa siempre montado (un único
-  `JourneyResultMap`, sin destruir la vista de plataforma al planificar).
-  Tres pestañas (Inicio · Rutas · Viaje); `/map` redirige a
-  `/journey`. Sobre el mapa, una píldora inferior resume el viaje y abre/cierra
-  (con animación de despliegue) el **panel de origen→destino**: línea de tiempo
-  con botón de intercambio, hora y "Planificar". El panel arranca cerrado para
-  no tapar el mapa y se cierra solo al planificar, dejando la hoja arrastrable
-  de resultados (0.18/0.45/0.85) con leyenda y opciones. Columna de controles a
-  la derecha (zoom, ubicación, capas). Sin resultados el mapa queda en
-  modo exploración (solo pines de origen/destino); las **paradas como feature
-  se retiraron de la app** (sin marcadores de paradas, hoja de parada, pestaña
-  "Cerca" ni búsqueda por parada).
-- **Ubicación con estado real**: `core/location/` aísla `geolocator` tras un
-  `LocationService` inyectable (testable sin plugin) y expone un
-  `LocationController` (Riverpod) que distingue `serviceOff`,
-  `permissionPending`, `permissionBlocked` y `ready`. El controlador escucha
-  el stream de servicio del sistema (el botón cambia solo si el usuario
-  apaga/enciende el GPS), re-consulta el permiso al reanudar la app
-  (`WidgetsBindingObserver`) y `activate(context)` orquesta el flujo:
-  diálogo de GPS apagado → ajustes del sistema; denegado → solicitud;
-  bloqueado → ajustes de la app. `LocationFab` traduce cada estado a
-  icono/color/tooltip y se reutiliza en la pantalla fusionada y en el
-  selector de punto.
-- **Viaje en el mapa**: el selector de origen/destino usa un pin **fijo en el
-  centro** (patrón Uber: se mueve el mapa, no el pin; la coordenada elegida es
-  siempre el centro) y devolución vía `context.push<JourneyPoint>`; los
-  resultados se dibujan con la `geometry` de `/journey` (línea recta si la
-  ruta no tiene shape), caminatas punteadas, insignias de ruta y pines de
-  origen/destino arrastrables.
-  Para que el punto sea inequívoco, el selector muestra bajo el pin un chip
-  **`Punto: <lat>, <lon>` (5 decimales ≈ 1 m)** que refleja exactamente el
-  valor que se devuelve: se actualiza en vivo mientras la cámara se mueve
-  (ValueNotifier) y `Usar este punto` lee la cámara **viva**
-  al confirmar, de modo que lo guardado nunca puede diferir de lo que se ve.
-  Un `Listener` marca cualquier toque del mapa para que el auto-centrado por
-  GPS inicial nunca le gane a un gesto ya hecho del usuario.
-- **Errores amigables** en todas las pantallas (`AsyncValueView` centraliza
-  carga/vacío/error + reintento); el backend caído degrada con estados bonitos.
-- **Lenguaje de movimiento** (`core/animation/motion.dart`): la app no es estática,
-  pero tampoco de circo — primitivas sobrias y reutilizables.
-  `PressScale` hunde ligeramente lo que se pulsa (tarjetas de opciones, accesos del
-  home, controles circulares del mapa) con 110 ms de bajada y 240 ms de retorno;
-  `Reveal` hace entrar listas y secciones en cascada (opacidad + desplazamiento,
-  80 ms de retardo por `index`, tope en 10 filas para que una lista larga no espere
-  segundos); `CountUp` sube los números de las estadísticas del home; y el trío
-  `Ambient` / `Bob` / `LiveDot` es el **movimiento ambiente**: lo que se mueve solo,
-  sin que el usuario toque nada. Las páginas
-  entran con `UrbanoPageTransitions` (fundido + 5 % de desplazamiento + micro-escala),
-  y **Android conserva el «atrás predictivo» de la plataforma**: su gesto _es_ la
-  animación, pisarlo habría sido un retroceso.
-  Todo es `Ticker`-driven (sin `Timer`, para no romper tests con `pump()`), respeta
-  `MediaQuery.disableAnimations` del sistema, y ninguna animación es infinita: si el
-  contenido ya está en pantalla, el movimiento desaparece. Los tokens (`Motion.quick`
-  / `base` / `slow`, curvas `easeOutCubic` de salida y `easeOutQuint` de entrada) viven
-  en un solo lugar para que la app se mueva igual en todas partes.
-  Cuatro detalles con firma propia: el **header tiene ciudad** — `HomeRouteLattice`
-  pinta los anillos concéntricos de Santa Cruz con sus paradas y una unidad que
-  recorre su corredor y sale del lienzo (no es un GIF: un solo `CustomPainter`), el
-  **esqueleto se convierte en contenido** (`AsyncValueView` revela los datos al irse el
-  shimmer, en todas las pantallas) mientras la **barra de búsqueda barre** el corredor
-  del planeador, los **rieles del tramo se dibujan solos** al expandir una opción (con
-  el color de la línea del GTFS, y cambian de color en el transbordo) y la **insignia
-  de la ruta vuela** de la lista a la AppBar del detalle (Hero, con el prefijo
-  viajando en la URL para que las ramas del shell no choquen). Además el **logo llega
-  andando** y la insignia del panel de micros **flota** mientras haya recorridos
-  dibujados. Está bajo prueba en `test/app_motion_test.dart`.
 
-## Motor del mapa (`lib/src/core/map/`)
+### 🎨 Identidad
+ azul/turquesa `#0EA5E9`/`#0284C7` + acento ámbar `#F59E0B`,
+neutros slate; semillas del `ColorScheme` en `app_theme.dart`.
+
+### ✍️ Tipografía
+Plus Jakarta Sans (títulos) + Inter (cuerpo), vía `google_fonts`.
+Radios 16–24, sombras suaves, escala de espaciado 4/8, M3.
+
+### 🆓 Sin Google Maps
+Motor **`maplibre_gl` 0.27.1** con tiles sin API keys
+(tema claro: estilo vectorial OpenFreeMap _Positron_; tema oscuro: estilo
+JSON inline con raster de CARTO), GPS con `geolocator`, microinteracciones
+con el kit propio de motion (`core/animation/motion.dart`).
+
+### 🖼️ Una sola pantalla-mapa
+Viaje y el antiguo Mapa se fusionaron en
+`/journey`, un mapa a pantalla completa siempre montado (un único
+`JourneyResultMap`, sin destruir la vista de plataforma al planificar).
+Dos pestañas (Inicio · Viaje); `/map` redirige a `/journey`. Sobre el mapa, una píldora inferior resume el viaje y abre/cierra
+(con animación de despliegue) el **panel de origen→destino**: línea de tiempo
+con botón de intercambio, hora y "Planificar". El panel arranca cerrado para
+no tapar el mapa y se cierra solo al planificar, dejando la hoja arrastrable
+de resultados (0.18/0.45/0.85) con leyenda y opciones. Columna de controles a
+la derecha (zoom, ubicación, capas). Sin resultados el mapa queda en
+modo exploración (solo pines de origen/destino); las **paradas como feature
+se retiraron de la app** (sin marcadores de paradas, hoja de parada, pestaña
+"Cerca" ni búsqueda por parada).
+
+### 🧭 Ubicación con estado real
+ `core/location/` aísla `geolocator` tras un
+`LocationService` inyectable (testable sin plugin) y expone un
+`LocationController` (Riverpod) que distingue `serviceOff`,
+`permissionPending`, `permissionBlocked` y `ready`. El controlador escucha
+el stream de servicio del sistema (el botón cambia solo si el usuario
+apaga/enciende el GPS), re-consulta el permiso al reanudar la app
+(`WidgetsBindingObserver`) y `activate(context)` orquesta el flujo:
+diálogo de GPS apagado → ajustes del sistema; denegado → solicitud;
+bloqueado → ajustes de la app. `LocationFab` traduce cada estado a
+icono/color/tooltip y se reutiliza en la pantalla fusionada y en el
+selector de punto.
+
+### 📍 Viaje en el mapa
+El selector de origen/destino usa un pin **fijo en el
+centro** (patrón Uber: se mueve el mapa, no el pin; la coordenada elegida es
+siempre el centro) y devolución vía `context.push<JourneyPoint>`; los
+resultados se dibujan con la `geometry` de `/journey` (línea recta si la
+ruta no tiene shape), caminatas punteadas, insignias de ruta y pines de
+origen/destino arrastrables.
+Para que el punto sea inequívoco, el selector muestra bajo el pin un chip
+**`Punto: <lat>, <lon>` (5 decimales ≈ 1 m)** que refleja exactamente el
+valor que se devuelve: se actualiza en vivo mientras la cámara se mueve
+(ValueNotifier) y `Usar este punto` lee la cámara **viva**
+al confirmar, de modo que lo guardado nunca puede diferir de lo que se ve.
+Un `Listener` marca cualquier toque del mapa para que el auto-centrado por
+GPS inicial nunca le gane a un gesto ya hecho del usuario.
+### 🤝 Errores amigables
+En todas las pantallas (`AsyncValueView` centraliza carga/vacío/error +
+reintento); el backend caído degrada con estados bonitos.
+### 🎬 Lenguaje de movimiento
+(`core/animation/motion.dart`): la app no es estática, pero tampoco de circo —
+primitivas sobrias y reutilizables.
+`PressScale` hunde ligeramente lo que se pulsa (tarjetas de opciones, accesos del
+home, controles circulares del mapa) con 110 ms de bajada y 240 ms de retorno;
+`Reveal` hace entrar listas y secciones en cascada (opacidad + desplazamiento,
+80 ms de retardo por `index`, tope en 10 filas para que una lista larga no espere
+segundos); `CountUp` sube los números de las estadísticas del home; y el trío
+`Ambient` / `Bob` / `LiveDot` es el **movimiento ambiente**: lo que se mueve solo,
+sin que el usuario toque nada. Las páginas
+entran con `UrbanoPageTransitions` (fundido + 5 % de desplazamiento + micro-escala),
+y **Android conserva el «atrás predictivo» de la plataforma**: su gesto _es_ la
+animación, pisarlo habría sido un retroceso.
+Todo es `Ticker`-driven (sin `Timer`, para no romper tests con `pump()`), respeta
+`MediaQuery.disableAnimations` del sistema, y ninguna animación es infinita: si el
+contenido ya está en pantalla, el movimiento desaparece. Los tokens (`Motion.quick`
+/ `base` / `slow`, curvas `easeOutCubic` de salida y `easeOutQuint` de entrada) viven
+en un solo lugar para que la app se mueva igual en todas partes.
+Cuatro detalles con firma propia: el **header tiene ciudad** — `HomeRouteLattice`
+pinta los anillos concéntricos de Santa Cruz con sus paradas y una unidad que
+recorre su corredor y sale del lienzo (no es un GIF: un solo `CustomPainter`), el
+**esqueleto se convierte en contenido** (`AsyncValueView` revela los datos al irse el
+shimmer, en todas las pantallas) mientras la **barra de búsqueda barre** el corredor
+del planeador, los **rieles del tramo se dibujan solos** al expandir una opción (con
+el color de la línea del GTFS, y cambian de color en el transbordo) y la **insignia
+de la ruta vuela** de la lista a la AppBar del detalle (Hero, con el prefijo
+viajando en la URL para que las ramas del shell no choquen). Además el **logo llega
+andando** y la insignia del panel de micros **flota** mientras haya recorridos
+dibujados. Está bajo prueba en `test/app_motion_test.dart`.
+## 🗺️ Motor del mapa (`lib/src/core/map/`)
 
 El mapa se abstrae detrás de la fachada `UrbanoMap`
 (`core/widgets/urbano_map.dart`), que arma un `MapScene` y se lo pasa al
@@ -218,7 +271,7 @@ atribución del estilo: © OpenStreetMap · OpenFreeMap en claro, © OpenStreetM
 · © CARTO en oscuro); esa API no permite desactivarlo, así que la píldora de
 atribución dibujada por la fachada aparece solo con el motor simulado.
 
-### Controles y arrastre
+### 🕹️ Controles y arrastre
 
 - **Controles**: zoom +/− en la columna derecha de la pantalla fusionada, el
   botón de **pantalla completa** (`fullscreen_rounded`, oculta paneles flotantes
@@ -252,7 +305,7 @@ atribución dibujada por la fachada aparece solo con el motor simulado.
   vacío. Si la actualización falla se muestra "No se pudo recalcular" con
   reintento.
 
-### Cómo se prueba el arrastre
+### 🤖 Cómo se prueba el arrastre
 
 Los tests no pueden arrastrar anotaciones nativas, así que `FakeMapEngine`
 expone la misma frontera que usaría el motor real:
