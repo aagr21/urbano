@@ -181,12 +181,10 @@ class _MapPickerScreenState extends ConsumerState<MapPickerScreen> {
       (_, next) => _applyInitialLocation(next.valueOrNull),
     );
 
-    // Con permiso y GPS activos se muestra el puck de "mi ubicación" sobre el
-    // mapa: así, al marcar origen/destino, el usuario ve dónde está. NO se
-    // sigue con la cámara (el pin de punto es fijo al centro y manda sobre la
-    // coordenada devuelta); solo se pinta el punto azul de referencia.
-    final locationReady =
-        ref.watch(locationControllerProvider).status == LocationStatus.ready;
+    // Ya no hay puck nativo de MapLibre (GPS de un solo dueño): el selector
+    // se centra con la LECTURA PUNTUAL de «mi ubicación» (myLocationProvider,
+    // refrescada al conceder el permiso) y el pin fijo del centro marca el
+    // punto devuelto. [locationControllerProvider] solo queda para el FAB.
 
     final initialCenter = widget.initial == null
         ? (ref.watch(myLocationProvider).valueOrNull ?? _santaCruz)
@@ -213,7 +211,11 @@ class _MapPickerScreenState extends ConsumerState<MapPickerScreen> {
               center: initialCenter,
               zoom: 15,
               showTiles: widget.showTiles,
-              myLocationEnabled: locationReady,
+              // GPS DE UN SOLO DUEÑO (default `myLocationEnabled=false`):
+              // este selector se centra desde las lecturas PUNTUALES de
+              // [LocationService] (geolocator); la capa nativa de MapLibre
+              // enciende su propio GPS continuo sin control nuestro, así
+              // que aquí no se usa nunca más.
               onMapReady: _onMapReady,
               onPositionChanged: _onPositionChanged,
             ),

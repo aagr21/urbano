@@ -64,6 +64,17 @@ class LiveMapLayer extends ConsumerWidget {
   final void Function(bool isOrigin) onEndpointTapped;
   final MapPositionChangedCallback? onPositionChanged;
 
+  /// Mueve LA CÁMARA hacia la posición en vivo (seguimiento propio).
+  ///
+  /// Zoom: si la vista ya está a nivel calle se conserva; si está lejos
+  /// (vista de barrio/ciudad) sube a 16 para que el punto sea útil al momento.
+  void _followTo(GlobalKey<JourneyResultMapState> mapKey, LatLng? point) {
+    final map = mapKey.currentState;
+    if (point == null || map == null) return;
+    final zoom = map.currentZoom < 15.5 ? 16.0 : null;
+    map.moveTo(point, zoom: zoom);
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     // Última posición conocida: NUNCA se vacía. Es la que dibuja el punto
@@ -73,37 +84,54 @@ class LiveMapLayer extends ConsumerWidget {
     final me =
         ref.watch(lastKnownLocationProvider) ??
         ref.watch(myLocationProvider).valueOrNull;
-    final initialCenter = me ?? santaCruzCenter;
     final locationReady =
         ref.watch(locationControllerProvider).status == LocationStatus.ready;
     final tracking = ref.watch(followLocationProvider) && locationReady;
+    // Dueño ÚNICO del GPS: con seguimiento activo el stream propio
+    // ([myLocationRealtimeProvider]) es la fuente fresca y manda sobre la
+    // semilla; sin seguimiento queda la última posición conocida.
+    final livePoint = tracking
+        ? ref.watch(myLocationRealtimeProvider).valueOrNull
+        : null;
+    final shownPoint = livePoint ?? me;
+    final initialCenter = shownPoint ?? santaCruzCenter;
     final mapOrigin = origin ?? pointOf(initialCenter);
 
-    // Al empezar o DEJAR de seguir (gesto en el mapa o botón), la foto más
-    // barata y fresca de dónde estás es la caché del sistema: el GPS nativo
-    // acaba de estar (o está) activo, así que llega al instante. Al dejar de
-    // seguir pedimos además un fix fino para corregir la posición si la caché
-    // fuera vieja (p. ej. el móvil venía de dormir).
+    // Cámara en el seguimiento: la app la mueve con cada tick del stream.
+    // Callback en lugar de watch: mover cámara NO debe reconstruir la capa.
+    ref.listen(myLocationRealtimeProvider, (_, next) {
+      if (!ref.read(followLocationProvider)) return;
+      final point = next.valueOrNull;
+      if (point != null) _followTo(mapKey, point);
+    });
+
+    // Al empezar o DEJAR de seguir (gesto en el mapa o botón): la semilla
+    // de "dónde estás" es la caché del sistema (instantánea). Al empezar
+    // además ABORDAMOS la cámara hacia el punto: el follow ya no es nativo,
+    // es la app quien mueve el mapa con cada tick del stream propio.
     ref.listen(followLocationProvider, (previous, next) {
       if (previous == next) return;
       ref.read(lastKnownLocationProvider.notifier).refreshFromSystem();
       if (previous == true && next == false) {
         ref.invalidate(myLocationProvider);
       }
+      if (next && previous == false) {
+        _followTo(mapKey, ref.read(myLocationRealtimeProvider).valueOrNull);
+      }
     });
 
-    // SIN seguimiento: la capa nativa duerme (batería), pero tu posición
-    // sigue visible como punto propio, dibujado AL TIPO DE LA APP desde la
-    // última posición conocida ([lastKnownLocationProvider]). Con seguir
-    // activo el puck nativo es el que manda y este duplicado no se dibuja. La
-    // AURA pulsante no es marcador: viaja en [extraPulses] (la pintan los
-    // motores en capas nativas, véase [MapPulse]) para no re-rasterizar.
+    // El punto propio «mi ubicación» es EL punto, siempre que se sepa dónde
+    // estás (dibujado AL TIPO DE LA APP, con seguimiento y sin él): el puck
+    // nativo de MapLibre NO se usa más — pide su propio GPS continuo y le
+    // robaba BATERÍA y control a la capa [LocationService]. La AURA pulsante
+    // no es marcador: viaja en [extraPulses] (la pintan los motores en capas
+    // nativas, véase [MapPulse]) para no re-rasterizar.
     final markers = [
       ...extraMarkers,
-      if (!tracking && locationReady && me != null)
+      if (locationReady && shownPoint != null)
         MapMarker(
           id: 'my-location-last',
-          point: me,
+          point: shownPoint,
           width: 22,
           height: 22,
           child: DecoratedBox(
@@ -116,8 +144,8 @@ class LiveMapLayer extends ConsumerWidget {
         ),
     ];
     final pulses = [
-      if (!tracking && locationReady && me != null)
-        MapPulse(point: me, color: context.colors.primary),
+      if (locationReady && shownPoint != null)
+        MapPulse(point: shownPoint, color: context.colors.primary),
     ];
 
     return JourneyResultMap(
@@ -142,15 +170,12 @@ class LiveMapLayer extends ConsumerWidget {
       onOriginTap: () => onEndpointTapped(true),
       onDestinationTap: () => onEndpointTapped(false),
       onPositionChanged: onPositionChanged,
-      // BATERÍA: la capa nativa de ubicación de MapLibre pide su PROPIA
-      // señal GPS continua (alta precisión, sin control nuestro) mientras
-      // esté encendida — por eso SOLO se activa con el seguimiento activo.
-      // Antes era `locationReady`: con permiso concedido el GPS quedaba
-      // encendido para siempre, seguir viajando o no, y el teléfono se
-      // calentaba. Sin seguir, tu posición la pinta el punto Dart desde la
-      // última lectura puntual (ver `markers`).
-      myLocationEnabled: tracking,
-      followMyLocation: tracking,
+      // GPS DE UN SOLO DUEÑO: MapLibre NUNCA pide ubicación nativa (`false`
+      // es el default de la fachada; el comentario lo documenta a propósito):
+      // su capa enciende un GPS continuo de alta precisión sin control
+      // nuestro. Toda la señal —puntual, caché del sistema y stream— sale de
+      // [LocationService] (geolocator) y el punto propio la dibuja; la cámara
+      // del seguimiento la mueve la app (véase `ref.listen` arriba).
       extraPulses: pulses,
       extraMarkers: markers,
       onTrackingDismissed: () =>

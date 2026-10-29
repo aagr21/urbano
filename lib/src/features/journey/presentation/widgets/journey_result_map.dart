@@ -177,6 +177,16 @@ class JourneyResultMapState extends State<JourneyResultMap> {
   /// Zoom − (lo usan los controles de la pantalla fusionada).
   void zoomOut() => _controller.zoomOut();
 
+  /// Zoom actual (para decidir si el follow propio sube de nivel o conserva).
+  double get currentZoom => _controller.camera.zoom;
+
+  /// Recentra la cámara en [point] conservando el zoom (o el dado).
+  ///
+  /// Es el motor del seguimiento PROPIO: cada tick del stream de
+  /// `LocationService` llega aquí; MapLibre nativo ya no manda nada.
+  void moveTo(LatLng point, {double? zoom}) =>
+      _controller.move(point, zoom ?? _controller.camera.zoom);
+
   /// Encuadra [points] (los extremos marcados) para que el pin recién fijado
   /// se VEA en el mapa.
   ///

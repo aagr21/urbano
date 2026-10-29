@@ -7,6 +7,7 @@ import 'package:geolocator/geolocator.dart' show LocationPermission;
 import 'package:latlong2/latlong.dart';
 import 'package:urbano/src/core/location/location_controller.dart';
 import 'package:urbano/src/core/location/location_service.dart';
+import 'package:urbano/src/core/map/fake_map_engine.dart';
 import 'package:urbano/src/core/map/map.dart';
 import 'package:urbano/src/core/map/map_tile.dart';
 import 'package:urbano/src/core/theme/app_theme.dart';
@@ -26,8 +27,8 @@ class _MemoryMapThemeStore implements MapThemeStore {
   Future<void> save(MapTile? tile) async {}
 }
 
-/// Fix "fino" que NUNCA llega: es lo que pasa de verdad al soltar el
-/// seguimiento, el GPS tarda segundos en fijar otra vez.
+/// Fix "fino" que NUNCA llega: es lo que pasa de verdad cuando el GPS tarda
+/// en fijar (frío, interiores, el móvil venía de dormir).
 class _SlowFixLocationService extends FakeLocationService {
   _SlowFixLocationService()
     : super(initialPermission: LocationPermission.whileInUse);
@@ -50,6 +51,10 @@ MapMarker? _lastKnownMarker(WidgetTester tester) {
   }
   return null;
 }
+
+/// Centro de la cámara del motor (fake) — prueba de que la APP la mueve.
+LatLng _engineCameraCenter(WidgetTester tester) =>
+    tester.state<FakeMapEngineState>(find.byType(FakeMapEngine)).camera.center;
 
 Future<ProviderContainer> _pumpLayer(
   WidgetTester tester, {
@@ -94,19 +99,45 @@ Future<ProviderContainer> _pumpLayer(
 
 void main() {
   testWidgets(
-    'al soltar el seguimiento el punto sale de la caché del sistema, sin '
-    'esperar el fix nuevo (regresión: tu ubicación desaparecía unos segundos)',
+    'GPS de un solo dueño: con seguimiento el stream propio mueve el punto y '
+    'la CÁMARA de la app; al soltar, el punto sale de la caché del sistema '
+    '(regresiones: la ubicación desaparecía unos segundos y el puck nativo '
+    'de MapLibre pedía su propio GPS sin control nuestro)',
     (tester) async {
       final service = _SlowFixLocationService()
         ..cachedPosition = _SlowFixLocationService.cached;
       final container = await _pumpLayer(tester, service: service);
 
-      // Seguimiento activo: manda el puck nativo y el punto Dart no se dibuja.
-      container.read(followLocationProvider.notifier).state = true;
-      await tester.pumpAndSettle();
+      // El fix fino nunca llega, así que antes de activar el seguimiento no
+      // hay posición: el punto todavía no existe.
       expect(_lastKnownMarker(tester), isNull);
 
-      // El usuario mueve el mapa: se suelta el seguimiento.
+      // Seguimiento activo: el stream propio emite un nuevo punto.
+      container.read(followLocationProvider.notifier).state = true;
+      await tester.pumpAndSettle();
+      service.emitPosition(const LatLng(-17.68, -63.08));
+      await tester.pumpAndSettle();
+
+      // El tick del stream mueve el punto propio (no hay puck nativo: la
+      // posición pintada SIEMPRE es la del dueño propio).
+      final liveMarker = _lastKnownMarker(tester);
+      expect(
+        liveMarker,
+        isNotNull,
+        reason: 'con seguimiento el punto propio es EL punto',
+      );
+      expect(liveMarker!.point, const LatLng(-17.68, -63.08));
+
+      // La cámara la mueve LA APP con cada tick (follow propio, no nativo).
+      expect(
+        _engineCameraCenter(tester),
+        const LatLng(-17.68, -63.08),
+        reason:
+            'la cámara camina con el usuario: cada tick recentra a su punto',
+      );
+
+      // Soltar el seguimiento (gesto/botón) NUNCA borra el punto: sale de la
+      // caché del sistema sin esperar el fix nuevo.
       service.lastKnownCalls = 0;
       container.read(followLocationProvider.notifier).state = false;
       await tester.pumpAndSettle();
@@ -116,13 +147,11 @@ void main() {
         greaterThan(0),
         reason: 'soltar el seguimiento debe leer la caché (instantánea)',
       );
-      final marker = _lastKnownMarker(tester);
       expect(
-        marker,
-        isNotNull,
+        _lastKnownMarker(tester)!.point,
+        _SlowFixLocationService.cached,
         reason: 'el punto no puede desaparecer esperando el fix nuevo',
       );
-      expect(marker!.point, _SlowFixLocationService.cached);
     },
   );
 
@@ -139,6 +168,8 @@ void main() {
 
     // Se sigue y se suelta de nuevo, pero el sistema no tiene caché.
     container.read(followLocationProvider.notifier).state = true;
+    await tester.pumpAndSettle();
+    service.emitPosition(const LatLng(-17.68, -63.08));
     await tester.pumpAndSettle();
     container.read(followLocationProvider.notifier).state = false;
     await tester.pumpAndSettle();

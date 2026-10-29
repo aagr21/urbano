@@ -230,21 +230,21 @@ class LastKnownLocation extends Notifier<LatLng?> {
 
 /// Stream continuo de la ubicación del usuario en tiempo real.
 ///
-/// Emite primero la posición actual para disponibilidad inmediata y luego
-/// emite cada actualización del GPS en tiempo real.
+/// Dueño ÚNICO del GPS junto con las lecturas puntuales: el puck nativo de
+/// MapLibre ya no pide su propia señal (ver `LiveMapLayer`). Arranca con la
+/// caché del sistema (instantánea) para pintar el punto sin esperar el fix
+/// y de ahí SIGUE con el stream puro — nunca bloquea con `currentPosition()`
+/// porque un primer fix lento dejaría sin eventos el seguimiento completo.
 final myLocationRealtimeProvider = StreamProvider.autoDispose<LatLng?>((
   ref,
 ) async* {
   final service = ref.watch(locationServiceProvider);
-  final hasPermission = await service.hasGrantedPermission();
-  if (!hasPermission) {
+  if (!await service.hasGrantedPermission()) {
     yield null;
     return;
   }
-  try {
-    final initial = await service.currentPosition();
-    yield initial;
-  } catch (_) {}
+  final cached = await service.lastKnownPosition();
+  if (cached != null) yield cached;
 
   yield* service.positionStream();
 });
