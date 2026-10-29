@@ -1,26 +1,26 @@
-import { Column, Entity, PrimaryGeneratedColumn } from "typeorm";
+import { Column, Entity, PrimaryGeneratedColumn } from 'typeorm';
 
 /** frequencies.txt — frecuencias por trip (headways). */
-@Entity("frequency")
+@Entity('frequency')
 export class Frequency {
-    @PrimaryGeneratedColumn({ name: "id", type: "int" })
-    declare id: number;
+  @PrimaryGeneratedColumn({ name: 'id', type: 'int' })
+  declare id: number;
 
-    @Column({ name: "trip_id", type: "varchar", length: 64 })
-    declare tripId: string;
+  @Column({ name: 'trip_id', type: 'varchar', length: 64 })
+  declare tripId: string;
 
-    /** HH:mm:ss GTFS. */
-    @Column({ name: "start_time", type: "varchar", length: 16 })
-    declare startTime: string;
+  /** HH:mm:ss GTFS. */
+  @Column({ name: 'start_time', type: 'varchar', length: 16 })
+  declare startTime: string;
 
-    /** HH:mm:ss GTFS. */
-    @Column({ name: "end_time", type: "varchar", length: 16 })
-    declare endTime: string;
+  /** HH:mm:ss GTFS. */
+  @Column({ name: 'end_time', type: 'varchar', length: 16 })
+  declare endTime: string;
 
-    @Column({ name: "headway_secs", type: "int" })
-    declare headwaySeconds: number;
+  @Column({ name: 'headway_secs', type: 'int' })
+  headwaySeconds: number;
 
-    /** 0 = aproximado, 1 = exacto (GTFS: exact_times). */
-    @Column({ name: "exact_times", type: "int", default: 0 })
-    declare exactTimes: number;
+  /** 0 = aproximado, 1 = exacto (GTFS: exact_times). */
+  @Column({ name: 'exact_times', type: 'int', default: 0 })
+  exactTimes: number;
 }
