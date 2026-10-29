@@ -15,8 +15,28 @@ export class DatabaseSetupService implements OnModuleInit {
   constructor(private readonly dataSource: DataSource) {}
 
   async onModuleInit(): Promise<void> {
+    await this.ensureExtensions();
     await this.ensureSpatialTypmods();
     await this.createIndexes();
+  }
+
+  /**
+   * Extensiones que requieren los índices (pg_trgm para la búsqueda
+   * ILIKE). `CREATE EXTENSION IF NOT EXISTS` es idempotente; en una base
+   * limpia (CI, o volumen nuevo sin setup manual) es lo que garantiza que
+   * `gin_trgm_ops` exista antes de crear los índices GIN que lo usan.
+   */
+  private async ensureExtensions(): Promise<void> {
+    try {
+      await this.dataSource.query('CREATE EXTENSION IF NOT EXISTS pg_trgm');
+    } catch (error: unknown) {
+      // Base gestionada sin privilegios de superusuario: si la extensión ya
+      // fue creada por el operador, seguir; si no, índices GIN fallarán y
+      // lo veremos ahí con el error real.
+      this.logger.warn(
+        `pg_trgm no pudo crearse (${(error as Error).message?.split('\n')[0]}); asumo que ya existe`,
+      );
+    }
   }
 
   private async ensureSpatialTypmods(): Promise<void> {
