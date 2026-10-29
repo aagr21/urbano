@@ -72,6 +72,10 @@ jobs:
           --health-timeout 5s
           --health-retries 10
     env:
+      PORT: 3000
+      # El feed vive en el repo (backend/gtfs.zip): la ruta la resuelve el
+      # CLI del import a partir del cwd del job.
+      GTFS_FILE: ./gtfs.zip
       DB_HOST: localhost
       DB_PORT: 5432
       DB_USERNAME: postgres
