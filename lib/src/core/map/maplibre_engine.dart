@@ -7,6 +7,7 @@ import 'package:flutter/services.dart' show PlatformException;
 import 'package:latlong2/latlong.dart';
 import 'package:maplibre_gl/maplibre_gl.dart' as ml;
 
+import '../animation/motion.dart';
 import '../utils/geo.dart';
 import 'endpoint_drag_detector.dart';
 import 'map_controller.dart';
@@ -93,6 +94,17 @@ class MapLibreEngineState extends State<MapLibreEngine>
 
   String? _lineSignature;
 
+  /// Auras de ubicación ([MapPulse]) como círculos nativos. El RADIUS/OPACITY
+  /// lo anima `_pulseTimer` con actualizaciones del manager (llamada por
+  /// canal por tick, mucho más barata que cualquier rasterización Dart).
+  final Map<String, ml.Circle> _pulseCircles = <String, ml.Circle>{};
+
+  Timer? _pulseTimer;
+
+  /// Reloj de fase: no se reinicia con cada tick, así el aura no "salta" si
+  /// el timer derrapa (frames perdidos, app en segundo plano).
+  final Stopwatch _pulseClock = Stopwatch();
+
   bool _syncScheduled = false;
   bool _syncing = false;
   bool _syncQueued = false;
@@ -154,6 +166,7 @@ class MapLibreEngineState extends State<MapLibreEngine>
 
   @override
   void dispose() {
+    _stopPulseClock();
     final map = _map;
     if (map != null) {
       map.onSymbolTapped.remove(_onSymbolTapped);
@@ -191,7 +204,9 @@ class MapLibreEngineState extends State<MapLibreEngine>
     _imagesLoaded.clear();
     _symbols.clear();
     _symbolImageKeys.clear();
+    _pulseCircles.clear();
     _lineSignature = null;
+    unawaited(_allowSymbolOverlap());
     WidgetsBinding.instance.addPostFrameCallback((_) {
       // Al arrancar la app no hay ningún movimiento programático en vuelo:
       // sin esto, el primer gesto del usuario se reportaría como no-gesto
@@ -206,6 +221,33 @@ class MapLibreEngineState extends State<MapLibreEngine>
     if (!mounted || _readyFired) return;
     _readyFired = true;
     widget.scene.onMapReady?.call();
+  }
+
+  /// Permite que dos marcadores ocupen la MISMA coordenada.
+  ///
+  /// El `SymbolManager` del plugin nace con `iconAllowOverlap: false` e
+  /// `iconIgnorePlacement: false`, así que MapLibre **descarta en silencio** el
+  /// símbolo que choca con uno ya dibujado. Y los solapes son legítimos en esta
+  /// escena: el pin de origen cae EXACTAMENTE sobre «mi ubicación» cuando el
+  /// viaje sale de donde estás (el punto azul desaparecía al fijar el origen en
+  /// tu ubicación), origen y destino pueden coincidir al arrastrarlos, y dos
+  /// insignias de ruta pueden compartir el punto medio de su tramo. Aquí se
+  /// apagan las dos banderas de colocación: los marcadores se apilan por orden
+  /// de llegada (el punto de «mi ubicación» va último, así que queda encima del
+  /// pin) y ninguno se oculta.
+  Future<void> _allowSymbolOverlap() async {
+    final manager = _map?.symbolManager;
+    if (manager == null) return;
+    try {
+      // Cada setter reconstruye la capa del plugin con las banderas nuevas.
+      await manager.setIconAllowOverlap(true);
+      await manager.setIconIgnorePlacement(true);
+      if (kDebugMode) debugPrint('[markers] solapes permitidos');
+    } on PlatformException catch (e) {
+      // Misma ventana de recarga de estilo de `_syncAll`: el próximo
+      // `_onStyleLoaded` (que recrea los managers) vuelve a intentarlo.
+      if (kDebugMode) debugPrint('[markers] solape no aplicado: ${e.code}');
+    }
   }
 
   // ------------------------------------------------------------------

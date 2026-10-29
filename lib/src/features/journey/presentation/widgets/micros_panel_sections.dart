@@ -5,17 +5,88 @@ part of 'journey_micros_sheet.dart';
 /// métodos puros de pintura sobre el mismo estado — el archivo se lee de
 /// arriba hacia abajo: primero la conducta (State), después el aspecto.
 extension _MicrosPanelSections on _MicrosPanelState {
-  /// Encabezado: insignia de bus (que se enciende cuando hay recorridos
-  /// dibujados) + título + subtítulo animado con el conteo.
+  /// Fondo vivo del cajón: dos manchas suaves (el verde agua de la marca y el
+  /// coral del atardecer) que derivan **muy** despacio tras el encabezado, más
+  /// una guía de color en el borde superior. Es UN solo [Ambient] para todo el
+  /// panel y va dentro de un [IgnorePointer]: el listado y sus toques no se
+  /// enteran del movimiento ni del color.
+  Widget _backdrop(ColorScheme colors) {
+    return IgnorePointer(
+      child: ClipRect(
+        child: Ambient(
+          period: const Duration(seconds: 12),
+          builder: (_, _, phase, _) {
+            // Deriva senoidal: la mancha se va y vuelve sin saltos de bucle.
+            final drift = math.sin(phase * 2 * math.pi);
+            return Stack(
+              fit: StackFit.expand,
+              children: [
+                Positioned(
+                  left: -70 + drift * 18,
+                  top: -110,
+                  child: _aura(colors.primary, 250, 0.16),
+                ),
+                Positioned(
+                  right: -80 - drift * 14,
+                  top: -60,
+                  child: _aura(colors.tertiary, 200, 0.1),
+                ),
+                // Filo de color: el panel se lee «de Urbano» desde el borde.
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  top: 0,
+                  child: Container(
+                    height: 3,
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          colors.primary,
+                          Color.lerp(colors.primary, colors.secondary, 0.8)!,
+                          colors.tertiary,
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  /// Mancha radial del fondo (barata: un degradado, sin blur).
+  Widget _aura(Color color, double size, double alpha) => Container(
+    width: size,
+    height: size,
+    decoration: BoxDecoration(
+      shape: BoxShape.circle,
+      gradient: RadialGradient(
+        colors: [
+          color.withValues(alpha: alpha),
+          color.withValues(alpha: 0),
+        ],
+      ),
+    ),
+  );
+
+  /// Encabezado: insignia de bus con el degradado de marca (que respira cuando
+  /// hay recorridos dibujados) + título + subtítulo animado con el conteo.
   Widget _header(ColorScheme colors, TextTheme text, int activeCount) {
     final alive = activeCount > 0;
+    // Mancha del subtítulo «en vivo»: tinte de marca lo bastante suave como
+    // para que la tinta calculada encima conserve el contraste de la casa.
+    final tintWash = Color.lerp(colors.surface, colors.primary, 0.14)!;
+    final liveInk = AppColors.legible(colors.primary, tintWash);
     // El ícono del bus se arma una sola vez: con recorridos activos entra
     // flotando («hay unidades rodando ahora mismo en el mapa», sin una palabra
     // de más); sin ellos queda quieto y sin ticker.
     final busIcon = Icon(
       Icons.directions_bus_rounded,
       size: 24,
-      color: colors.primary,
+      color: colors.onPrimary,
     );
     final subtitle = alive
         ? '$activeCount recorridos en el mapa'
@@ -24,36 +95,88 @@ extension _MicrosPanelSections on _MicrosPanelState {
     return _rise(
       _aHeader,
       Padding(
-        padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
+        padding: const EdgeInsets.fromLTRB(20, 18, 20, 12),
         child: Row(
           children: [
-            AnimatedContainer(
-              duration: Motion.morph,
-              curve: Curves.easeOutCubic,
-              width: 44,
-              height: 44,
-              decoration: BoxDecoration(
-                color: colors.primary.withValues(alpha: alive ? 0.2 : 0.12),
-                borderRadius: BorderRadius.circular(
-                  alive ? AppRadius.md : AppRadius.input,
-                ),
-                border: Border.all(
-                  color: colors.primary.withValues(alpha: alive ? 0.4 : 0),
-                  width: 1.2,
-                ),
-              ),
-              child: AnimatedScale(
-                duration: Motion.transition,
-                curve: Curves.easeOutBack,
-                scale: alive ? 1.06 : 1,
-                // Con recorridos dibujados el bus flota dentro de su insignia.
-                child: alive
-                    ? Bob(
-                        amplitude: 2.5,
-                        period: const Duration(milliseconds: 1500),
-                        child: busIcon,
-                      )
-                    : busIcon,
+            SizedBox(
+              width: 46,
+              height: 46,
+              child: Stack(
+                alignment: Alignment.center,
+                clipBehavior: Clip.none,
+                children: [
+                  // Halo que respira bajo la insignia: SOLO con recorridos en
+                  // el mapa (así el panel entero se ve «encendido»).
+                  if (alive)
+                    Positioned.fill(
+                      child: Ambient(
+                        period: const Duration(milliseconds: 1900),
+                        builder: (_, _, phase, _) => Transform.scale(
+                          scale: 1 + 0.3 * phase,
+                          child: Opacity(
+                            opacity: 0.45 * (1 - phase),
+                            child: DecoratedBox(
+                              decoration: BoxDecoration(
+                                color: colors.primary,
+                                borderRadius: BorderRadius.circular(
+                                  AppRadius.md,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  AnimatedContainer(
+                    duration: Motion.morph,
+                    curve: Curves.easeOutCubic,
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      // Degradado de marca: la insignia deja de ser un cuadro
+                      // gris y pasa a ser el punto de color del encabezado.
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [
+                          colors.primary,
+                          Color.lerp(colors.primary, colors.secondary, 0.8)!,
+                        ],
+                      ),
+                      borderRadius: BorderRadius.circular(
+                        alive ? AppRadius.md : AppRadius.input,
+                      ),
+                      border: Border.all(
+                        color: colors.onPrimary.withValues(alpha: 0.24),
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: colors.primary.withValues(
+                            alpha: alive ? 0.45 : 0.22,
+                          ),
+                          blurRadius: alive ? 16 : 10,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: Center(
+                      child: AnimatedScale(
+                        duration: Motion.transition,
+                        curve: Curves.easeOutBack,
+                        scale: alive ? 1.08 : 1,
+                        // Con recorridos dibujados el bus flota dentro de su
+                        // insignia.
+                        child: alive
+                            ? Bob(
+                                amplitude: 2.5,
+                                period: const Duration(milliseconds: 1500),
+                                child: busIcon,
+                              )
+                            : busIcon,
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
             const SizedBox(width: 12),
@@ -61,8 +184,14 @@ extension _MicrosPanelSections on _MicrosPanelState {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Micros', style: text.titleMedium),
-                  const SizedBox(height: 2),
+                  Text(
+                    'Micros',
+                    style: text.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: -0.2,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
                   AnimatedSwitcher(
                     duration: Motion.morph,
                     switchInCurve: Curves.easeOutCubic,
@@ -76,13 +205,47 @@ extension _MicrosPanelSections on _MicrosPanelState {
                         child: child,
                       ),
                     ),
-                    child: Text(
-                      subtitle,
-                      key: ValueKey(subtitle),
-                      style: text.bodySmall?.copyWith(
-                        color: colors.onSurfaceVariant,
-                      ),
-                    ),
+                    child: alive
+                        // Con recorridos en el mapa el conteo se vuelve una
+                        // píldora de color con su punto vivo al lado.
+                        ? Container(
+                            key: ValueKey(subtitle),
+                            padding: const EdgeInsets.fromLTRB(6, 2, 9, 2),
+                            decoration: BoxDecoration(
+                              color: tintWash,
+                              borderRadius: BorderRadius.circular(
+                                AppRadius.pill,
+                              ),
+                              border: Border.all(
+                                color: colors.primary.withValues(alpha: 0.32),
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                LiveDot(color: liveInk, size: 6),
+                                const SizedBox(width: 2),
+                                Flexible(
+                                  child: Text(
+                                    subtitle,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: text.bodySmall?.copyWith(
+                                      color: liveInk,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          )
+                        : Text(
+                            subtitle,
+                            key: ValueKey(subtitle),
+                            style: text.bodySmall?.copyWith(
+                              color: colors.onSurfaceVariant,
+                            ),
+                          ),
                   ),
                 ],
               ),
@@ -94,53 +257,20 @@ extension _MicrosPanelSections on _MicrosPanelState {
   }
 
   /// Interruptor de modo del panel: LÍNEAS (catálogo con ida/vuelta) o
-  /// LUGARES («¿qué línea pasa por este lugar?»). SegmentedButton del
-  /// material — ya viene con los tokens del theme del app.
+  /// LUGARES («¿qué línea pasa por este lugar?»). Pista hundida y una pastilla
+  /// de color que se DESLIZA al cambiar de modo; más vida que el segmentado
+  /// gris del material sin romper sus toques (cada rótulo sigue siendo su
+  /// propio `Text`).
   Widget _modeToggle(ColorScheme colors, TextTheme text) {
     return _rise(
       _aHeader,
       Padding(
         padding: const EdgeInsets.fromLTRB(20, 0, 20, 10),
-        child: SizedBox(
-          height: 38,
-          child: SegmentedButton<bool>(
-            segments: [
-              ButtonSegment(
-                value: false,
-                label: Text(
-                  'Líneas',
-                  style: text.labelMedium?.copyWith(
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                icon: const Icon(Icons.format_list_numbered_rounded, size: 16),
-              ),
-              ButtonSegment(
-                value: true,
-                label: Text(
-                  'Lugares',
-                  style: text.labelMedium?.copyWith(
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                icon: const Icon(Icons.place_rounded, size: 16),
-              ),
-            ],
-            selected: {_placesMode},
-            onSelectionChanged: (selection) => _switchMode(selection.first),
-            style: ButtonStyle(
-              side: WidgetStatePropertyAll<BorderSide>(
-                BorderSide(color: colors.outlineVariant),
-              ),
-              shape: WidgetStatePropertyAll<RoundedRectangleBorder>(
-                RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(AppRadius.pill),
-                ),
-              ),
-              iconSize: const WidgetStatePropertyAll<double>(16),
-              visualDensity: VisualDensity.compact,
-            ),
-          ),
+        child: _ModeSwitch(
+          places: _placesMode,
+          colors: colors,
+          text: text,
+          onChanged: _switchMode,
         ),
       ),
     );
@@ -177,6 +307,14 @@ extension _MicrosPanelSections on _MicrosPanelState {
             onSubmitted: _placesMode ? (_) => _commitPlacesSearch() : null,
             decoration: InputDecoration(
               isDense: true,
+              // Relleno teñido (marca al 5%, al 10% con el foco): el campo
+              // deja de ser un gris plano y se lee parte del panel.
+              filled: true,
+              fillColor: Color.lerp(
+                colors.surface,
+                colors.primary,
+                focused ? 0.1 : 0.05,
+              ),
               // Modo lugares: el foco invita a preguntar «¿qué línea pasa
               // por X?» sin que el usuario conozca numerales.
               hintText: _placesMode
@@ -262,10 +400,14 @@ extension _MicrosPanelSections on _MicrosPanelState {
     );
   }
 
-  /// Acciones rápidas: "Activar todas" y "Limpiar" (esta última solo cobra
-  /// sentido —y color de daño— cuando hay algo que limpiar).
+  /// Acciones rápidas: "Activar todas" (con el tinte de marca: es la acción
+  /// buena) y "Limpiar" (esta última solo cobra sentido —y color de daño—
+  /// cuando hay algo que limpiar).
   Widget _actions(int activeCount) {
     final colors = context.colors;
+    // Relleno de "Activar todas": el acento al 12% con su tinta legible
+    // encima (medida contra la mezcla, no contra la superficie).
+    final addFill = Color.lerp(colors.surface, colors.primary, 0.12)!;
     return _rise(
       _aActions,
       Padding(
@@ -275,6 +417,13 @@ extension _MicrosPanelSections on _MicrosPanelState {
             Expanded(
               child: OutlinedButton.icon(
                 onPressed: _locked ? null : _activateAll,
+                style: OutlinedButton.styleFrom(
+                  backgroundColor: addFill,
+                  foregroundColor: AppColors.legible(colors.primary, addFill),
+                  side: BorderSide(
+                    color: colors.primary.withValues(alpha: 0.35),
+                  ),
+                ),
                 icon: const Icon(Icons.done_all_rounded, size: 18),
                 label: const Text('Activar todas'),
               ),
@@ -356,6 +505,138 @@ extension _MicrosPanelSections on _MicrosPanelState {
           // se muestran ya en su sitio (nada de re-animar en cada frame).
           return _stagger(_entrance, index, tile);
         },
+      ),
+    );
+  }
+}
+
+/// Interruptor LÍNEAS ⇄ LUGARES: una pista hundida con una pastilla de marca
+/// que se desliza al cambiar de modo. La tinta de los rótulos se interpola, así
+/// que el texto no salta de color a mitad del recorrido; los toques siguen
+/// siendo uno por rótulo (el `Text` vive dentro de su `InkWell`).
+class _ModeSwitch extends StatelessWidget {
+  const _ModeSwitch({
+    required this.places,
+    required this.colors,
+    required this.text,
+    required this.onChanged,
+  });
+
+  /// `true` = modo LUGARES (la pastilla se va a la derecha).
+  final bool places;
+  final ColorScheme colors;
+  final TextTheme text;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final radius = BorderRadius.circular(AppRadius.pill);
+    // Pista: el gris de los contenedores con un soplo del primario.
+    final track = Color.lerp(
+      colors.surfaceContainerHighest,
+      colors.primary,
+      colors.brightness == Brightness.dark ? 0.06 : 0.04,
+    )!;
+    return Container(
+      height: 42,
+      padding: const EdgeInsets.all(AppSpace.xs),
+      decoration: BoxDecoration(
+        color: track,
+        borderRadius: radius,
+        border: Border.all(color: colors.outlineVariant),
+      ),
+      child: Stack(
+        children: [
+          AnimatedAlign(
+            alignment: places ? Alignment.centerRight : Alignment.centerLeft,
+            duration: Motion.morph,
+            curve: Curves.easeOutCubic,
+            child: FractionallySizedBox(
+              widthFactor: 0.5,
+              heightFactor: 1,
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      colors.primary,
+                      Color.lerp(colors.primary, colors.secondary, 0.8)!,
+                    ],
+                  ),
+                  borderRadius: radius,
+                  boxShadow: [
+                    BoxShadow(
+                      color: colors.primary.withValues(alpha: 0.35),
+                      blurRadius: 12,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          Row(
+            // Stretch: cada rótulo ocupa todo el alto de la pista (zona
+            // táctil cómoda, no solo el renglón del texto).
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _segment(
+                selected: !places,
+                label: 'Líneas',
+                icon: Icons.format_list_numbered_rounded,
+                onTap: () => onChanged(false),
+                radius: radius,
+              ),
+              _segment(
+                selected: places,
+                label: 'Lugares',
+                icon: Icons.place_rounded,
+                onTap: () => onChanged(true),
+                radius: radius,
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _segment({
+    required bool selected,
+    required String label,
+    required IconData icon,
+    required VoidCallback onTap,
+    required BorderRadius radius,
+  }) {
+    return Expanded(
+      child: Material(
+        type: MaterialType.transparency,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: radius,
+          child: TweenAnimationBuilder<Color?>(
+            duration: Motion.morph,
+            curve: Curves.easeOut,
+            tween: ColorTween(
+              end: selected ? colors.onPrimary : colors.onSurfaceVariant,
+            ),
+            builder: (_, color, _) => Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(icon, size: 16, color: color),
+                const SizedBox(width: 5),
+                Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: text.labelMedium?.copyWith(
+                    color: color,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }

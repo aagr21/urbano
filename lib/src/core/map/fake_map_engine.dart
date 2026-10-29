@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:latlong2/latlong.dart' show LatLng;
 
+import '../animation/motion.dart';
 import 'map_controller.dart';
 import 'map_engine.dart';
 import 'map_projection.dart';
@@ -202,6 +203,8 @@ class FakeMapEngineState extends State<FakeMapEngine> implements MapEngineHost {
                     viewport: size,
                   ),
                 ),
+                for (final pulse in scene.pulses)
+                  _buildPulse(pulse, camera, size),
                 for (final marker in scene.markers)
                   _buildMarker(marker, camera, size),
               ],
@@ -209,6 +212,31 @@ class FakeMapEngineState extends State<FakeMapEngine> implements MapEngineHost {
           ),
         );
       },
+    );
+  }
+
+  /// Aura pulsante proyectada: un [Ambient] (kit de motion: bucle continuo
+  /// en la app, acotado bajo `flutter test` y respetando «reducir
+  /// animaciones») pinta ondas que crecen desde [MapPulse.baseRadius] y se
+  /// funden al llegar a [MapPulse.maxRadius].
+  Widget _buildPulse(MapPulse pulse, MapCamera camera, Size size) {
+    final pixel = MapProjection.project(
+      pulse.point,
+      center: camera.center,
+      zoom: camera.zoom,
+      viewport: size,
+    );
+    final diameter = pulse.maxRadius * 2;
+    return Positioned(
+      left: pixel.dx - pulse.maxRadius,
+      top: pixel.dy - pulse.maxRadius,
+      width: diameter,
+      height: diameter,
+      child: Ambient(
+        builder: (context, _, phase, _) => CustomPaint(
+          painter: _PulsePainter(progress: phase, pulse: pulse),
+        ),
+      ),
     );
   }
 
@@ -344,4 +372,56 @@ class _PolylinePainter extends CustomPainter {
       oldDelegate.polylines != polylines ||
       oldDelegate.camera != camera ||
       oldDelegate.viewport != viewport;
+}
+
+/// Pinta las ondas de un [MapPulse] en el motor simulado.
+///
+/// El box local mide `maxRadius * 2` (ver `_buildPulse`), así que el centro
+/// del pulso cae justo en el centro del lienzo. Van DOS ondas escalonadas
+/// media vuelta entre sí —como el halo de Google Maps— que nacen en
+/// [MapPulse.baseRadius] con opacidad máxima y mueren en [MapPulse.maxRadius]
+/// con opacidad 0. El punto central NO se pinta aquí: llega como marcador de
+/// la escena.
+class _PulsePainter extends CustomPainter {
+  const _PulsePainter({required this.progress, required this.pulse});
+
+  /// Fase de la vuelta actual (0..1), provista por [Ambient].
+  final double progress;
+  final MapPulse pulse;
+
+  /// Tres ondas simultáneas desfasadas un tercio de vuelta: con halos tan
+  /// delgados sería fácil que el halo muriera entre dos crestas.
+  static const int _waves = 3;
+
+  /// Opacidad con la que nace cada onda. < del halo de Google Maps
+  /// (~0.4 al nacer cerca del punto); 0.26 era invisible sobre tiles.
+  static const double _peakOpacity = 0.38;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    for (var wave = 0; wave < _waves; wave++) {
+      final t = (progress + wave / _waves) % 1.0;
+      final radius =
+          pulse.baseRadius + (pulse.maxRadius - pulse.baseRadius) * t;
+      final color = pulse.color.withValues(alpha: _peakOpacity * (1 - t));
+      // Relleno DIFUSO, no un aro: el disco es plano por dentro y se
+      // desvanece en el borde, que es lo que hace que se lea como el halo de
+      // Google Maps y no como una onda dibujada.
+      canvas.drawCircle(
+        center,
+        radius,
+        Paint()
+          ..shader = RadialGradient(
+            colors: [color, color, color.withValues(alpha: 0)],
+            stops: const [0, 0.6, 1],
+          ).createShader(Rect.fromCircle(center: center, radius: radius))
+          ..isAntiAlias = true,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _PulsePainter oldDelegate) =>
+      oldDelegate.progress != progress || oldDelegate.pulse != pulse;
 }

@@ -27,12 +27,13 @@ class MicroDirection {
 
 /// Tarjeta de una línea: **foto del micro como banner a todo el ancho** del
 /// card (si el feed la trae), con el numeral flotando a la izquierda y la
-/// píldora de recorridos a la derecha —ambas sobre la imagen—, y el nombre y
-/// los botones Ida/Vuelta debajo. Sin foto, la franja del banner la ocupa el
-/// tinte GTFS de la línea. La tarjeta **responde al estado**: con recorrido
-/// dibujado se tiñe, el borde se engrosa, flota una sombra de color y el
-/// numeral da un salto; mientras su toggle anda en vuelo se atenúa apenas.
-/// `locked` bloquea los toques cuando OTRA dirección está en vuelo.
+/// píldora de recorridos a la derecha —ambas sobre la imagen—, y el nombre, los
+/// datos de la línea y los botones Ida/Vuelta debajo. Sin foto, la franja del
+/// banner la ocupa el tinte GTFS de la línea (en degradado). La tarjeta
+/// **responde al estado**: con recorrido dibujado se tiñe, el borde se engrosa,
+/// flota una sombra de color y el numeral da un salto; mientras su toggle anda
+/// en vuelo se atenúa apenas. `locked` bloquea los toques cuando OTRA dirección
+/// está en vuelo.
 class JourneyMicroTile extends StatelessWidget {
   const JourneyMicroTile({
     super.key,
@@ -62,12 +63,17 @@ class JourneyMicroTile extends StatelessWidget {
         .where(activeDirectionKeys.contains)
         .length;
     final alive = activeCount > 0;
-    // Fondo **real** de la tarjeta: el tinte del GTFS va mezclado al 7% sobre
-    // la superficie. Se calcula aquí porque todo lo que se pinte encima tiene
-    // que contrastar con lo que hay detrás de verdad (regla de la casa: nada
-    // oscuro sobre oscuro). El color de línea puede ser `2C3E50` (casi negro)
-    // o `F1C40F` (casi blanco), así que nunca se usa tal cual para letras.
-    final cardBackground = Color.lerp(colors.surface, tint, alive ? 0.07 : 0)!;
+    // Fondo **real** de la tarjeta: el tinte del GTFS va mezclado al 3.5%
+    // sobre la superficie (8% con recorrido dibujado). Se calcula aquí porque
+    // todo lo que se pinte encima tiene que contrastar con lo que hay detrás de
+    // verdad (regla de la casa: nada oscuro sobre oscuro). El color de línea
+    // puede ser `2C3E50` (casi negro) o `F1C40F` (casi blanco), así que nunca se
+    // usa tal cual para letras.
+    final cardBackground = Color.lerp(
+      colors.surface,
+      tint,
+      alive ? 0.08 : 0.035,
+    )!;
     final border = alive
         ? AppColors.legible(tint, cardBackground, minContrast: 3)
         : colors.outlineVariant;
@@ -111,7 +117,15 @@ class JourneyMicroTile extends StatelessWidget {
                 // píldora de recorridos arriba a la derecha.
                 Container(
                   height: 132,
-                  color: tint,
+                  // Sin foto la franja la pinta la LÍNEA: un degradado de su
+                  // color al mismo tono hundido, nunca un bloque plano.
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [tint, Color.lerp(tint, Colors.black, 0.45)!],
+                    ),
+                  ),
                   child: Stack(
                     fit: StackFit.expand,
                     children: [
@@ -131,11 +145,18 @@ class JourneyMicroTile extends StatelessWidget {
                             begin: Alignment.topCenter,
                             end: Alignment.bottomCenter,
                             colors: [
-                              Colors.black.withValues(alpha: 0.18),
+                              Colors.black.withValues(alpha: 0.16),
                               Colors.transparent,
-                              Colors.black.withValues(alpha: 0.62),
+                              // El pie se hunde hacia el color de la línea
+                              // (30%): la tarjeta sigue diciendo «de qué micro
+                              // es» aunque la foto sea de un cielo claro.
+                              Color.lerp(
+                                Colors.black,
+                                tint,
+                                0.3,
+                              )!.withValues(alpha: 0.8),
                             ],
-                            stops: const [0, 0.45, 1],
+                            stops: const [0, 0.42, 1],
                           ),
                         ),
                       ),
@@ -150,7 +171,16 @@ class JourneyMicroTile extends StatelessWidget {
                           duration: Motion.settle,
                           curve: Curves.easeOutCubic,
                           height: alive ? 3 : 0,
-                          color: tint,
+                          // Barra con brillo en el color de la línea: el
+                          // recorrido dibujado se marca con SU luz.
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: [
+                                tint,
+                                Color.lerp(tint, Colors.white, 0.4)!,
+                              ],
+                            ),
+                          ),
                         ),
                       ),
                       // Numeral: literal el cartel del parabrisas, flotando
@@ -193,35 +223,51 @@ class JourneyMicroTile extends StatelessWidget {
                     ],
                   ),
                 ),
-                // Contenido debajo del banner: nombre y botones.
+                // Contenido debajo del banner: nombre, datos de la línea y
+                // botones.
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.end,
+                  padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Expanded(
-                        child: Text(
-                          micro.longName,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: text.bodyMedium?.copyWith(
-                            height: 1.2,
-                            fontWeight: FontWeight.w500,
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          Expanded(
+                            child: Text(
+                              micro.longName,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: text.bodyMedium?.copyWith(
+                                height: 1.2,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
                           ),
+                          if (micro.imageUrl == null) ...[
+                            const SizedBox(width: 8),
+                            // Sin foto el numeral acompaña al nombre, como
+                            // pasaba antes, en tamaño reducido.
+                            RouteBadge(
+                              label: micro.shortName,
+                              colorHex: micro.color,
+                              textColorHex: micro.textColor,
+                              size: RouteBadgeSize.small,
+                            ),
+                          ],
+                          const SizedBox(width: 8),
+                        ],
+                      ),
+                      // Datos de la línea en píldoras teñidas con su color:
+                      // la tarjeta se lee aunque no tenga foto.
+                      Padding(
+                        padding: const EdgeInsets.only(top: 8),
+                        child: _LineMeta(
+                          micro: micro,
+                          tint: tint,
+                          background: cardBackground,
                         ),
                       ),
-                      if (micro.imageUrl == null) ...[
-                        const SizedBox(width: 8),
-                        // Sin foto el numeral acompaña al nombre, como
-                        // pasaba antes, en tamaño reducido.
-                        RouteBadge(
-                          label: micro.shortName,
-                          colorHex: micro.color,
-                          textColorHex: micro.textColor,
-                          size: RouteBadgeSize.small,
-                        ),
-                      ],
-                      const SizedBox(width: 8),
                     ],
                   ),
                 ),
@@ -260,6 +306,93 @@ class JourneyMicroTile extends StatelessWidget {
   }
 }
 
+/// Datos de la línea bajo el nombre, en píldoras teñidas con SU color: cuántas
+/// paradas cubre y si tiene ida y vuelta. La tinta se calcula contra la mezcla
+/// que se pinta de verdad (`legible`), nunca se usa el tinte crudo como letra
+/// (un `F1C40F` de GTFS sobre hoja clara desaparecería).
+class _LineMeta extends StatelessWidget {
+  const _LineMeta({
+    required this.micro,
+    required this.tint,
+    required this.background,
+  });
+
+  final RouteSummary micro;
+  final Color tint;
+
+  /// Superficie REAL de la tarjeta (tinte ya mezclado), para el contraste.
+  final Color background;
+
+  @override
+  Widget build(BuildContext context) {
+    final fill = Color.lerp(background, tint, 0.14)!;
+    final ink = AppColors.legible(tint, fill);
+    final lines = micro.directionsCount > 1;
+    return Wrap(
+      spacing: 6,
+      runSpacing: 6,
+      children: [
+        if (micro.stopCount > 0)
+          _MetaPill(
+            icon: Icons.place_rounded,
+            label: '${micro.stopCount} paradas',
+            fill: fill,
+            ink: ink,
+          ),
+        _MetaPill(
+          icon: lines ? Icons.swap_horiz_rounded : Icons.arrow_forward_rounded,
+          label: lines ? 'Ida y vuelta' : 'Solo ida',
+          fill: fill,
+          ink: ink,
+        ),
+      ],
+    );
+  }
+}
+
+/// Píldora compacta de dato (paradas, sentido) con ícono y tinta ya resueltos.
+class _MetaPill extends StatelessWidget {
+  const _MetaPill({
+    required this.icon,
+    required this.label,
+    required this.fill,
+    required this.ink,
+  });
+
+  final IconData icon;
+  final String label;
+  final Color fill;
+  final Color ink;
+
+  @override
+  Widget build(BuildContext context) {
+    final text = context.text;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+      decoration: BoxDecoration(
+        color: fill,
+        borderRadius: BorderRadius.circular(AppRadius.pill),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 12, color: ink),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: (text.labelSmall ?? text.bodySmall)?.copyWith(
+              color: ink,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 /// Píldora con el número de recorridos activos de una línea.
 class _ActivePill extends StatelessWidget {
   const _ActivePill({
@@ -287,6 +420,7 @@ class _ActivePill extends StatelessWidget {
       decoration: BoxDecoration(
         color: background,
         borderRadius: BorderRadius.circular(AppRadius.pill),
+        border: Border.all(color: ink.withValues(alpha: 0.24)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -338,11 +472,21 @@ class _DirectionChip extends StatelessWidget {
     final headsign = direction.headsign;
     final radius = BorderRadius.circular(AppRadius.pill);
     // Relleno "vivo" del chip inactivo: una insinuación del color de la
-    // línea (8%) sobre la superficie, con borde del mismo tinte — el botón
+    // línea (9%) sobre la superficie, con borde del mismo tinte — el botón
     // siempre sabe de qué línea es. Activo: relleno sólido con sombra.
-    final Color inactiveFill = colors.surfaceContainerHighest.withValues(
-      alpha: colors.brightness == Brightness.dark ? 0.55 : 0.85,
+    final inactiveFill = Color.lerp(colors.surface, tint, 0.09)!;
+    final inactiveInk = AppColors.legible(
+      colors.onSurfaceVariant,
+      inactiveFill,
     );
+    // Disco del ícono: el sentido se pinta en un círculo con el color de la
+    // línea incluso apagado (la tarjeta es un objeto de color, no un formulario).
+    final discFill = active
+        ? foreground.withValues(alpha: 0.2)
+        : Color.lerp(inactiveFill, tint, 0.2)!;
+    final discInk = active
+        ? foreground
+        : AppColors.legible(tint, discFill, minContrast: 3);
 
     return PressScale(
       child: AnimatedContainer(
@@ -376,9 +520,7 @@ class _DirectionChip extends StatelessWidget {
               child: TweenAnimationBuilder<Color?>(
                 duration: Motion.release,
                 curve: Curves.easeOut,
-                tween: ColorTween(
-                  end: active ? foreground : colors.onSurfaceVariant,
-                ),
+                tween: ColorTween(end: active ? foreground : inactiveInk),
                 builder: (_, color, child) => IconTheme(
                   data: IconThemeData(size: 17, color: color),
                   child: DefaultTextStyle(
@@ -390,10 +532,30 @@ class _DirectionChip extends StatelessWidget {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(
-                      direction.directionId == 0
-                          ? Icons.arrow_circle_right_outlined
-                          : Icons.arrow_circle_left_outlined,
+                    // Disco del sentido: el ícono lleva el color de la línea
+                    // dentro de un círculo (el chip apagado también dice de
+                    // quién es, sin gritar).
+                    AnimatedContainer(
+                      duration: Motion.release,
+                      curve: Curves.easeOutCubic,
+                      width: 22,
+                      height: 22,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: discFill,
+                      ),
+                      child: TweenAnimationBuilder<Color?>(
+                        duration: Motion.release,
+                        curve: Curves.easeOut,
+                        tween: ColorTween(end: discInk),
+                        builder: (_, color, _) => Icon(
+                          direction.directionId == 0
+                              ? Icons.arrow_circle_right_outlined
+                              : Icons.arrow_circle_left_outlined,
+                          size: 16,
+                          color: color,
+                        ),
+                      ),
                     ),
                     const SizedBox(width: 5),
                     Flexible(
@@ -417,10 +579,8 @@ class _DirectionChip extends StatelessWidget {
                           style: (text.bodySmall ?? text.labelSmall)?.copyWith(
                             fontSize: 10.5,
                             color: active
-                                ? foreground.withValues(alpha: 0.85)
-                                : colors.onSurfaceVariant.withValues(
-                                    alpha: 0.8,
-                                  ),
+                                ? foreground.withValues(alpha: 0.88)
+                                : inactiveInk,
                           ),
                         ),
                       ),

@@ -127,6 +127,25 @@ class LocationService {
     }
   }
 
+  /// Última posición que el SISTEMA ya tiene para esta app, **sin pedir un
+  /// fix nuevo**: la caché del proveedor (Fused en Android, CoreLocation en
+  /// iOS).
+  ///
+  /// Es instantánea y, mientras el mapa está siguiendo la ubicación, está muy
+  /// fresca (la capa nativa acaba de mantener el GPS activo). Con eso el punto
+  /// de «mi ubicación» toma el relevo del puck nativo sin el hueco de varios
+  /// segundos que deja [currentPosition] al soltar el seguimiento.
+  Future<LatLng?> lastKnownPosition() async {
+    try {
+      final position = await Geolocator.getLastKnownPosition();
+      if (position == null) return null;
+      return LatLng(position.latitude, position.longitude);
+    } catch (_) {
+      // Sin plataforma / sin caché: no hay nada que sembrar.
+      return null;
+    }
+  }
+
   /// Stream con la posición en tiempo real del GPS.
   Stream<LatLng> positionStream({
     LocationAccuracy accuracy = LocationAccuracy.high,
@@ -175,6 +194,39 @@ final myLocationProvider = FutureProvider.autoDispose<LatLng?>((ref) async {
   if (!await service.hasGrantedPermission()) return null;
   return service.currentPosition();
 });
+
+/// Última posición conocida del usuario: **nunca vuelve a `null`** una vez
+/// fijada.
+///
+/// Se alimenta de [myLocationProvider] (lecturas puntuales) y, al empezar o
+/// soltar el seguimiento del mapa, de la caché del sistema
+/// ([LocationService.lastKnownPosition]). El punto de «mi ubicación» se dibuja
+/// desde aquí en cuanto el puck nativo se apaga: sin desaparecer mientras
+/// llega un fix nuevo y sin saltar a la posición de hace minutos.
+final lastKnownLocationProvider = NotifierProvider<LastKnownLocation, LatLng?>(
+  LastKnownLocation.new,
+);
+
+class LastKnownLocation extends Notifier<LatLng?> {
+  @override
+  LatLng? build() {
+    ref.listen(myLocationProvider, (_, next) {
+      final point = next.valueOrNull;
+      if (point != null) state = point;
+    });
+    // Semilla: si la lectura puntual ya había resuelto, arrancamos con ella.
+    return ref.read(myLocationProvider).valueOrNull;
+  }
+
+  /// Re-siembra desde la caché del sistema (instantánea, sin pedir fix).
+  ///
+  /// Si no hay caché (plataforma sin soporte) no toca el valor: mejor la
+  /// última posición conocida que ningún punto.
+  Future<void> refreshFromSystem() async {
+    final point = await ref.read(locationServiceProvider).lastKnownPosition();
+    if (point != null) state = point;
+  }
+}
 
 /// Stream continuo de la ubicación del usuario en tiempo real.
 ///

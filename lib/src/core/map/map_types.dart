@@ -211,6 +211,37 @@ class MapMarker {
       '${child.runtimeType}|${iconKey ?? id}|${width}x$height';
 }
 
+/// Aura pulsante de «mi ubicación» (el halo azul de Google Maps).
+///
+/// Va APARTE de [MapMarker] a propósito: en el motor real los marcadores
+/// Dart se rasterizan a PNG estático con [MarkerRasterizer] (el aura, por
+/// ser animada, se congelaría), así que cada motor la implementa en su capa
+/// de bajo costo: `CircleManager` nativo en MapLibre y `CustomPainter` en el
+/// simulado. El punto central SIEMPRE va por marcador, el aura por pulsos.
+///
+/// Una vuelta del aura dura `Motion.ambient` (2,4 s), el mismo latido que
+/// usan los demás aires de la app: los dos motores leen ese valor, así que el
+/// halo respira igual con mapa simulado y con MapLibre.
+@immutable
+class MapPulse {
+  const MapPulse({
+    required this.point,
+    required this.color,
+    this.baseRadius = 14,
+    this.maxRadius = 54,
+  });
+
+  final LatLng point;
+  final Color color;
+
+  /// Radio (px de pantalla) donde nace cada onda: arranca ya fuera del punto
+  /// central para que el halo se vea desde el primer frame.
+  final double baseRadius;
+
+  /// Radio (px) donde la onda muere (opacidad 0).
+  final double maxRadius;
+}
+
 /// Punto tocado en el mapa.
 typedef MapTapCallback = void Function(LatLng point);
 

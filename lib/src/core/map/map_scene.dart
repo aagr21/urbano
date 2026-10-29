@@ -19,6 +19,7 @@ class MapScene {
     this.cameraFit,
     this.polylines = const <MapPolyline>[],
     this.markers = const <MapMarker>[],
+    this.pulses = const <MapPulse>[],
     this.interactive = true,
     this.showTiles = true,
     this.dark = false,
@@ -47,6 +48,9 @@ class MapScene {
 
   final List<MapPolyline> polylines;
   final List<MapMarker> markers;
+
+  /// Auras pulsantes de ubicación (puntos de «mi ubicación»).
+  final List<MapPulse> pulses;
 
   /// `false` bloquea gestos (preview no interactiva).
   final bool interactive;
@@ -111,6 +115,7 @@ class MapScene {
   MapScene copyWith({
     List<MapPolyline>? polylines,
     List<MapMarker>? markers,
+    List<MapPulse>? pulses,
     MapCameraFit? cameraFit,
     bool? clearCameraFit,
   }) => MapScene(
@@ -119,6 +124,7 @@ class MapScene {
     cameraFit: (clearCameraFit ?? false) ? null : cameraFit ?? this.cameraFit,
     polylines: polylines ?? this.polylines,
     markers: markers ?? this.markers,
+    pulses: pulses ?? this.pulses,
     interactive: interactive,
     showTiles: showTiles,
     dark: dark,

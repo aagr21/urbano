@@ -36,6 +36,7 @@ class UrbanoMap extends ConsumerStatefulWidget {
     this.zoom = 13,
     this.polylines = const <MapPolyline>[],
     this.markers = const <MapMarker>[],
+    this.pulses = const <MapPulse>[],
     this.controller,
     this.interactive = true,
     this.cameraFit,
@@ -58,6 +59,11 @@ class UrbanoMap extends ConsumerStatefulWidget {
   final double zoom;
   final List<MapPolyline> polylines;
   final List<MapMarker> markers;
+
+  /// Auras pulsantes de «mi ubicación» ([MapPulse]): los pintan los MOTORES
+  /// (no un marcador rasterizado), de modo que el halo respira como el de
+  /// Google Maps sin re-rasterizar un PNG por frame.
+  final List<MapPulse> pulses;
   final UrbanoMapController? controller;
   final bool interactive;
 
@@ -116,6 +122,7 @@ class _UrbanoMapState extends ConsumerState<UrbanoMap> {
     cameraFit: widget.cameraFit,
     polylines: widget.polylines,
     markers: widget.markers,
+    pulses: widget.pulses,
     interactive: widget.interactive,
     showTiles: widget.showTiles,
     dark: dark,

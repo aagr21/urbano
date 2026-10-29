@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../core/animation/motion.dart';
 import '../../../../core/location/location_service.dart';
+import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/utils/extensions.dart';
 import '../../../../core/widgets/empty_state.dart';
@@ -554,34 +555,44 @@ class _MicrosPanelState extends ConsumerState<_MicrosPanel>
                       width: panelWidth,
                       height: double.infinity,
                       child: SafeArea(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                        child: Stack(
                           children: [
-                            _header(colors, text, activeCount),
-                            _modeToggle(colors, text),
-                            _searchField(colors),
-                            if (!_placesMode) _actions(activeCount),
-                            Expanded(
-                              child: AnimatedBuilder(
-                                // [_entrance] manda: mientras dura la entrada
-                                // el listado se reconstruye frame a frame (así
-                                // escala sus tarjetas) y al terminar deja de
-                                // escuchar.
-                                animation: _entrance,
-                                builder: (_, _) => _placesMode
-                                    ? MicrosPlacesList(
-                                        query: _placesQuery,
-                                        point: widget.session.placesNearbyPoint,
-                                        onUseMyLocation: _applyMyLocation,
-                                        onPickOnMap: _pickPlaceOnMap,
-                                        activeDirectionKeys: _activeKeys,
-                                        busyKey: _pendingKey,
-                                        locked: _locked,
-                                        onToggleRoute: _toggleStopRoute,
-                                        onFramePlaces: widget.onFramePlaces,
-                                      )
-                                    : _list(colors),
-                              ),
+                            // Fondo vivo del cajón (manchas de marca + filo de
+                            // color): se pinta DEBAJO de todo y no recibe
+                            // toques, así que el listado no cambia de conducta.
+                            Positioned.fill(child: _backdrop(colors)),
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                _header(colors, text, activeCount),
+                                _modeToggle(colors, text),
+                                _searchField(colors),
+                                if (!_placesMode) _actions(activeCount),
+                                Expanded(
+                                  child: AnimatedBuilder(
+                                    // [_entrance] manda: mientras dura la entrada
+                                    // el listado se reconstruye frame a frame (así
+                                    // escala sus tarjetas) y al terminar deja de
+                                    // escuchar.
+                                    animation: _entrance,
+                                    builder: (_, _) => _placesMode
+                                        ? MicrosPlacesList(
+                                            query: _placesQuery,
+                                            point: widget
+                                                .session
+                                                .placesNearbyPoint,
+                                            onUseMyLocation: _applyMyLocation,
+                                            onPickOnMap: _pickPlaceOnMap,
+                                            activeDirectionKeys: _activeKeys,
+                                            busyKey: _pendingKey,
+                                            locked: _locked,
+                                            onToggleRoute: _toggleStopRoute,
+                                            onFramePlaces: widget.onFramePlaces,
+                                          )
+                                        : _list(colors),
+                                  ),
+                                ),
+                              ],
                             ),
                           ],
                         ),

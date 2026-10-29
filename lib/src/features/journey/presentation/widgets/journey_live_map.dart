@@ -66,16 +66,27 @@ class LiveMapLayer extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final me = ref.watch(myLocationProvider).valueOrNull;
+    // Última posición conocida: NUNCA se vacía. Es la que dibuja el punto
+    // cuando el puck nativo se apaga, así que al mover el mapa tu ubicación no
+    // desaparece esperando un fix nuevo ([myLocationProvider], que tarda
+    // segundos en fijar).
+    final me =
+        ref.watch(lastKnownLocationProvider) ??
+        ref.watch(myLocationProvider).valueOrNull;
     final initialCenter = me ?? santaCruzCenter;
     final locationReady =
         ref.watch(locationControllerProvider).status == LocationStatus.ready;
     final tracking = ref.watch(followLocationProvider) && locationReady;
     final mapOrigin = origin ?? pointOf(initialCenter);
 
-    // Al DEJAR de seguir (gesto en el mapa o botón), la capa nativa duerme:
-    // una lectura puntual para que el punto Dart de abajo sea fresco.
+    // Al empezar o DEJAR de seguir (gesto en el mapa o botón), la foto más
+    // barata y fresca de dónde estás es la caché del sistema: el GPS nativo
+    // acaba de estar (o está) activo, así que llega al instante. Al dejar de
+    // seguir pedimos además un fix fino para corregir la posición si la caché
+    // fuera vieja (p. ej. el móvil venía de dormir).
     ref.listen(followLocationProvider, (previous, next) {
+      if (previous == next) return;
+      ref.read(lastKnownLocationProvider.notifier).refreshFromSystem();
       if (previous == true && next == false) {
         ref.invalidate(myLocationProvider);
       }
@@ -83,8 +94,10 @@ class LiveMapLayer extends ConsumerWidget {
 
     // SIN seguimiento: la capa nativa duerme (batería), pero tu posición
     // sigue visible como punto propio, dibujado AL TIPO DE LA APP desde la
-    // última lectura puntual ([myLocationProvider]). Con seguir activo el
-    // puck nativo es el que manda y este duplicado no se dibuja.
+    // última posición conocida ([lastKnownLocationProvider]). Con seguir
+    // activo el puck nativo es el que manda y este duplicado no se dibuja. La
+    // AURA pulsante no es marcador: viaja en [extraPulses] (la pintan los
+    // motores en capas nativas, véase [MapPulse]) para no re-rasterizar.
     final markers = [
       ...extraMarkers,
       if (!tracking && locationReady && me != null)
@@ -101,6 +114,10 @@ class LiveMapLayer extends ConsumerWidget {
             ),
           ),
         ),
+    ];
+    final pulses = [
+      if (!tracking && locationReady && me != null)
+        MapPulse(point: me, color: context.colors.primary),
     ];
 
     return JourneyResultMap(
@@ -134,6 +151,7 @@ class LiveMapLayer extends ConsumerWidget {
       // última lectura puntual (ver `markers`).
       myLocationEnabled: tracking,
       followMyLocation: tracking,
+      extraPulses: pulses,
       extraMarkers: markers,
       onTrackingDismissed: () =>
           ref.read(followLocationProvider.notifier).state = false,

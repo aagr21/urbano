@@ -79,6 +79,17 @@ class FakeLocationService implements LocationService {
   @override
   Future<LatLng> currentPosition() async => const LatLng(-17.7833, -63.1821);
 
+  /// Caché del «sistema». Por defecto la misma posición que
+  /// [currentPosition]; ponla a `null` para simular una plataforma sin caché.
+  LatLng? cachedPosition = const LatLng(-17.7833, -63.1821);
+  int lastKnownCalls = 0;
+
+  @override
+  Future<LatLng?> lastKnownPosition() async {
+    lastKnownCalls++;
+    return cachedPosition;
+  }
+
   @override
   Future<void> openLocationSettings() async => openLocationSettingsCalls++;
 

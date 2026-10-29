@@ -4,18 +4,18 @@ import { Column, Entity, PrimaryGeneratedColumn } from 'typeorm';
 @Entity('frequency')
 export class Frequency {
   @PrimaryGeneratedColumn({ name: 'id', type: 'int' })
-  id: number;
+  declare id: number;
 
   @Column({ name: 'trip_id', type: 'varchar', length: 64 })
-  tripId: string;
+  declare tripId: string;
 
   /** HH:mm:ss GTFS. */
   @Column({ name: 'start_time', type: 'varchar', length: 16 })
-  startTime: string;
+  declare startTime: string;
 
   /** HH:mm:ss GTFS. */
   @Column({ name: 'end_time', type: 'varchar', length: 16 })
-  endTime: string;
+  declare endTime: string;
 
   @Column({ name: 'headway_secs', type: 'int' })
   headwaySeconds: number;

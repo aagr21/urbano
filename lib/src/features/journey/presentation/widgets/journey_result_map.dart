@@ -48,6 +48,7 @@ class JourneyResultMap extends StatefulWidget {
     this.showDestination = true,
     this.extraPolylines = const [],
     this.extraMarkers = const [],
+    this.extraPulses = const <MapPulse>[],
     this.onMapReady,
     this.onPositionChanged,
     this.myLocationEnabled = false,
@@ -94,6 +95,9 @@ class JourneyResultMap extends StatefulWidget {
   /// polilíneas de rutas activadas por el usuario.
   final List<MapPolyline> extraPolylines;
   final List<MapMarker> extraMarkers;
+
+  /// Auras pulsantes de ubicación exteriores ([MapPulse]).
+  final List<MapPulse> extraPulses;
 
   /// El mapa terminó de cargar (una sola vez, igual que el motor).
   final VoidCallback? onMapReady;
@@ -289,6 +293,7 @@ class JourneyResultMapState extends State<JourneyResultMap> {
             if (showJourney) ..._buildPolylines(option, origin, destination),
             ...widget.extraPolylines,
           ],
+          pulses: widget.extraPulses,
           markers: [
             ..._endpointMarkers(origin, destination),
             if (showJourney) ..._journeyMarkers(option),

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../../core/animation/motion.dart';
 import '../../../../core/router/app_router.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_theme.dart';
@@ -433,10 +434,27 @@ class MicrosPlaceGuide extends StatelessWidget {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(
-            Icons.travel_explore_rounded,
-            size: 44,
-            color: colors.onSurfaceVariant,
+          // Insignia de color con el ícono dentro: la guía ya no es un ícono
+          // gris suelto en el vacío (y flota, como el resto de estados vacíos).
+          Container(
+            width: 74,
+            height: 74,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: Color.lerp(colors.surface, colors.primary, 0.14),
+              border: Border.all(color: colors.primary.withValues(alpha: 0.32)),
+            ),
+            child: Bob(
+              amplitude: 2.5,
+              child: Icon(
+                Icons.travel_explore_rounded,
+                size: 38,
+                color: AppColors.legible(
+                  colors.primary,
+                  Color.lerp(colors.surface, colors.primary, 0.14)!,
+                ),
+              ),
+            ),
           ),
           const SizedBox(height: 14),
           Text(
