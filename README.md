@@ -6,9 +6,9 @@
 
 **Muévete por Santa Cruz.** 🚌
 
-Planificador de micros urbanos de Santa Cruz de la Sierra, Bolivia —
-tipo Cruzero, pero moderno y bello.
-Flutter (Android · iOS · Web) + backend NestJS con datos GTFS.
+Planificador de micros urbanos de Santa Cruz de la Sierra, Bolivia.
+Tu línea, tu mapa y tu viaje — con datos reales del feed GTFS.
+Flutter (Android · iOS · Web) + backend NestJS.
 
 [![CI](https://github.com/aagr21/urbano/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/aagr21/urbano/actions/workflows/ci.yml)&nbsp;
 [![Flutter](https://img.shields.io/badge/Flutter-stable-02569B?logo=flutter&logoColor=white)](https://docs.flutter.dev)&nbsp;
