@@ -22,6 +22,9 @@
         "resolveJsonModule": true,
         "paths": {
             "@/*": ["src/*"]
-        }
+        },
+        // Alcance EXPLÍCITO para el servidor TS del editor (los globales
+        // describe/it/expect de @types/jest dependen de incluir los specs).
+        "include": ["src/**/*", "test/**/*"]
     }
 }
