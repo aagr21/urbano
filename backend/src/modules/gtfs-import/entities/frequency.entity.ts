@@ -18,9 +18,9 @@ export class Frequency {
   declare endTime: string;
 
   @Column({ name: 'headway_secs', type: 'int' })
-  headwaySeconds: number;
+  declare headwaySeconds: number;
 
   /** 0 = aproximado, 1 = exacto (GTFS: exact_times). */
   @Column({ name: 'exact_times', type: 'int', default: 0 })
-  exactTimes: number;
+  declare exactTimes: number;
 }

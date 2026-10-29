@@ -168,7 +168,7 @@ class JourneyResultsNotifier extends Notifier<JourneyResultsView> {
 
 /// Opción «vacía» para mostrar el mapa (con origen/destino) cuando la
 /// respuesta no trae ninguna ruta. Vive aquí (ya no en la pantalla) porque es
-/// parte de la política de la vista: TODO consumidor muestra lo mismo.
+/// parte de la política de la vista: todo consumidor muestra lo mismo.
 JourneyOption _bareOption() => const JourneyOption(
   type: JourneyType.direct,
   departAt: '',

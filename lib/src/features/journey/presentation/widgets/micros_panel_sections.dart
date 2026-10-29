@@ -358,7 +358,7 @@ extension _MicrosPanelSections on _MicrosPanelState {
 
   /// Sufijo del buscador según modo: en LÍNEAS la «x» limpia el filtro; en
   /// LUGARES es el botón que confirma (el borrador cumplió ≥ 3 letras) más
-  /// la «x» que borra TODO (borrador + confirmada).
+  /// la «x» que borra todo (borrador + confirmada).
   Widget? _suffix(ColorScheme colors) {
     if (!_placesMode) {
       if (_query.isEmpty) return null;

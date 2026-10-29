@@ -342,7 +342,7 @@ class _JourneyPlannerScreenState extends ConsumerState<JourneyPlannerScreen> {
     // el mapa con sus controles (la barra del shell la esconde UrbanoShell).
     final fullscreen = ref.watch(mapFullscreenProvider);
     final planner = ref.watch(journeyPlannerControllerProvider);
-    // Vista de resultados: TODO lo derivado del viaje (consulta efectiva,
+    // Vista de resultados: todo lo derivado del viaje (consulta efectiva,
     // caché con su regla de frescura, selección acotada, opción del mapa,
     // extremos para el mapa) llega contado desde [journeyResultsProvider].
     // La pantalla ya no reconstruye `JourneyQuery` a mano ni muta caché
@@ -361,7 +361,7 @@ class _JourneyPlannerScreenState extends ConsumerState<JourneyPlannerScreen> {
     final mapDestination = results.mapDestination;
     return Scaffold(
       // El mapa decide su tile (estilo y fondo) mirando el provider propio;
-      // TODO lo que flota sobre él (tarjeta de extremos, chips, controles,
+      // todo lo que flota sobre él (tarjeta de extremos, chips, controles,
       // hoja de resultados, panel de estado) usa siempre el tema de la app.
       body: LayoutBuilder(
         builder: (context, constraints) {

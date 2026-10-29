@@ -28,7 +28,7 @@ class HomeHeader extends StatelessWidget {
     // tema oscuro y con el mapa en cualquiera de sus dos modos. Heredar el
     // `inputDecorationTheme` lo rompía cruzado: en oscuro su vidrio (blanco al
     // 6%) desaparece sobre el verde y en claro la tinta del tema es casi negra
-    // sobre un degradado saturado. Se fija un vidrio casi opaco y TODO lo que se
+    // sobre un degradado saturado. Se fija un vidrio casi opaco y todo lo que se
     // pinta sobre él (letra, placeholder, íconos, borde, cursor) se mide contra
     // el fondo realmente pintado, no contra `context.colors`.
     final fieldGlass = Colors.white.withValues(alpha: 0.94);

@@ -17,7 +17,7 @@ import '../route_providers.dart';
 ///
 /// La heurística vive en [RoutePlaces.mainPlaces] (pública para testing):
 /// el nombre de una parada es «X esquina Y»; contamos cuántas veces aparece
-/// cada vía a lo largo de TODO el recorrido y nos quedamos con las más
+/// cada vía a lo largo de todo el recorrido y nos quedamos con las más
 /// frecuentes, ordenadas por dónde aparecen PRIMERO — la lista se lee en el
 /// orden geográfico del micro, de origen al destino.
 class RoutePlaces extends ConsumerWidget {

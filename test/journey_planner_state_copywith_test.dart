@@ -19,7 +19,7 @@ void main() {
         time: '08:30',
       );
 
-      // Omitir conserva TODO.
+      // Omitir conserva todo.
       final s1 = s0.copyWith(submitted: true);
       expect(s1.origin, same(origin));
       expect(s1.destination, same(dest));
