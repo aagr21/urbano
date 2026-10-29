@@ -4,34 +4,34 @@ import { Column, Entity, PrimaryColumn } from 'typeorm';
 @Entity('service')
 export class Service {
   @PrimaryColumn({ name: 'service_id', type: 'varchar', length: 64 })
-  id: string;
+  declare id: string;
 
   @Column({ name: 'monday', type: 'boolean' })
-  monday: boolean;
+  declare monday: boolean;
 
   @Column({ name: 'tuesday', type: 'boolean' })
-  tuesday: boolean;
+  declare tuesday: boolean;
 
   @Column({ name: 'wednesday', type: 'boolean' })
-  wednesday: boolean;
+  declare wednesday: boolean;
 
   @Column({ name: 'thursday', type: 'boolean' })
-  thursday: boolean;
+  declare thursday: boolean;
 
   @Column({ name: 'friday', type: 'boolean' })
-  friday: boolean;
+  declare friday: boolean;
 
   @Column({ name: 'saturday', type: 'boolean' })
-  saturday: boolean;
+  declare saturday: boolean;
 
   @Column({ name: 'sunday', type: 'boolean' })
-  sunday: boolean;
+  declare sunday: boolean;
 
   /** Formato GTFS YYYYMMDD. */
   @Column({ name: 'start_date', type: 'varchar', length: 8 })
-  startDate: string;
+  declare startDate: string;
 
   /** Formato GTFS YYYYMMDD. */
   @Column({ name: 'end_date', type: 'varchar', length: 8 })
-  endDate: string;
+  declare endDate: string;
 }

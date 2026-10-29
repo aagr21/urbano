@@ -4,22 +4,22 @@ import { Column, Entity, PrimaryColumn } from 'typeorm';
 @Entity('stop')
 export class Stop {
   @PrimaryColumn({ name: 'stop_id', type: 'varchar', length: 64 })
-  id: string;
+  declare id: string;
 
   @Column({ name: 'stop_code', type: 'varchar', length: 64, nullable: true })
-  code: string | null;
+  declare code: string | null;
 
   @Column({ name: 'stop_name', type: 'varchar', length: 255 })
-  name: string;
+  declare name: string;
 
   @Column({ name: 'stop_desc', type: 'text', nullable: true })
-  description: string | null;
+  declare description: string | null;
 
   @Column({ name: 'stop_lat', type: 'double precision' })
-  lat: number;
+  declare lat: number;
 
   @Column({ name: 'stop_lon', type: 'double precision' })
-  lon: number;
+  declare lon: number;
 
   /** Punto PostGIS (lon, lat) usado por ST_DWithin/ST_Distance en metros. */
   @Column({
@@ -29,5 +29,5 @@ export class Stop {
     srid: 4326,
     nullable: true,
   })
-  geom: string | null;
+  declare geom: string | null;
 }
