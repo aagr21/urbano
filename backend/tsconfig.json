@@ -1,7 +1,12 @@
 {
     "compilerOptions": {
-        "module": "commonjs",
-        "moduleResolution": "node10",
+        // Migrado al modelo TS 6+ (aka.ms/ts6): 'nodenext' en vez del par
+        // commonjs/node10 que el editor marca deprecado para TypeScript 7.
+        // El paquete NO es ESM (sin "type": "module"), así los .ts compilan
+        // a CommonJS igual que antes y las rutas relativas sin extensión
+        // siguen resolviendo — sin reescrituras de código.
+        "module": "nodenext",
+        "moduleResolution": "nodenext",
         "declaration": true,
         "removeComments": true,
         "emitDecoratorMetadata": true,
@@ -11,7 +16,6 @@
         "target": "ES2022",
         "sourceMap": true,
         "outDir": "./dist",
-        "baseUrl": "./",
         "incremental": true,
         "skipLibCheck": true,
         "strictNullChecks": true,
@@ -21,8 +25,11 @@
         "noFallthroughCasesInSwitch": true,
         "resolveJsonModule": true,
         "types": ["jest", "node"],
+        // Sin baseUrl (deprecada en TS 6/7): el mapping pasa a relativo.
+        // El alias es para referencias futuras: jest mappea @/ por su cuenta
+        // (moduleNameMapper) y el source actual no lo usa.
         "paths": {
-            "@/*": ["src/*"]
+            "@/*": ["./src/*"]
         }
     }
 }
