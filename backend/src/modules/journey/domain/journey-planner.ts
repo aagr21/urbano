@@ -6,6 +6,23 @@ import {
   TripSchedule,
   WalkLeg,
 } from './journey.model';
+import {
+  JOURNEY_LIMITS,
+  MIN_BOARDING_PAIR_DISTANCE_M,
+  WALK_SPEED_M_PER_MIN,
+  TRANSFER_PENALTY_MINUTES,
+} from './journey-limits';
+
+/**
+ * Re-export: los invariantes viven en [journey-limits] (contrato expuesto
+ * por `GET /meta`); quedan visibles aquí por la herencia de imports.
+ */
+export {
+  JOURNEY_LIMITS,
+  MIN_BOARDING_PAIR_DISTANCE_M,
+  WALK_SPEED_M_PER_MIN,
+  TRANSFER_PENALTY_MINUTES,
+};
 
 /**
  * Planeador de viaje — lógica PURA (sin I/O, testeable con Jest).
@@ -21,18 +38,6 @@ import {
  * La búsqueda usa índices parada→trips para que el costo sea lineal en
  * viajes candidatos, no en el producto de ambos conjuntos.
  */
-
-/** Velocidad de caminata: 80 m/min ≈ 4.8 km/h. */
-export const WALK_SPEED_M_PER_MIN = 80;
-
-/**
- * Distancia mínima (línea recta) entre la parada de subir y la de bajar:
- * por debajo de esto el tramo de bus es un absurdo ("bajarse donde se
- * subió") y la opción se descarta. Replica el caso del reporte de usuario:
- * al arrastrar los puntos juntos, el planificador devolvía viajes de una
- * parada a la contigua (~100 m).
- */
-export const MIN_BOARDING_PAIR_DISTANCE_M = 150;
 
 /** Distancia en línea recta entre dos puntos (haversine), en metros. */
 export function straightLineMeters(
@@ -164,12 +169,11 @@ function stopRef(stop: CandidateStop): JourneyOption['walkToStop'] {
 
 /**
  * Penalización por transbordo (en minutos de costo generalizado).
- * En Santa Cruz de la Sierra, un transbordo duplica el costo del pasaje
- * (Bs 2.00-2.50 extra) y añade tiempo de espera incierto en la calle.
- * Por tanto, los viajes directos se prefieren fuertemente salvo que el
- * transbordo suponga un ahorro sustancial de tiempo (>10 min).
+ * El VALOR vive en journey-limits (contrato de `GET /meta`); el razonamiento
+ * de negocio: en Santa Cruz el transbordo duplica el costo del pasaje
+ * (Bs 2.00-2.50 extra) y añade tiempo de espera incierto en la calle, por
+ * tanto los directos se prefieren salvo que el transbordo ahorre sustancial.
  */
-export const TRANSFER_PENALTY_MINUTES = 10;
 
 /**
  * Costo generalizado de una opción, en minutos: duración + penalización de

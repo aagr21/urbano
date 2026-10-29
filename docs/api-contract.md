@@ -22,6 +22,22 @@ Colores hex **sin** `#` (ej: `D35400`), tal como vienen en GTFS.
 ### Health
 - `GET /health` → `{ status: "ok", db: "up", uptime: 123.4, version: "1.0.0" }` (sin envoltorio)
 
+### Meta (contrato de dataset + invariantes)
+- `GET /meta` → identidad del feed importado (vía `feed_info.txt`) y LOS
+  INVARIANTES que la app debe respetar como cliente (cuando cambie un
+  `limits`, es cambio de contrato, no tuning):
+```json
+{ "data": {
+    "feed": { "version": "1.0", "publisher": "Micros Santa Cruz",
+               "lang": "es", "startDate": "20261006", "endDate": "20271006" },
+    "limits": { "maxResults": 10, "walkRadiusM": 500, "maxCandidateStops": 15,
+                "minTransitDistanceM": 150, "minBoardingPairDistanceM": 150,
+                "walkSpeedMPerMin": 80, "transferPenaltyMinutes": 10 } } }
+```
+- Fuente única de verdad: `src/modules/journey/domain/journey-limits.ts`
+  (`@Max(10)` del DTO y las constantes del planner/service NO se duplican
+  — todas derivan de ahí).
+
 ### Stats (para home/dashboard)
 - `GET /stats` →
 ```json

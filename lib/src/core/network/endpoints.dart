@@ -10,6 +10,9 @@ class Endpoints {
   Endpoints._();
 
   static const String health = '/health';
+
+  /// Contrato de dataset + invariantes del planner (`GET /meta`).
+  static const String meta = '/meta';
   static const String stats = '/stats';
   static const String routes = '/routes';
   static const String trips = '/trips';

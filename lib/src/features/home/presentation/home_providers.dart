@@ -5,12 +5,18 @@ import '../../../core/network/api_client.dart';
 import '../../routes/data/route_models.dart';
 import '../../routes/data/route_repository.dart';
 import '../../routes/presentation/route_providers.dart';
+import '../data/meta.dart';
 import '../data/stats.dart';
 import '../data/stats_repository.dart';
 
 /// Datos del dashboard (stats del feed GTFS).
 final statsProvider = FutureProvider<Stats>(
   (ref) => ref.watch(statsRepositoryProvider).stats(),
+);
+
+/// Contrato del dataset (`GET /meta`) para la pantalla Info.
+final metaProvider = FutureProvider<MetaInfo>(
+  (ref) => ref.watch(statsRepositoryProvider).meta(),
 );
 
 /// Salud/versionado del backend (para la pantalla Info).

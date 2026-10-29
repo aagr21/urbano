@@ -4,13 +4,17 @@ import '../../../core/network/api_client.dart';
 import '../../../core/network/endpoints.dart';
 import '../../../core/network/providers.dart';
 import '../../../core/utils/simple_cache.dart';
+import 'meta.dart';
 import 'stats.dart';
 
-/// Acceso a los metadatos del feed (stats + health).
+/// Acceso a los metadatos del feed (stats + health + meta).
 abstract class StatsRepository {
   Future<Stats> stats();
 
   Future<HealthInfo> health();
+
+  /// Contrato del dataset (`GET /meta`): versión del feed + límites.
+  Future<MetaInfo> meta();
 }
 
 class RemoteStatsRepository implements StatsRepository {
@@ -33,6 +37,16 @@ class RemoteStatsRepository implements StatsRepository {
   @override
   Future<HealthInfo> health() async =>
       HealthInfo.fromJson(await _api.fetchObject(Endpoints.health));
+
+  @override
+  Future<MetaInfo> meta() async {
+    const key = 'meta';
+    final cached = _cache.read<MetaInfo>(key);
+    if (cached != null) return cached;
+    final result = MetaInfo.fromJson(await _api.fetchObject(Endpoints.meta));
+    _cache.write(key, result);
+    return result;
+  }
 }
 
 final statsRepositoryProvider = Provider<StatsRepository>(

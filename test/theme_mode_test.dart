@@ -131,6 +131,7 @@ void main() {
           // La pantalla de Info también consulta stats/salud del API: fuera de
           // línea basta con que esos providers queden en estado de error.
           statsProvider.overrideWith((ref) async => throw Exception('offline')),
+          metaProvider.overrideWith((ref) async => throw Exception('offline')),
           healthProvider.overrideWith(
             (ref) async => throw Exception('offline'),
           ),

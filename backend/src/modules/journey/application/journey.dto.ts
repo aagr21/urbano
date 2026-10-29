@@ -9,6 +9,7 @@ import {
   Min,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { MAX_RESULTS } from '../domain/journey-limits';
 
 const TIME_REGEX = /^([01]\d|2[0-3]):[0-5]\d(:[0-5]\d)?$/;
 
@@ -43,11 +44,11 @@ export class JourneyQueryDto {
   @Matches(TIME_REGEX, { message: 'time debe tener formato HH:mm o HH:mm:ss' })
   time?: string;
 
-  @ApiPropertyOptional({ default: 3, maximum: 10 })
+  @ApiPropertyOptional({ default: 3, maximum: MAX_RESULTS })
   @IsOptional()
   @Type(() => Number)
   @IsNumber()
   @Min(1)
-  @Max(10)
+  @Max(MAX_RESULTS)
   maxResults = 3;
 }

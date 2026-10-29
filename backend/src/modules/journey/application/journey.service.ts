@@ -15,19 +15,21 @@ import {
   rankAndCut,
   straightLineMeters,
 } from '../domain/journey-planner';
+import {
+  JOURNEY_LIMITS,
+  MAX_CANDIDATE_STOPS,
+  MIN_TRANSIT_DISTANCE_M,
+  WALK_RADIUS_M,
+} from '../domain/journey-limits';
 import { JourneyQueryDto } from './journey.dto';
 
-/** Radio de caminata máximo hasta una parada (metros). */
-export const WALK_RADIUS_M = 500;
-/** Máximo de paradas candidatas por lado (acota la búsqueda). */
-export const MAX_CANDIDATE_STOPS = 15;
-/**
- * Distancia mínima (línea recta) entre origen y destino para planificar en
- * transporte: por debajo de esto caminar es más rápido y cualquier "plan" de
- * bus sería subirse donde se baja. Debe coincidir con el guard del cliente
- * (`JourneyPlannerScreen._minTransitDistanceM`).
- */
-export const MIN_TRANSIT_DISTANCE_M = 150;
+// Re-export por compatibilidad de quién ya los consumía de este archivo.
+export {
+  JOURNEY_LIMITS,
+  MAX_CANDIDATE_STOPS,
+  MIN_TRANSIT_DISTANCE_M,
+  WALK_RADIUS_M,
+};
 
 @Injectable()
 export class JourneyService {

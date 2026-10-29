@@ -21,6 +21,7 @@ class InfoScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final stats = ref.watch(statsProvider);
     final health = ref.watch(healthProvider);
+    final meta = ref.watch(metaProvider);
     final colors = context.colors;
     final text = context.text;
 
@@ -58,6 +59,28 @@ class InfoScreen extends ConsumerWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    _InfoRow(
+                      icon: Icons.verified_rounded,
+                      label: 'Versión del dataset',
+                      value: meta.maybeWhen(
+                        data: (m) => m.summary,
+                        error: (_, _) => 'Sin conexión',
+                        orElse: () => 'Consultando…',
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    _InfoRow(
+                      icon: Icons.badge_rounded,
+                      label: 'Publicador',
+                      value: meta.maybeWhen(
+                        data: (m) => m.publisher.isEmpty
+                            ? 'No declarado en el feed'
+                            : m.publisher,
+                        error: (_, _) => 'Sin conexión',
+                        orElse: () => 'Consultando…',
+                      ),
+                    ),
+                    const SizedBox(height: 12),
                     const _InfoRow(
                       icon: Icons.dataset_rounded,
                       label: 'Feed GTFS',
