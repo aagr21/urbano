@@ -331,6 +331,7 @@ class MapLibreEngineState extends State<MapLibreEngine>
     final camera = MapCamera(
       center: _toLatLng(position.target),
       zoom: position.zoom,
+      bearing: position.bearing,
     );
     _camera = camera;
     widget.scene.onPositionChanged?.call(camera, !_programmaticCamera);
@@ -468,7 +469,11 @@ class MapLibreEngineState extends State<MapLibreEngine>
     }
     // Actualiza el espejo aunque la plataforma aún no exista: el controller
     // verá una cámara coherente desde el primer `move`.
-    _camera = MapCamera(center: center, zoom: clamped);
+    _camera = MapCamera(
+      center: center,
+      zoom: clamped,
+      bearing: _camera.bearing,
+    );
     final map = _map;
     if (map == null) return;
     // Con el dedo sobre el mapa la cámara NO es nuestra: el seguimiento puede
@@ -476,6 +481,20 @@ class MapLibreEngineState extends State<MapLibreEngine>
     // enmascarar el arrastre en curso (véase [_startCameraGesture]).
     _programmaticCamera = !_cameraGesture;
     final update = ml.CameraUpdate.newLatLngZoom(_toMl(center), clamped);
+    if (animated) {
+      unawaited(map.animateCamera(update));
+    } else {
+      unawaited(map.moveCamera(update));
+    }
+  }
+
+  @override
+  void resetNorth({bool animated = true}) {
+    final map = _map;
+    if (map == null || _camera.bearing == 0) return;
+    final update = ml.CameraUpdate.newCameraPosition(
+      ml.CameraPosition(target: _toMl(_camera.center), zoom: _camera.zoom),
+    );
     if (animated) {
       unawaited(map.animateCamera(update));
     } else {
@@ -643,7 +662,7 @@ class MapLibreEngineState extends State<MapLibreEngine>
               scrollGesturesEnabled: scene.interactive,
               zoomGesturesEnabled: scene.interactive,
               doubleClickZoomEnabled: scene.interactive,
-              rotateGesturesEnabled: false,
+              rotateGesturesEnabled: scene.rotateGesturesEnabled,
               tiltGesturesEnabled: false,
               myLocationEnabled: scene.myLocationEnabled,
               myLocationTrackingMode: scene.followMyLocation

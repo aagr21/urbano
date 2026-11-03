@@ -200,6 +200,7 @@ extension _EngineSync on MapLibreEngineState {
             iconImage: imageName,
             iconAnchor: anchor,
             draggable: marker.draggable,
+            iconRotate: marker.rotation,
           ),
         );
         await manager.add(symbol);
@@ -209,10 +210,16 @@ extension _EngineSync on MapLibreEngineState {
         if (kDebugMode && marker.draggable) {
           debugPrint('[drag] símbolo arrastrable creado: ${marker.id}');
         }
-      } else if (existing.options.geometry?.toLatLong() != point) {
+      } else if (existing.options.geometry?.toLatLong() != point ||
+          existing.options.iconRotate != marker.rotation) {
         final updated = ml.Symbol(
           existing.id,
-          existing.options.copyWith(ml.SymbolOptions(geometry: _toMl(point))),
+          existing.options.copyWith(
+            ml.SymbolOptions(
+              geometry: _toMl(point),
+              iconRotate: marker.rotation,
+            ),
+          ),
         );
         await manager.set(updated);
         if (!mounted || generation != _styleGeneration) return;

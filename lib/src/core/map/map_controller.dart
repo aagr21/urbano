@@ -22,6 +22,9 @@ abstract class MapEngineHost {
   /// Zoom relativo (+/-).
   void zoomBy(double delta, {bool animated = true});
 
+  /// Reorienta la cámara hacia el norte sin cambiar centro ni zoom.
+  void resetNorth({bool animated = true});
+
   /// Encuadra [points] dentro del viewport con [padding].
   Future<void> fitBounds(
     Iterable<LatLng> points, {
@@ -56,6 +59,7 @@ class UrbanoMapController {
 
   LatLng get center => camera.center;
   double get zoom => camera.zoom;
+  double get bearing => camera.bearing;
 
   /// Mueve la cámara a [center] con el zoom indicado (animado).
   void move(LatLng center, double zoom) {
@@ -68,6 +72,8 @@ class UrbanoMapController {
   void zoomOut() => zoomBy(-1);
 
   void zoomBy(double delta) => _host?.zoomBy(delta);
+
+  void resetNorth() => _host?.resetNorth();
 
   /// Encuadra todos los [points] (viaje, ruta…) con [padding].
   Future<void> fitBounds(

@@ -1,12 +1,22 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Modify this file to customize your launch splash screen -->
+<!-- Portada nativa (API 21+): el campo de marca con la micro centrada. En 12+
+     el sistema ya muestra su propia portada con el mismo ícono
+     (`windowSplashScreenAnimatedIcon` en styles.xml), así que este fondo es lo
+     que queda al terminarla: el mismo dibujo, al mismo tamaño, sin salto. -->
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
-    <item android:drawable="?android:colorBackground" />
-
-    <!-- You can insert your own image assets here -->
-    <!-- <item>
-        <bitmap
-            android:gravity="center"
-            android:src="@mipmap/launch_image" />
-    </item> -->
+    <item>
+        <shape android:shape="rectangle">
+            <gradient
+                android:angle="315"
+                android:centerColor="@color/urbano_primary"
+                android:endColor="@color/urbano_primary_dark"
+                android:startColor="@color/urbano_aqua"
+                android:type="linear" />
+        </shape>
+    </item>
+    <item
+        android:width="240dp"
+        android:height="240dp"
+        android:drawable="@drawable/urbano_splash_logo"
+        android:gravity="center" />
 </layer-list>

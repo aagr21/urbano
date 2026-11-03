@@ -52,22 +52,25 @@ test/           # models, formatters, api_client, widget_test (Home mockeado),
 
 ## 🎨 Decisiones de diseño
 
-
 ### 🎨 Identidad
+
 Azul/turquesa `#0EA5E9`/`#0284C7` + acento ámbar `#F59E0B`,
 neutros slate; semillas del `ColorScheme` en `app_theme.dart`.
 
 ### ✍️ Tipografía
+
 Plus Jakarta Sans (títulos) + Inter (cuerpo), vía `google_fonts`.
 Radios 16–24, sombras suaves, escala de espaciado 4/8, M3.
 
 ### 🆓 Sin Google Maps
+
 Motor **`maplibre_gl` 0.27.1** con tiles sin API keys
 (tema claro: estilo vectorial OpenFreeMap _Positron_; tema oscuro: estilo
 JSON inline con raster de CARTO), GPS con `geolocator`, microinteracciones
 con el kit propio de motion (`core/animation/motion.dart`).
 
 ### 🖼️ Una sola pantalla-mapa
+
 Viaje y el antiguo Mapa se fusionaron en
 `/journey`, un mapa a pantalla completa siempre montado (un único
 `JourneyResultMap`, sin destruir la vista de plataforma al planificar).
@@ -82,7 +85,8 @@ se retiraron de la app** (sin marcadores de paradas, hoja de parada, pestaña
 "Cerca" ni búsqueda por parada).
 
 ### 🧭 Ubicación con estado real
- `core/location/` aísla `geolocator` tras un
+
+`core/location/` aísla `geolocator` tras un
 `LocationService` inyectable (testable sin plugin) y expone un
 `LocationController` (Riverpod) que distingue `serviceOff`,
 `permissionPending`, `permissionBlocked` y `ready`. El controlador escucha
@@ -95,7 +99,7 @@ icono/color/tooltip y se reutiliza en la pantalla fusionada y en el
 selector de punto.
 
 **Presupuesto del sensor** (`core/location/gps_budget.dart`, puro y sin plugin):
-el GPS solo se escucha mientras hay *demanda* (`locationDemandProvider`: app en
+el GPS solo se escucha mientras hay _demanda_ (`locationDemandProvider`: app en
 primer plano **y** intención de seguimiento **y** permiso concedido). Sin demanda
 el stream continuo está vacío — ni se llama al proveedor —, así que abrir o cerrar
 la pestaña, ir a segundo plano o soltar el seguimiento apaga el radio. La escucha
@@ -136,6 +140,7 @@ comprometido, descarte por extremo/hora/swap/clear, clamp de selección,
 fallo con y sin caché, reintento) — sin widgets ni red.
 
 ### 📍 Viaje en el mapa
+
 El selector de origen/destino usa un pin **fijo en el
 centro** (patrón Uber: se mueve el mapa, no el pin; la coordenada elegida es
 siempre el centro) y devolución vía `context.push<JourneyPoint>`; los
@@ -149,10 +154,14 @@ valor que se devuelve: se actualiza en vivo mientras la cámara se mueve
 al confirmar, de modo que lo guardado nunca puede diferir de lo que se ve.
 Un `Listener` marca cualquier toque del mapa para que el auto-centrado por
 GPS inicial nunca le gane a un gesto ya hecho del usuario.
+
 ### 🤝 Errores amigables
+
 En todas las pantallas (`AsyncValueView` centraliza carga/vacío/error +
 reintento); el backend caído degrada con estados bonitos.
+
 ### 🎬 Lenguaje de movimiento
+
 (`core/animation/motion.dart`): la app no es estática, pero tampoco de circo —
 primitivas sobrias y reutilizables.
 `PressScale` hunde ligeramente lo que se pulsa (tarjetas de opciones, accesos del
@@ -181,6 +190,7 @@ de la ruta vuela** de la lista a la AppBar del detalle (Hero, con el prefijo
 viajando en la URL para que las ramas del shell no choquen). Además el **logo llega
 andando** y la insignia del panel de micros **flota** mientras haya recorridos
 dibujados. Está bajo prueba en `test/app_motion_test.dart`.
+
 ## 🗺️ Motor del mapa (`lib/src/core/map/`)
 
 El mapa se abstrae detrás de la fachada `UrbanoMap`

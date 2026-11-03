@@ -8,6 +8,10 @@
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
 	<string>Urbano</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Urbano necesita acceso a tus fotos para adjuntarlas a una queja.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Urbano necesita usar la cámara para adjuntar fotos a una queja.</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>

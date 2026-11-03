@@ -66,6 +66,47 @@ Vercel URL**. Always pass it explicitly for targeted local runs
   (pattern in `test/journey_result_map_test.dart`).
 - `latlong2.LatLng` is the coordinate type used by models, engines, and tests — don't
   swap it for another type when touching `lib/src/core/map/`.
+- `passengerControllerProvider` **hangs** under `flutter test`: its real store awaits
+  `SharedPreferences.getInstance()`, and an unhandled platform channel never completes (the
+  store's `try/catch` cannot rescue an `await` that returns nothing), so the complaints feed
+  stays on its skeleton forever. Any test that opens the feed, the detail or the like flow
+  must override it with an in-memory `PassengerIdentityStore` —
+  `passengerControllerProvider.overrideWith(() => PassengerController(_InMemoryStore()))`
+  (pattern in `test/complaints_feed_test.dart`).
+- Complaint cards/chips are painted from `AppColors.categoryAccent(category)` **through**
+  `AppColors.tint(accent, surface)` (fill) and `AppColors.legible(accent, fill)` (text/icon),
+  never from the raw accent; the shared pieces (`MicroBadge`, `CategoryChip`, `StatusChip`,
+  `ComplaintPill`) live in
+  `complaints/presentation/widgets/complaint_chips.dart` so feed, detail and form agree. The
+  tinted fill and its ink are measured in both themes by `test/complaints_feed_test.dart`.
+- Complaint attachments are a **gallery, never `photoUrls.first`**: the detail mounts
+  `ComplaintPhotoGallery` (`complaints/presentation/widgets/complaint_photo_gallery.dart` — main
+  photo + one tappable thumb per adjunto) and any tap on those photos pushes
+  `ComplaintPhotoViewerScreen` (`openComplaintPhotoViewer`, same folder), a `PageView` over the
+  whole list with a `"i de N"` counter. The feed card keeps its single bleed photo — it opens the
+  detail, which now shows everything. Locked by `test/complaint_photo_gallery_test.dart`; note a
+  `PageView` drag in a test must cross half the page width (viewport is 800 px logical by default,
+  so `Offset(-500, 0)`), otherwise it settles back on the same photo.
+- **The `/complaints` curtain must not eat the first post.** The header card, the category filter
+  row and the "La comunidad reporta" row are chrome, not content: the feed's first
+  `ComplaintPostCard` (~447 px) has to fit between the list top and the shell's `NavigationBar`
+  at 1080×2340@2.75. `_CommunityHeader` is therefore one tight row (badge + title + compact
+  `Crear` CTA with tooltip `Crear queja`) above the three `_StatTile`s — no tagline paragraph, no
+  full-width button row — and `test/complaints_feed_test.dart` asserts `card.bottom < bar.top` at a
+  real phone height (that harness mounts its own `NavigationBar`; `_openFeed` does not). Anything
+  new up there goes into the header row or gets scrolled, never stacked below it. Because the CTA
+  shares the row with the title, the title is `Expanded > FittedBox(scaleDown)`, **never**
+  `TextOverflow.ellipsis` (a long label there truncated "La voz del pasaj…" on real phones); the
+  label stays short and its `textStyle` starts from a theme style so it keeps Inter.
+- **Text widths measured under `flutter test` are Ahem, not Inter** (one square per glyph, so
+  ~1.8× the real string): anything sized by measured text must be re-measured with the real face
+  — load it in `setUpAll` with `FontLoader('Inter')` over `assets/fonts/Inter-*.ttf` bytes
+  (`dart:io` + cwd = package root), and remember `TextStyle(...)` without `fontFamily` silently
+  drops the app's face (only `display/headline/title*` carry Inter via `AppTypography.apply`).
+- **The word is `apoyo`, never "me gusta"** in any user-facing copy, comment or doc of the social
+  layer (the heart's zero-state label is `Apoyo`, the header counts `apoyos`). Code and HTTP keep
+  `like`/`liked`/`likeCount`/`setLiked`/`complaint_like`. Locked by
+  `test/complaints_feed_test.dart`.
 - A bare `SizedBox` (or any `RenderConstrainedBox`-only subtree) **is not hit-testable**,
   so `tester.tap()` on a `GestureDetector` wrapping one reports `taps == 0` no matter how
   much you pump — the bug is the fixture, not the widget. Put a `ColoredBox`, a `Text`
@@ -185,11 +226,11 @@ platform view; the merged map/result-sheet design is deliberate (see README).
   the guard can't silently become a no-op). Apply the same split to any new live stream.
 - **GPS is opened by demand, never by a listener.** `locationDemandProvider`
   (foreground via `appForegroundProvider` **&&** `followLocationProvider` **&&** status
-  `ready`) is the single key: without it `myLocationRealtimeProvider` returns an *empty*
+  `ready`) is the single key: without it `myLocationRealtimeProvider` returns an _empty_
   stream, so `Geolocator.getPositionStream` is never called even though the planner is
   always mounted (an unconditional `ref.listen` used to mean permanent GNSS and a hot
   phone). Cost policy lives in `core/location/gps_budget.dart` — `gpsMinMovementMeters`
-  (8 m) is applied **twice** (platform `distanceFilter` *and* the Dart gate, which
+  (8 m) is applied **twice** (platform `distanceFilter` _and_ the Dart gate, which
   measures from the last **emitted** point, so drifting fixes never wake the camera),
   `gpsQuietHeartbeat` (30 s) keeps a still device from freezing, one-shot reads use
   `gpsOneShotSettings` (medium + `timeLimit`) and only tracking pays for `high`.

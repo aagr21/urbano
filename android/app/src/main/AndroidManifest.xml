@@ -4,6 +4,7 @@
     <!-- GPS: paradas cercanas y planificación de viajes -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
+    <uses-permission android:name="android.permission.CAMERA"/>
     <application
         android:label="Urbano"
         android:usesCleartextTraffic="true"

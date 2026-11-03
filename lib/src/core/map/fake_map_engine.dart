@@ -84,7 +84,13 @@ class FakeMapEngineState extends State<FakeMapEngine> implements MapEngineHost {
     final scene = widget.scene;
     final clamped = zoom.clamp(scene.minZoom, scene.maxZoom).toDouble();
     if (_camera.center == center && _camera.zoom == clamped) return;
-    setState(() => _camera = MapCamera(center: center, zoom: clamped));
+    setState(
+      () => _camera = MapCamera(
+        center: center,
+        zoom: clamped,
+        bearing: _camera.bearing,
+      ),
+    );
     // `animated` no aplica: el simulado salta (evita timers en tests).
     widget.scene.onPositionChanged?.call(_camera, false);
   }
@@ -92,6 +98,13 @@ class FakeMapEngineState extends State<FakeMapEngine> implements MapEngineHost {
   @override
   void zoomBy(double delta, {bool animated = true}) =>
       moveCamera(_camera.center, _camera.zoom + delta, animated: animated);
+
+  @override
+  void resetNorth({bool animated = true}) {
+    if (_camera.bearing == 0) return;
+    setState(() => _camera = _camera.copyWith(bearing: 0));
+    widget.scene.onPositionChanged?.call(_camera, false);
+  }
 
   @override
   Future<void> fitBounds(
@@ -166,7 +179,11 @@ class FakeMapEngineState extends State<FakeMapEngine> implements MapEngineHost {
   void debugFireCameraGesture(LatLng center, {double? zoom}) {
     if (!mounted) return;
     setState(
-      () => _camera = MapCamera(center: center, zoom: zoom ?? _camera.zoom),
+      () => _camera = MapCamera(
+        center: center,
+        zoom: zoom ?? _camera.zoom,
+        bearing: _camera.bearing,
+      ),
     );
     widget.scene.onPositionChanged?.call(_camera, true);
   }
@@ -292,7 +309,10 @@ class FakeMapEngineState extends State<FakeMapEngine> implements MapEngineHost {
       child: SizedBox(
         width: marker.width,
         height: marker.height,
-        child: marker.child,
+        child: Transform.rotate(
+          angle: marker.rotation * math.pi / 180,
+          child: marker.child,
+        ),
       ),
     );
   }

@@ -94,6 +94,55 @@ class ApiClient {
         .toList(growable: false);
   }
 
+  Future<Map<String, dynamic>> postMultipart(
+    String path, {
+    required FormData data,
+  }) async {
+    final response = await _dio.post<dynamic>(path, data: data);
+    final (payload, _) = _decode(response.data);
+    if (payload is Map<String, dynamic>) return payload;
+    throw ApiException(
+      'Respuesta inesperada del servidor',
+      kind: ApiErrorKind.parsing,
+    );
+  }
+
+  /// POST JSON desenvuelto del envoltorio (devuelve `{}` si el `data` no es
+  /// un mapa: p. ej. un like que sólo regresa contadores planos).
+  Future<Map<String, dynamic>> postJson(
+    String path, {
+    Object? body,
+    Map<String, dynamic>? query,
+  }) async {
+    try {
+      final response = await _dio.post<dynamic>(
+        path,
+        data: body,
+        queryParameters: query,
+      );
+      final (payload, _) = _decode(response.data);
+      if (payload is Map<String, dynamic>) return payload;
+      return const <String, dynamic>{};
+    } on DioException catch (error) {
+      throw ApiException.fromDio(error);
+    }
+  }
+
+  /// DELETE JSON desenvuelto del envoltorio.
+  Future<Map<String, dynamic>> deleteJson(
+    String path, {
+    Map<String, dynamic>? query,
+  }) async {
+    try {
+      final response = await _dio.delete<dynamic>(path, queryParameters: query);
+      final (payload, _) = _decode(response.data);
+      if (payload is Map<String, dynamic>) return payload;
+      return const <String, dynamic>{};
+    } on DioException catch (error) {
+      throw ApiException.fromDio(error);
+    }
+  }
+
   /// Lista + `meta` del envoltorio.
   Future<Paged<T>> fetchPaged<T>(
     String path, {

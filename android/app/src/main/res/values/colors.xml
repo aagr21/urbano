@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Tokens de marca en nativo: son los mismos colores de AppColors (Dart).
+     Se duplican aquí porque un recurso XML no puede leer Dart. -->
+<resources>
+    <!-- «La orilla»: arranque del degradado de marca. -->
+    <color name="urbano_aqua">#FF2AD8C3</color>
+    <!-- Primario, laguna. -->
+    <color name="urbano_primary">#FF008C7B</color>
+    <!-- Laguna profunda: final del degradado y fondo de la portada de 12+. -->
+    <color name="urbano_primary_dark">#FF00584F</color>
+    <!-- Detalles de la micro del logo. -->
+    <color name="urbano_sign">#FFFFC53D</color>
+    <color name="urbano_glass">#FF094A42</color>
+    <color name="urbano_wheel">#FF07231F</color>
+</resources>

@@ -1,10 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools">
     <!-- Theme applied to the Android Window while the process is starting when the OS's Dark Mode setting is off -->
     <style name="LaunchTheme" parent="@android:style/Theme.Light.NoTitleBar">
         <!-- Show a splash screen on the activity. Automatically removed when
              the Flutter engine draws its first frame -->
         <item name="android:windowBackground">@drawable/launch_background</item>
+        <!-- Android 12+ dibuja SU propia portada (campo + ícono enmascarado) y
+             es lo único que se puede personalizar ahí. Los atributos son
+             ignorados en versiones anteriores; en 12+ evitan el cuadro blanco
+             con el ícono del lanzador (que no es de la marca laguna). -->
+        <item name="android:windowSplashScreenBackground" tools:targetApi="s">@color/urbano_primary_dark</item>
+        <item name="android:windowSplashScreenAnimatedIcon" tools:targetApi="s">@drawable/urbano_splash_logo</item>
     </style>
     <!-- Theme applied to the Android Window as soon as the process has started.
          This theme determines the color of the Android Window while your

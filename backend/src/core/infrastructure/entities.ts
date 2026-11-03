@@ -1,3 +1,6 @@
+import { ComplaintComment } from '../../modules/complaints/entities/complaint-comment.entity';
+import { ComplaintLike } from '../../modules/complaints/entities/complaint-like.entity';
+import { Complaint } from '../../modules/complaints/entities/complaint.entity';
 import { Agency } from '../../modules/gtfs-import/entities/agency.entity';
 import { FeedInfo } from '../../modules/gtfs-import/entities/feed-info.entity';
 import { Frequency } from '../../modules/gtfs-import/entities/frequency.entity';
@@ -19,4 +22,7 @@ export const ALL_ENTITIES = [
   StopTime,
   Shape,
   Frequency,
+  Complaint,
+  ComplaintLike,
+  ComplaintComment,
 ];

@@ -17,6 +17,13 @@ class Endpoints {
   static const String routes = '/routes';
   static const String trips = '/trips';
   static const String journey = '/journey';
+  static const String complaints = '/complaints';
+
+  /// Interacciones sociales sobre una queja (like + comentarios).
+  static String complaintLike(String id) =>
+      '$complaints/${Uri.encodeComponent(id)}/like';
+  static String complaintComments(String id) =>
+      '$complaints/${Uri.encodeComponent(id)}/comments';
 
   static String route(String id) => '$routes/${Uri.encodeComponent(id)}';
   static String routeStops(String id) => '${route(id)}/stops';

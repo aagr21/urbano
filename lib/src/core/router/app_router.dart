@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../features/complaints/presentation/complaints_screen.dart';
 import '../../features/home/presentation/home_screen.dart';
 import '../../features/info/presentation/info_screen.dart';
 import '../../features/journey/presentation/journey_planner_screen.dart';
@@ -42,6 +43,15 @@ GoRouter get _router => GoRouter(
               path: '/journey',
               name: 'journey',
               builder: (context, state) => const JourneyPlannerScreen(),
+            ),
+          ],
+        ),
+        StatefulShellBranch(
+          routes: [
+            GoRoute(
+              path: '/complaints',
+              name: 'complaints',
+              builder: (context, state) => const ComplaintsScreen(),
             ),
           ],
         ),
@@ -88,7 +98,7 @@ GoRouter get _router => GoRouter(
   ),
 );
 
-/// Navegador con barra inferior de 2 secciones (Inicio · Viaje).
+/// Navegador con barra inferior de 3 secciones (Inicio · Viaje · Quejas).
 /// La pestaña "Cerca" (paradas cercanas) se retiró junto con las paradas, y
 /// la pestaña "Rutas" se fusionó en el panel de micros de `/journey`.
 class UrbanoShell extends ConsumerWidget {
@@ -96,7 +106,7 @@ class UrbanoShell extends ConsumerWidget {
 
   final StatefulNavigationShell shell;
 
-  /// Índice de la pestaña Viaje dentro del shell (branches: Inicio · Viaje).
+  /// Índice de la pestaña Viaje dentro del shell.
   static const _journeyTabIndex = 1;
 
   @override
@@ -126,6 +136,11 @@ class UrbanoShell extends ConsumerWidget {
                   icon: Icon(Icons.swap_horiz_rounded),
                   selectedIcon: Icon(Icons.swap_horiz_rounded),
                   label: 'Viaje',
+                ),
+                NavigationDestination(
+                  icon: Icon(Icons.feedback_outlined),
+                  selectedIcon: Icon(Icons.feedback_rounded),
+                  label: 'Quejas',
                 ),
               ],
             ),

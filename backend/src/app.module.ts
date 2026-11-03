@@ -15,6 +15,7 @@ import { RoutesModule } from './modules/routes/routes.module';
 import { StatsModule } from './modules/stats/stats.module';
 import { StopsModule } from './modules/stops/stops.module';
 import { TripsModule } from './modules/trips/trips.module';
+import { ComplaintsModule } from './modules/complaints/complaints.module';
 
 @Module({
   imports: [
@@ -30,6 +31,7 @@ import { TripsModule } from './modules/trips/trips.module';
     RoutesModule,
     StopsModule,
     TripsModule,
+    ComplaintsModule,
     JourneyModule,
     StatsModule,
     HealthModule,

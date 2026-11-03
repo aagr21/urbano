@@ -56,6 +56,7 @@ class _JourneyPlannerScreenState extends ConsumerState<JourneyPlannerScreen> {
   final _journeyMapKey = GlobalKey<JourneyResultMapState>();
   final _sheetController = DraggableScrollableController();
   double _sheetExtent = 0.45;
+  double _mapBearing = 0;
 
   /// `true` cuando el panel de origen/destino está desplegado sobre el mapa.
   /// Arranca cerrado: el mapa es el protagonista y el panel se abre con la
@@ -285,6 +286,9 @@ class _JourneyPlannerScreenState extends ConsumerState<JourneyPlannerScreen> {
   // Mapa: movimiento de cámara y panel de micros
   // ------------------------------------------------------------------
   void _onMapMoved(MapCamera camera, bool hasGesture) {
+    if ((_mapBearing - camera.bearing).abs() > 0.1) {
+      setState(() => _mapBearing = camera.bearing);
+    }
     if (!hasGesture) return;
     // Sella el momento del gesto: la ventana de la barrera anti-zoom nace
     // con el gesto, no con el drop del pin (la ventana vive en el controller).
@@ -339,6 +343,7 @@ class _JourneyPlannerScreenState extends ConsumerState<JourneyPlannerScreen> {
     // [LiveMapControls].
     // Pantalla completa del mapa: oculta los paneles flotantes y deja solo
     // el mapa con sus controles (la barra del shell la esconde UrbanoShell).
+    final mediaQuery = MediaQuery.of(context);
     final fullscreen = ref.watch(mapFullscreenProvider);
     final planner = ref.watch(journeyPlannerControllerProvider);
     // Vista de resultados: todo lo derivado del viaje (consulta efectiva,
@@ -383,6 +388,14 @@ class _JourneyPlannerScreenState extends ConsumerState<JourneyPlannerScreen> {
           // panel de origen/destino NO los mueve (el panel cabe encima del
           // mapa); con resultados, la hoja de resultados los sube.
           final controlsBottom = hasResults ? sheetTop + 12.0 : 24.0;
+          // En pantalla completa la barra del shell desaparece, pero los
+          // controles de navegación del sistema siguen ocupando el borde
+          // inferior. `viewPadding` conserva esa zona segura incluso cuando
+          // el contenido se dibuja edge-to-edge.
+          final fullscreenControlsBottom = math.max(
+            24.0,
+            mediaQuery.viewPadding.bottom + 16.0,
+          );
           final showStatusPanel =
               !hasResults && planner.submitted && planner.ready;
           return Stack(
@@ -506,10 +519,15 @@ class _JourneyPlannerScreenState extends ConsumerState<JourneyPlannerScreen> {
                 duration: Motion.fade,
                 curve: Curves.easeOutCubic,
                 right: 16,
-                bottom: fullscreen ? 24.0 : controlsBottom,
+                bottom: fullscreen ? fullscreenControlsBottom : controlsBottom,
                 child: LiveMapControls(
                   onZoomIn: () => _journeyMapKey.currentState?.zoomIn(),
                   onZoomOut: () => _journeyMapKey.currentState?.zoomOut(),
+                  bearing: _mapBearing,
+                  onResetNorth: () {
+                    _journeyMapKey.currentState?.resetNorth();
+                    if (mounted) setState(() => _mapBearing = 0);
+                  },
                   onOpenMicros: _openMicrosSheet,
                   microsActive: planner.visibleRouteKeys.isNotEmpty,
                   fullscreen: fullscreen,

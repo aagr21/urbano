@@ -16,11 +16,13 @@ class MapCircleButton extends StatelessWidget {
     required this.icon,
     required this.tooltip,
     required this.onTap,
+    this.rotation = 0,
   });
 
   final IconData icon;
   final String tooltip;
   final VoidCallback onTap;
+  final double rotation;
 
   @override
   Widget build(BuildContext context) {
@@ -50,7 +52,10 @@ class MapCircleButton extends StatelessWidget {
             height: AppControl.mapButton,
           ),
           onPressed: onTap,
-          icon: Icon(icon, size: 20, color: colors.primary),
+          icon: Transform.rotate(
+            angle: rotation,
+            child: Icon(icon, size: 20, color: colors.primary),
+          ),
         ),
       ),
     );

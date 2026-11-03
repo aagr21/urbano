@@ -22,12 +22,12 @@ import '../utils/geo.dart';
 /// "nuevos", y por encima de 10 m una caminata lenta dejaría de contarse.
 ///
 /// Se usa dos veces, con propósitos distintos:
-/// - como `distanceFilter` del proveedor: lo que no mueva 8 m ni siquiera sube
+/// - como `distanceFilter` del proveedor: lo que no mueva 5 m ni siquiera sube
 ///   a Dart (ahorra el método canalizado y el parseo).
 /// - como umbral de [onlyRealMovement]: el proveedor compara posiciones **crudas**
 ///   y no sabe si lo que llegó ya fue contado; el filtro Dart recién garantiza
 ///   que entre dos puntos procesados haya desplazamiento de verdad.
-const int gpsMinMovementMeters = 8;
+const int gpsMinMovementMeters = 5;
 
 /// Latido mínimo entre actualizaciones cuando NO hay desplazamiento real.
 ///
@@ -48,10 +48,9 @@ const Duration gpsOneShotTimeLimit = Duration(seconds: 15);
 
 /// Ritmo declarado de la escucha continua en Android.
 ///
-/// Es el mismo default del proveedor (5 s), escrito a propósito: nadie debe
-/// "mejorar" la fluidez bajando el intervalo sin saber que cada vuelta despierta
-/// al radio. Con [gpsMinMovementMeters] de filtro, bajarlo no aporta nada.
-const Duration gpsReportInterval = Duration(seconds: 5);
+/// Un segundo limita el retraso visible mientras el usuario camina; el
+/// `distanceFilter` sigue evitando que cada lectura de ruido llegue a la app.
+const Duration gpsReportInterval = Duration(seconds: 1);
 
 /// Ajustes de una lectura **puntual** («cerca de mí», centro inicial, elegir un
 /// extremo con «usar mi ubicación»).

@@ -22,48 +22,88 @@ Colores hex **sin** `#` (ej: `D35400`), tal como vienen en GTFS.
 ## Endpoints
 
 ### Health
+
 - `GET /health` → `{ status: "ok", db: "up", uptime: 123.4, version: "1.0.0" }` (sin envoltorio)
 
 ### Meta (contrato de dataset + invariantes)
+
 - `GET /meta` → identidad del feed importado (vía `feed_info.txt`) y LOS
   INVARIANTES que la app debe respetar como cliente (cuando cambie un
   `limits`, es cambio de contrato, no tuning):
+
 ```json
-{ "data": {
-    "feed": { "version": "1.0", "publisher": "Micros Santa Cruz",
-               "lang": "es", "startDate": "20261006", "endDate": "20271006" },
-    "limits": { "maxResults": 10, "walkRadiusM": 500, "maxCandidateStops": 15,
-                "minTransitDistanceM": 150, "minBoardingPairDistanceM": 150,
-                "walkSpeedMPerMin": 80, "transferPenaltyMinutes": 10 } } }
+{
+    "data": {
+        "feed": {
+            "version": "1.0",
+            "publisher": "Micros Santa Cruz",
+            "lang": "es",
+            "startDate": "20261006",
+            "endDate": "20271006"
+        },
+        "limits": {
+            "maxResults": 10,
+            "walkRadiusM": 500,
+            "maxCandidateStops": 15,
+            "minTransitDistanceM": 150,
+            "minBoardingPairDistanceM": 150,
+            "walkSpeedMPerMin": 80,
+            "transferPenaltyMinutes": 10
+        }
+    }
+}
 ```
+
 - Fuente única de verdad: `src/modules/journey/domain/journey-limits.ts`
   (`@Max(10)` del DTO y las constantes del planner/service NO se duplican
   — todas derivan de ahí).
 
 ### Stats (para home/dashboard)
+
 - `GET /stats` →
+
 ```json
-{ "routes": 154, "stops": 31461, "trips": 308, "shapes": 130105,
-  "service": { "start": "2026-10-06", "end": "2027-10-06", "days": "diario" },
-  "firstDeparture": "06:00:00", "lastDeparture": "22:00:00", "headwaySeconds": 300 }
+{
+    "routes": 154,
+    "stops": 31461,
+    "trips": 308,
+    "shapes": 130105,
+    "service": { "start": "2026-10-06", "end": "2027-10-06", "days": "diario" },
+    "firstDeparture": "06:00:00",
+    "lastDeparture": "22:00:00",
+    "headwaySeconds": 300
+}
 ```
 
 ### Routes
+
 - `GET /routes?q=&page=1&limit=20&sort=name`
-  - `q`: búsqueda insensible a mayúsculas sobre `short_name`, `long_name`.
-  - `sort`: `name`/`shortName` (default) ordenan por **número de línea** y desempatan
-    por el sufijo alfabético: `1, 2, …, 9 AMARILLO, 9 VERDE, 10, …, 85, 85 FORTALEZA`
-    (no el orden textual `1, 10, 100, 104 C`). `longName` y `stopCount` conservan su
-    orden literal/numérico.
-  - Item (`RouteSummary`):
+    - `q`: búsqueda insensible a mayúsculas sobre `short_name`, `long_name`.
+    - `sort`: `name`/`shortName` (default) ordenan por **número de línea** y desempatan
+      por el sufijo alfabético: `1, 2, …, 9 AMARILLO, 9 VERDE, 10, …, 85, 85 FORTALEZA`
+      (no el orden textual `1, 10, 100, 104 C`). `longName` y `stopCount` conservan su
+      orden literal/numérico.
+    - Item (`RouteSummary`):
+
 ```json
-{ "id": "101 ANGOSTURA", "shortName": "101 ANGOSTURA", "longName": "Micro 101 ANGOSTURA",
-  "color": "7F8C8D", "textColor": "FFFFFF", "description": "Transporte publico urbano de micros",
-  "type": 3, "directions": 2, "stopCount": 84, "tripCount": 2,
-  "imageUrl": "https://lh3.googleusercontent.com/d/…=w1000|null" }
+{
+    "id": "101 ANGOSTURA",
+    "shortName": "101 ANGOSTURA",
+    "longName": "Micro 101 ANGOSTURA",
+    "color": "7F8C8D",
+    "textColor": "FFFFFF",
+    "description": "Transporte publico urbano de micros",
+    "type": 3,
+    "directions": 2,
+    "stopCount": 84,
+    "tripCount": 2,
+    "imageUrl": "https://lh3.googleusercontent.com/d/…=w1000|null"
+}
 ```
-  - `imageUrl`: imagen del itinerario (opcional, desde `backend/micros.csv`; la columna `name` casa con `route_short_name`). Puede ser `null`.
+
+- `imageUrl`: imagen del itinerario (opcional, desde `backend/micros.csv`; la columna `name` casa con `route_short_name`). Puede ser `null`.
 - `GET /routes/:id` → `RouteDetail` = RouteSummary + :
+
 ```json
 { "bbox": [-63.35, -17.85, -63.05, -17.70],
   "directions": [ { "directionId": 0, "headsign": "Ida", "tripId": "T97",
@@ -72,23 +112,35 @@ Colores hex **sin** `#` (ej: `D35400`), tal como vienen en GTFS.
   "shape": { "type": "Feature", "properties": { "id": "SH97" },
              "geometry": { "type": "LineString", "coordinates": [[lon, lat], ...] } } }
 ```
-  - `shape` = primera dirección (directionId 0 si existe). Usar `?directionId=1` para la otra.
+
+- `shape` = primera dirección (directionId 0 si existe). Usar `?directionId=1` para la otra.
 - `GET /routes/:id/stops?directionId=0` → lista ordenada de `StopSummary`:
+
 ```json
-{ "id": "S16309", "code": null, "name": "12 DE OCTUBRE esquina Calle 3",
-  "lat": -17.78, "lon": -63.16, "sequence": 1, "arrivalTime": "06:00:00",
-  "departureTime": "06:00:00", "distanceMeters": 0 }
+{
+    "id": "S16309",
+    "code": null,
+    "name": "12 DE OCTUBRE esquina Calle 3",
+    "lat": -17.78,
+    "lon": -63.16,
+    "sequence": 1,
+    "arrivalTime": "06:00:00",
+    "departureTime": "06:00:00",
+    "distanceMeters": 0
+}
 ```
+
 - `GET /routes/:id/departures?stopId=&directionId=&time=HH:mm&date=YYYY-MM-DD`
   → próximas salidas dentro de la ventana de servicio (06:00–22:00, headway 300 s):
+
 ```json
-[ { "tripId": "T97", "directionId": 0, "headsign": "Ida", "time": "06:07:18",
-    "realTime": false, "headwaySeconds": 300 } ]
+[{ "tripId": "T97", "directionId": 0, "headsign": "Ida", "time": "06:07:18", "realTime": false, "headwaySeconds": 300 }]
 ```
-  - `stopId` **opcional**: con él calcula la salida en esa parada; **sin él**
-    devuelve las salidas desde el inicio del recorrido de cada viaje de la ruta
-    (es lo que usa la pantalla de detalle de ruta).
-  - Máximo 20 resultados; si `time` no se pasa, usa la hora actual (America/La_Paz).
+
+- `stopId` **opcional**: con él calcula la salida en esa parada; **sin él**
+  devuelve las salidas desde el inicio del recorrido de cada viaje de la ruta
+  (es lo que usa la pantalla de detalle de ruta).
+- Máximo 20 resultados; si `time` no se pasa, usa la hora actual (America/La_Paz).
 
 ### Stops
 
@@ -98,30 +150,58 @@ Colores hex **sin** `#` (ej: `D35400`), tal como vienen en GTFS.
 > («¿qué línea pasa por aquí?» + cercanía por GPS).
 
 - `GET /stops/nearby?lat=&lon=&radius=400&limit=10`
-  - `radius` en metros, máx 2000. Orden por distancia. Incluye rutas que sirven la parada:
+    - `radius` en metros, máx 2000. Orden por distancia. Incluye rutas que sirven la parada:
+
 ```json
-{ "id": "S1", "name": "RN7: La Guardia-Samaipata", "code": null, "lat": -18.161764,
-  "lon": -63.50577, "distanceMeters": 123.4,
-  "routes": [ { "id": "133 LA GUARDIA", "shortName": "133 LA GUARDIA", "color": "3498DB" } ] }
+{
+    "id": "S1",
+    "name": "RN7: La Guardia-Samaipata",
+    "code": null,
+    "lat": -18.161764,
+    "lon": -63.50577,
+    "distanceMeters": 123.4,
+    "routes": [{ "id": "133 LA GUARDIA", "shortName": "133 LA GUARDIA", "color": "3498DB" }]
+}
 ```
+
 - `GET /stops/search?q=&limit=10` → `StopSummary[]` + rutas (mismo shape que nearby sin `distanceMeters`).
 - `GET /stops/:id` → `{ ...StopSummary, "routes": [...], "location": { "type": "Point", "coordinates": [lon, lat] } }`
 
 ### Trips / horarios
+
 - `GET /trips/:id` →
+
 ```json
-{ "id": "T97", "routeId": "133 LA GUARDIA", "routeShortName": "133 LA GUARDIA",
-  "routeColor": "3498DB", "directionId": 0, "headsign": "Ida", "serviceId": "DIARIO",
-  "stopTimes": [ { "stopId": "S1", "name": "RN7: La Guardia-Samaipata", "sequence": 1,
-                   "arrivalTime": "06:00:00", "departureTime": "06:00:00",
-                   "distanceMeters": 0, "pickupAllowed": true, "dropOffAllowed": true } ] }
+{
+    "id": "T97",
+    "routeId": "133 LA GUARDIA",
+    "routeShortName": "133 LA GUARDIA",
+    "routeColor": "3498DB",
+    "directionId": 0,
+    "headsign": "Ida",
+    "serviceId": "DIARIO",
+    "stopTimes": [
+        {
+            "stopId": "S1",
+            "name": "RN7: La Guardia-Samaipata",
+            "sequence": 1,
+            "arrivalTime": "06:00:00",
+            "departureTime": "06:00:00",
+            "distanceMeters": 0,
+            "pickupAllowed": true,
+            "dropOffAllowed": true
+        }
+    ]
+}
 ```
 
 ### Journey (planeador de viaje)
+
 - `GET /journey?originLat=&originLon=&destLat=&destLon=&time=HH:mm&maxResults=3`
-  - Busca paradas a ≤500 m de origen y destino, encuentra rutas directas (misma ruta sirve ambas
-    en el mismo sentido) y opciones con 1 transbordo en parada intermedia común.
-  - Respuesta:
+    - Busca paradas a ≤500 m de origen y destino, encuentra rutas directas (misma ruta sirve ambas
+      en el mismo sentido) y opciones con 1 transbordo en parada intermedia común.
+    - Respuesta:
+
 ```json
 { "options": [
   { "type": "direct", "departAt": "06:03:00", "arriveAt": "06:41:00", "durationMinutes": 38,
@@ -138,26 +218,83 @@ Colores hex **sin** `#` (ej: `D35400`), tal como vienen en GTFS.
               { "kind": "walk", "durationMinutes": 3, "distanceMeters": 120 } ] },
   { "type": "transfer", "...": "misma forma + legs con 2 tramos de bus y 1 transbordo" } ] }
 ```
-  - `type`: `"direct" | "transfer"`. Ordenado por `durationMinutes` asc.
-  - **Mapa**: `geometry` es el tramo EXACTO del shape recortado entre
-    `fromStop` y `toStop` (PostGIS `ST_LineSubstring`), en `[lon, lat]` — el
-    cliente solo dibuja. `fromStop`/`toStop` llevan `lat`/`lon` para marcadores
-    (el paradero de transbordo es el `toStop` de un leg = `fromStop` del
-    siguiente). Los tramos de caminata se dibujan como línea recta entre el
-    punto del usuario (query) y `walkToStop`/`walkFromStop` (ahora con
-    `lat`/`lon`). `geometry` puede ser `null` si la ruta no tiene shape.
-  - **Motor OTP2 (caminatas por la red viaria)**: si `OTP_URL` está seteado y
-    el motor OpenTripPlanner (GTFS + OSM) responde, las `options` salen de él
-    y los tramos de caminata (`kind: "walk"`) vienen con:
+
+- `type`: `"direct" | "transfer"`. Ordenado por `durationMinutes` asc.
+- **Mapa**: `geometry` es el tramo EXACTO del shape recortado entre
+  `fromStop` y `toStop` (PostGIS `ST_LineSubstring`), en `[lon, lat]` — el
+  cliente solo dibuja. `fromStop`/`toStop` llevan `lat`/`lon` para marcadores
+  (el paradero de transbordo es el `toStop` de un leg = `fromStop` del
+  siguiente). Los tramos de caminata se dibujan como línea recta entre el
+  punto del usuario (query) y `walkToStop`/`walkFromStop` (ahora con
+  `lat`/`lon`). `geometry` puede ser `null` si la ruta no tiene shape.
+- **Motor OTP2 (caminatas por la red viaria)**: si `OTP_URL` está seteado y
+  el motor OpenTripPlanner (GTFS + OSM) responde, las `options` salen de él
+  y los tramos de caminata (`kind: "walk"`) vienen con:
     - `geometry`: `LineString` real de la red de calles/aceras (`[lon, lat]`).
     - `fromStop`/`toStop` (opcional): `StopRef` de los extremos cuando la
       caminata acaba en una parada (degradación a recta en el cliente).
     - `distanceMeters`/`durationMinutes` medidos sobre la red (no cuerda
       aérea). El planner interno queda como fallback automático si OTP2 no
-    responde; en ese caso los walks no llevan `geometry` y el cliente dibuja
-    la recta entre `origin → walkToStop` y `walkFromStop → destination`.
+      responde; en ese caso los walks no llevan `geometry` y el cliente dibuja
+      la recta entre `origin → walkToStop` y `walkFromStop → destination`.
+
+### Complaints (quejas con capa social)
+
+> Identidad de pasajero **sin cuentas**: el cliente genera una `deviceKey`
+> (32 hex aleatorios, persistida bajo `urbano.passenger.device_key`) que dedupa
+> los «apoyos» y firma los comentarios. Si no llega `authorName`, el backend
+> deriva un apodo determinista del `deviceKey` (hash FNV-1a sobre listas en
+> español) y un color de avatar (`authorColor`, hex **sin** `#`). Un apodo
+> editable manda siempre el cliente en `authorName` (máx. 40 caracteres).
+
+- `GET /complaints?deviceKey=` → listado (`pending` + `approved`, más reciente
+  primero, máx. 100). Con `deviceKey` cada item marca `likedByMe`:
+
+```json
+[
+    {
+        "id": "uuid",
+        "routeId": "101 ANGOSTURA",
+        "category": "vehicle",
+        "description": "…",
+        "photoUrls": ["https://…"],
+        "status": "approved",
+        "createdAt": "2026-10-06T13:40:00.000Z",
+        "likeCount": 12,
+        "commentCount": 3,
+        "likedByMe": false
+    }
+]
+```
+
+- `category`: `vehicle | driver_treatment | route_deviation | schedule | safety | other`.
+- `POST /complaints` (`multipart/form-data`: `routeId`, `category`, `description`,
+  `photos` ≤5 JPG/PNG/WebP de ≤5 MB) → `{ id, status: "pending" }`. Nace sin
+  moderar; se publica tras aprobación.
+- `POST /complaints/:id/like` (body `{ deviceKey }`) → `{ likeCount, likedByMe: true }`.
+  Idempotente por `(complaint_id, device_key)`: un doble toque no infla el contador.
+- `DELETE /complaints/:id/like?deviceKey=` → `{ likeCount, likedByMe: false }`.
+- `GET /complaints/:id/comments` → hilo ascendente (máx. 200):
+
+```json
+[
+    {
+        "id": "uuid",
+        "complaintId": "uuid",
+        "authorName": "Zorro Ambar",
+        "authorColor": "F39C12",
+        "body": "…",
+        "createdAt": "…"
+    }
+]
+```
+
+- `POST /complaints/:id/comments` (body `{ deviceKey, body, authorName? }`) → el
+  comentario creado (mismo shape). `body` recortado a 500 caracteres; vacío → 400.
+  Publicación inmediata (sin cola de moderación). `:id` inexistente → 404.
 
 ### Notas
+
 - Todos los horarios en formato `HH:mm:ss` (GTFS), zona `America/La_Paz`.
 - Servicio: `DIARIO` de `2026-10-06` a `2027-10-06`.
 - Paginación: `meta.total` siempre presente en listados.

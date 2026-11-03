@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 import '../../../../core/animation/motion.dart';
@@ -19,6 +21,8 @@ class JourneyMapControls extends StatelessWidget {
     required this.onFollowChanged,
     required this.fullscreen,
     required this.onToggleFullscreen,
+    this.bearing = 0,
+    this.onResetNorth,
   });
   final VoidCallback onZoomIn;
   final VoidCallback onZoomOut;
@@ -34,12 +38,23 @@ class JourneyMapControls extends StatelessWidget {
   /// `true` cuando el mapa está a pantalla completa (el botón ofrece salir).
   final bool fullscreen;
   final VoidCallback onToggleFullscreen;
+  final double bearing;
+  final VoidCallback? onResetNorth;
   @override
   Widget build(BuildContext context) {
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.end,
       children: [
+        if (bearing.abs() > 0.5) ...[
+          MapCircleButton(
+            icon: Icons.explore_rounded,
+            tooltip: 'Orientar al norte',
+            onTap: onResetNorth ?? _noop,
+            rotation: -bearing * math.pi / 180,
+          ),
+          const SizedBox(height: 10),
+        ],
         MapCircleButton(
           icon: Icons.add_rounded,
           tooltip: 'Acercar',
@@ -73,6 +88,8 @@ class JourneyMapControls extends StatelessWidget {
       ],
     );
   }
+
+  static void _noop() {}
 }
 
 /// Botón de micros: abre el menú de líneas y muestra un punto indicador

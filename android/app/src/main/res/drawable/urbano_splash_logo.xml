@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Micro frontal de la marca, en el lienzo de 108 dp que usa el sistema para
+     el ícono de la portada. El dibujo vive dentro del círculo seguro (los
+     66 dp del centro), porque Android 12+ recorta el ícono con su propia
+     máscara. Mismas formas que `_BusPainter` (urbano_logo.dart). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Ruedas: asoman debajo de la carrocería. -->
+    <path
+        android:fillColor="@color/urbano_wheel"
+        android:pathData="M35.2,68.4 a5.2,5.2 0 1,0 10.4,0 a5.2,5.2 0 1,0 -10.4,0 z M62.4,68.4 a5.2,5.2 0 1,0 10.4,0 a5.2,5.2 0 1,0 -10.4,0 z" />
+
+    <!-- Carrocería. -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M41.2,34.8 H66.8 A8,8 0 0 1 74.8,42.8 V60.4 A8,8 0 0 1 66.8,68.4 H41.2 A8,8 0 0 1 33.2,60.4 V42.8 A8,8 0 0 1 41.2,34.8 Z" />
+
+    <!-- Cartel de destino. -->
+    <path
+        android:fillColor="@color/urbano_sign"
+        android:pathData="M42.4,38.8 H65.6 A2.8,2.8 0 0 1 65.6,44.4 H42.4 A2.8,2.8 0 0 1 42.4,38.8 Z" />
+
+    <!-- Parabrisas. -->
+    <path
+        android:fillColor="@color/urbano_glass"
+        android:pathData="M42.4,47.6 H65.6 A4.4,4.4 0 0 1 70,52 V55.2 A4.4,4.4 0 0 1 65.6,59.6 H42.4 A4.4,4.4 0 0 1 38,55.2 V52 A4.4,4.4 0 0 1 42.4,47.6 Z" />
+
+    <!-- Faros. -->
+    <path
+        android:fillColor="@color/urbano_sign"
+        android:pathData="M39.8,64.4 a2.2,2.2 0 1,0 4.4,0 a2.2,2.2 0 1,0 -4.4,0 z M63.8,64.4 a2.2,2.2 0 1,0 4.4,0 a2.2,2.2 0 1,0 -4.4,0 z" />
+</vector>

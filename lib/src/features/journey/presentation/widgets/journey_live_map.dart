@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:latlong2/latlong.dart';
 
+import '../../../../core/location/compass_service.dart';
 import '../../../../core/map/map.dart';
 import '../../../../core/utils/extensions.dart';
 import '../../../../core/utils/location.dart';
@@ -99,6 +100,9 @@ class LiveMapLayer extends ConsumerWidget {
     final shownPoint = livePoint ?? me;
     final initialCenter = shownPoint ?? santaCruzCenter;
     final mapOrigin = origin ?? pointOf(initialCenter);
+    final heading = locationReady && shownPoint != null
+        ? ref.watch(deviceHeadingProvider).valueOrNull ?? 0
+        : 0.0;
 
     // Cámara en el seguimiento: la app la mueve con cada tick del stream.
     // Callback en lugar de watch: mover cámara NO debe reconstruir la capa.
@@ -138,8 +142,8 @@ class LiveMapLayer extends ConsumerWidget {
         MapMarker(
           id: 'my-location-last',
           point: shownPoint,
-          width: 22,
-          height: 22,
+          width: 30,
+          height: 30,
           child: DecoratedBox(
             decoration: BoxDecoration(
               shape: BoxShape.circle,
@@ -154,7 +158,15 @@ class LiveMapLayer extends ConsumerWidget {
               // se confundía con la cartografía oscura.
               border: Border.all(color: Colors.white, width: 3),
             ),
+            child: Center(
+              child: Icon(
+                Icons.navigation_rounded,
+                size: 18,
+                color: context.colors.onPrimary,
+              ),
+            ),
           ),
+          rotation: heading,
         ),
     ];
     final pulses = [
@@ -229,6 +241,8 @@ class LiveMapControls extends ConsumerWidget {
     required this.microsActive,
     required this.fullscreen,
     required this.onToggleFullscreen,
+    required this.bearing,
+    required this.onResetNorth,
   });
 
   final VoidCallback onZoomIn;
@@ -237,6 +251,8 @@ class LiveMapControls extends ConsumerWidget {
   final bool microsActive;
   final bool fullscreen;
   final VoidCallback onToggleFullscreen;
+  final double bearing;
+  final VoidCallback onResetNorth;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -262,6 +278,8 @@ class LiveMapControls extends ConsumerWidget {
               ref.read(followLocationProvider.notifier).state = value,
           fullscreen: fullscreen,
           onToggleFullscreen: onToggleFullscreen,
+          bearing: bearing,
+          onResetNorth: onResetNorth,
         ),
       ],
     );

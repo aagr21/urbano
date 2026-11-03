@@ -49,4 +49,34 @@ void main() {
     expect(toggle.width, AppControl.mapButton);
     expect(toggle.height, AppControl.mapButton);
   });
+
+  testWidgets('muestra el botón de norte cuando la cámara está girada', (
+    tester,
+  ) async {
+    var resetCount = 0;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ProviderScope(
+          child: Scaffold(
+            body: JourneyMapControls(
+              onZoomIn: () {},
+              onZoomOut: () {},
+              onOpenMicros: () async {},
+              microsActive: false,
+              tracking: false,
+              onFollowChanged: (_) {},
+              fullscreen: false,
+              onToggleFullscreen: () {},
+              bearing: 45,
+              onResetNorth: () => resetCount++,
+            ),
+          ),
+        ),
+      ),
+    );
+
+    expect(find.byTooltip('Orientar al norte'), findsOneWidget);
+    await tester.tap(find.byTooltip('Orientar al norte'));
+    expect(resetCount, 1);
+  });
 }

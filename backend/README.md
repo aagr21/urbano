@@ -59,6 +59,7 @@ DB_PASSWORD=<contraseña de Alwaysdata>
 DB_DATABASE=<base de datos de Alwaysdata>
 DB_SYNCHRONIZE=false
 CORS_ORIGINS=https://<tu-frontend>
+BLOB_READ_WRITE_TOKEN=<token de Vercel Blob>
 OTP_URL=
 OTP_TIMEOUT_MS=8000
 ```
@@ -66,6 +67,13 @@ OTP_TIMEOUT_MS=8000
 La cuenta de PostgreSQL debe permitir conexiones externas y tener disponibles
 las extensiones `postgis` y `pg_trgm`. Verifica primero
 `GET /api/v1/health` después del primer despliegue.
+
+### Quejas
+
+`POST /api/v1/complaints` recibe `multipart/form-data` con `routeId`,
+`category`, `description` y hasta cinco campos `photos`. Las imágenes se
+guardan en Vercel Blob y la queja queda en estado `pending` para moderación.
+El límite es de 5 MB por imagen; la aplicación acepta JPG, PNG y WebP.
 
 ### Motor de ruteo OpenTripPlanner (opcional pero recomendado)
 

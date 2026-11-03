@@ -177,6 +177,8 @@ class JourneyResultMapState extends State<JourneyResultMap> {
   /// Zoom − (lo usan los controles de la pantalla fusionada).
   void zoomOut() => _controller.zoomOut();
 
+  void resetNorth() => _controller.resetNorth();
+
   /// Zoom actual (para decidir si el follow propio sube de nivel o conserva).
   double get currentZoom => _controller.camera.zoom;
 

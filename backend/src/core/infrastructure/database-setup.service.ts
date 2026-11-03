@@ -16,8 +16,54 @@ export class DatabaseSetupService implements OnModuleInit {
 
   async onModuleInit(): Promise<void> {
     await this.ensureExtensions();
+    await this.ensureComplaintsTables();
     await this.ensureSpatialTypmods();
     await this.createIndexes();
+  }
+
+  private async ensureComplaintsTables(): Promise<void> {
+    await this.dataSource.query(`
+      CREATE TABLE IF NOT EXISTS complaint (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        route_id varchar(128) NOT NULL,
+        category varchar(32) NOT NULL,
+        description text NOT NULL,
+        photo_urls jsonb NOT NULL DEFAULT '[]'::jsonb,
+        status varchar(16) NOT NULL DEFAULT 'pending',
+        created_at timestamptz NOT NULL DEFAULT now()
+      )
+    `);
+    await this.dataSource.query(
+      'CREATE INDEX IF NOT EXISTS idx_complaint_status_created ON complaint (status, created_at)'
+    );
+    // Capa social (likes + comentarios). En dev TypeORM los crea por
+    // synchronize; aquí se replican para que una base de producción sin
+    // synchronize tampoco se quede sin las tablas del feed.
+    await this.dataSource.query(`
+      CREATE TABLE IF NOT EXISTS complaint_like (
+        complaint_id uuid NOT NULL,
+        device_key varchar(64) NOT NULL,
+        created_at timestamptz NOT NULL DEFAULT now(),
+        PRIMARY KEY (complaint_id, device_key)
+      )
+    `);
+    await this.dataSource.query(`
+      CREATE TABLE IF NOT EXISTS complaint_comment (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        complaint_id uuid NOT NULL,
+        device_key varchar(64) NOT NULL,
+        author_name varchar(40) NOT NULL,
+        author_color varchar(6) NOT NULL,
+        body text NOT NULL,
+        created_at timestamptz NOT NULL DEFAULT now()
+      )
+    `);
+    await this.dataSource.query(
+      'CREATE INDEX IF NOT EXISTS idx_like_complaint ON complaint_like (complaint_id)'
+    );
+    await this.dataSource.query(
+      'CREATE INDEX IF NOT EXISTS idx_comment_complaint ON complaint_comment (complaint_id, created_at)'
+    );
   }
 
   /**
@@ -34,7 +80,7 @@ export class DatabaseSetupService implements OnModuleInit {
       // fue creada por el operador, seguir; si no, índices GIN fallarán y
       // lo veremos ahí con el error real.
       this.logger.warn(
-        `pg_trgm no pudo crearse (${(error as Error).message?.split('\n')[0]}); asumo que ya existe`,
+        `pg_trgm no pudo crearse (${(error as Error).message?.split('\n')[0]}); asumo que ya existe`
       );
     }
   }
@@ -44,14 +90,18 @@ export class DatabaseSetupService implements OnModuleInit {
     await this.ensureTypmod('shape', 'geom', 'geometry(LineString,4326)');
   }
 
-  private async ensureTypmod(table: string, column: string, target: string): Promise<void> {
+  private async ensureTypmod(
+    table: string,
+    column: string,
+    target: string
+  ): Promise<void> {
     const rows: Array<{ current: string | null }> = await this.dataSource.query(
       `SELECT pg_catalog.format_type(a.atttypid, a.atttypmod) AS current
        FROM pg_catalog.pg_attribute a
        WHERE a.attrelid = to_regclass($1)
          AND a.attname = $2
          AND NOT a.attisdropped`,
-      [table, column],
+      [table, column]
     );
     if (rows.length === 0) {
       // Tabla todavía no existe (primera ejecución sin synchronize) — nada que hacer
@@ -60,9 +110,11 @@ export class DatabaseSetupService implements OnModuleInit {
     if (rows[0].current === target) {
       return;
     }
-    this.logger.log(`Ajustando ${table}.${column}: ${rows[0].current} → ${target}`);
+    this.logger.log(
+      `Ajustando ${table}.${column}: ${rows[0].current} → ${target}`
+    );
     await this.dataSource.query(
-      `ALTER TABLE "${table}" ALTER COLUMN "${column}" TYPE ${target} USING "${column}"::${target}`,
+      `ALTER TABLE "${table}" ALTER COLUMN "${column}" TYPE ${target} USING "${column}"::${target}`
     );
   }
 

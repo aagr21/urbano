@@ -55,6 +55,9 @@ class MapScene {
   /// `false` bloquea gestos (preview no interactiva).
   final bool interactive;
 
+  /// La rotación sigue la misma política de interacción que el resto del mapa.
+  bool get rotateGesturesEnabled => interactive;
+
   /// `false` => sin tiles: la fachada usa el motor simulado.
   final bool showTiles;
 

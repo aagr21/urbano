@@ -29,23 +29,34 @@ enum MapMarkerDragPhase { start, move, end }
 /// Cámara (posición de la vista) del mapa.
 @immutable
 class MapCamera {
-  const MapCamera({required this.center, this.zoom = 13});
+  const MapCamera({required this.center, this.zoom = 13, this.bearing = 0});
 
   final LatLng center;
   final double zoom;
 
-  MapCamera copyWith({LatLng? center, double? zoom}) =>
-      MapCamera(center: center ?? this.center, zoom: zoom ?? this.zoom);
+  /// Orientación en grados, en sentido horario desde el norte.
+  final double bearing;
+
+  MapCamera copyWith({LatLng? center, double? zoom, double? bearing}) =>
+      MapCamera(
+        center: center ?? this.center,
+        zoom: zoom ?? this.zoom,
+        bearing: bearing ?? this.bearing,
+      );
 
   @override
   bool operator ==(Object other) =>
-      other is MapCamera && other.center == center && other.zoom == zoom;
+      other is MapCamera &&
+      other.center == center &&
+      other.zoom == zoom &&
+      other.bearing == bearing;
 
   @override
-  int get hashCode => Object.hash(center, zoom);
+  int get hashCode => Object.hash(center, zoom, bearing);
 
   @override
-  String toString() => 'MapCamera(center: $center, zoom: $zoom)';
+  String toString() =>
+      'MapCamera(center: $center, zoom: $zoom, bearing: $bearing)';
 }
 
 /// Rectángulo geográfico (esquinas opuestas).
@@ -184,6 +195,7 @@ class MapMarker {
     this.height = 40,
     this.anchor = MapMarkerAnchor.center,
     this.draggable = false,
+    this.rotation = 0,
     this.iconKey,
     this.onTap,
   });
@@ -200,6 +212,9 @@ class MapMarker {
   /// `true` para poder arrastrarlo: la capa `EndpointDragDetector` (Dart) y,
   /// en paralelo, el gesto nativo de MapLibre si el dispositivo lo dispara.
   final bool draggable;
+
+  /// Rotación del icono en grados, en sentido horario desde el norte.
+  final double rotation;
 
   /// Clave de caché del icono rasterizado (por defecto, [id]).
   final String? iconKey;

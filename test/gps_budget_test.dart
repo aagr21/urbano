@@ -129,10 +129,10 @@ void main() {
   test('los umbrales del presupuesto son los acordados', () {
     // Cambiarlos es cambiar lo que la app le pide al radio: se prueban para que
     // no se muevan "de paso".
-    expect(gpsMinMovementMeters, 8);
+    expect(gpsMinMovementMeters, 5);
     expect(gpsQuietHeartbeat, const Duration(seconds: 30));
     expect(gpsOneShotTimeLimit, const Duration(seconds: 15));
-    expect(gpsReportInterval, const Duration(seconds: 5));
+    expect(gpsReportInterval, const Duration(seconds: 1));
     expect(gpsOneShotSettings.accuracy, LocationAccuracy.medium);
   });
 }

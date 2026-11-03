@@ -104,6 +104,53 @@ class AppColors {
   /// Verde éxito.
   static const Color success = Color(0xFF059669);
 
+  // ── Acentos vivos del feed de quejas ─────────────────────────────────────
+  //
+  // Un matiz por motivo de reporte: así el feed se escanea de un vistazo y
+  // cada tarjeta tiene identidad propia. Son acentos para **teñir**, no para
+  // pintar planos: se diluyen sobre la superficie del tema con [tint] y las
+  // letras, íconos y bordes que los usan pasan por [legible]. Así el mismo
+  // acento funciona en claro y en oscuro sin dejar letra oscura sobre fondo
+  // oscuro (la regla de arriba de este archivo).
+
+  /// Estado del micro (celeste).
+  static const Color categoryVehicle = Color(0xFF0EA5E9);
+
+  /// Trato del conductor (violeta).
+  static const Color categoryDriver = Color(0xFF8B5CF6);
+
+  /// Desvío de ruta (ámbar).
+  static const Color categoryDeviation = Color(0xFFF59E0B);
+
+  /// Frecuencia u horario (índigo).
+  static const Color categorySchedule = Color(0xFF6366F1);
+
+  /// Seguridad (rojo). Es un rojo **de categoría**, distinto de [danger]/
+  /// `colors.error`, que sigue reservado para errores de formulario y de red.
+  static const Color categorySafety = Color(0xFFEF4444);
+
+  /// Otro reporte (pizarra).
+  static const Color categoryOther = Color(0xFF64748B);
+
+  /// Acento de la categoría de una queja (las claves son las del backend:
+  /// `vehicle`, `driver_treatment`, `route_deviation`, `schedule`, `safety`).
+  static Color categoryAccent(String category) => switch (category) {
+    'vehicle' => categoryVehicle,
+    'driver_treatment' => categoryDriver,
+    'route_deviation' => categoryDeviation,
+    'schedule' => categorySchedule,
+    'safety' => categorySafety,
+    _ => categoryOther,
+  };
+
+  /// Tinte de [accent] sobre [surface] para rellenos suaves (chips, raíles).
+  ///
+  /// Existe en un solo lugar para que ninguna tarjeta pinte un `Color.lerp`
+  /// propio con su propio alfa: el fondo medido en los tests de contraste es
+  /// siempre éste.
+  static Color tint(Color accent, Color surface, [double alpha = 0.16]) =>
+      Color.lerp(surface, accent, alpha)!;
+
   /// Convierte un hex GTFS (`D35400`, con o sin `#`) a [Color].
   static Color fromHex(
     String? hex, {

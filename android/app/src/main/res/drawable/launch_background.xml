@@ -1,12 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Modify this file to customize your launch splash screen -->
+<!-- Portada nativa (API < 21): el campo de marca, sin ícono. Lo pinta el
+     sistema mientras el proceso arranca y hasta que Flutter dibuja su primer
+     frame; después entra la portada animada (SplashGate), que es la misma
+     laguna, así que no hay salto de color. -->
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
-    <item android:drawable="@android:color/white" />
-
-    <!-- You can insert your own image assets here -->
-    <!-- <item>
-        <bitmap
-            android:gravity="center"
-            android:src="@mipmap/launch_image" />
-    </item> -->
+    <item>
+        <shape android:shape="rectangle">
+            <gradient
+                android:angle="315"
+                android:centerColor="@color/urbano_primary"
+                android:endColor="@color/urbano_primary_dark"
+                android:startColor="@color/urbano_aqua"
+                android:type="linear" />
+        </shape>
+    </item>
 </layer-list>
