@@ -55,6 +55,43 @@ describe('Routes (e2e)', () => {
     expect(res.body.meta.total).toBeGreaterThanOrEqual(154);
   });
 
+  it('GET /api/v1/routes ordena las líneas por número, no por texto', async () => {
+    const res = await request(app.getHttpServer())
+      .get('/api/v1/routes?limit=20')
+      .expect(200);
+
+    const names = (res.body.data as Array<{ shortName: string }>).map(
+      (r) => r.shortName,
+    );
+    // Textual daría 1, 10, 100, 104 C…; natural da 1..8, 9 AMARILLO/9 VERDE, 10, 11.
+    expect(names.slice(0, 12)).toEqual([
+      '1',
+      '2',
+      '3',
+      '4',
+      '5',
+      '6',
+      '7',
+      '8',
+      '9 AMARILLO',
+      '9 VERDE',
+      '10',
+      '11',
+    ]);
+  });
+
+  it('GET /api/v1/routes deja la línea sin sufijo antes de sus variantes', async () => {
+    const res = await request(app.getHttpServer())
+      .get('/api/v1/routes?q=85&limit=100')
+      .expect(200);
+
+    const names = (res.body.data as Array<{ shortName: string }>).map(
+      (r) => r.shortName,
+    );
+    expect(names.indexOf('85')).toBeGreaterThanOrEqual(0);
+    expect(names.indexOf('85')).toBeLessThan(names.indexOf('85 FORTALEZA'));
+  });
+
   it('GET /api/v1/routes/:id returns detail with shape GeoJSON', async () => {
     const res = await request(app.getHttpServer())
       .get('/api/v1/routes/101%20ANGOSTURA?directionId=0')

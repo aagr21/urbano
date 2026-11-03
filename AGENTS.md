@@ -129,13 +129,18 @@ platform view; the merged map/result-sheet design is deliberate (see README).
   Google ones) are always listed; without `GOOGLE_MAPS_API_KEY` the Google cards are marked
   "Requiere clave" and explain the flag instead of being hidden — and `flutter test` always has an
   empty key, so never make a test depend on Google tiles rendering.
-- The left **micros panel** (`journey/presentation/widgets/journey_micros_sheet.dart`,
-  tiles in `journey_micros_tile.dart`) keeps its working state — searched text,
-  list scroll, cached `/routes` pages and fetched headsign details — in
-  `journeyMicrosSessionProvider` (`journey_providers.dart`), so closing and
-  reopening the panel restores it and costs no network call (pull-to-refresh
-  re-fetches). Keep any new panel state there, never in the panel `State`. The
-  drawn routes themselves live in the planner screen (`_visibleRouteKeys`).
+- The left **micros panel** (`journey/presentation/widgets/journey_micros_sheet.dart`
+  = solo la puerta (catálogo + ruta); el cajón vive en `micros_panel.dart` y sus
+  secciones en `micros_panel_*.dart`, todas de props/callbacks) keeps its working
+  state — searched text, list scroll, cached `/routes` pages and fetched headsign
+  details — in `journeyMicrosSessionProvider` (`journey_providers.dart`), so
+  closing and reopening the panel restores it and costs no network call
+  (pull-to-refresh re-fetches). La lógica de estado/negocio del panel (catálogo,
+  filtro, modos, toggles) vive en `application/micros_panel_controller.dart`
+  (`microsPanelProvider`); en el `State` del cajón solo quedan animaciones,
+  gestos, `TextEditingController` y scroll. Keep any new panel state there, never
+  in the panel `State`. The drawn routes themselves live in the planner screen
+  (`_visibleRouteKeys`).
 - Panel animations are frame-driven (`AnimationController` + implicit widgets);
   this file deliberately avoids `flutter_animate` because its `Animate` mounts a
   zero-duration `Timer`, which breaks widget tests that use plain `pump()`
@@ -178,6 +183,23 @@ platform view; the merged map/result-sheet design is deliberate (see README).
   "un evento de ubicación mueve SOLO el mapa" test in `test/journey_result_map_test.dart`
   (it asserts `same()` widget identity for panel/sheet and _not_ `same()` for the map, so
   the guard can't silently become a no-op). Apply the same split to any new live stream.
+- **GPS is opened by demand, never by a listener.** `locationDemandProvider`
+  (foreground via `appForegroundProvider` **&&** `followLocationProvider` **&&** status
+  `ready`) is the single key: without it `myLocationRealtimeProvider` returns an *empty*
+  stream, so `Geolocator.getPositionStream` is never called even though the planner is
+  always mounted (an unconditional `ref.listen` used to mean permanent GNSS and a hot
+  phone). Cost policy lives in `core/location/gps_budget.dart` — `gpsMinMovementMeters`
+  (8 m) is applied **twice** (platform `distanceFilter` *and* the Dart gate, which
+  measures from the last **emitted** point, so drifting fixes never wake the camera),
+  `gpsQuietHeartbeat` (30 s) keeps a still device from freezing, one-shot reads use
+  `gpsOneShotSettings` (medium + `timeLimit`) and only tracking pays for `high`.
+  `onlyRealMovement` must stay a `StreamController(onListen:, onCancel:)`: an `async*`
+  `await for` does **not** propagate cancellation upstream, which leaks the plugin's
+  location listener forever. Locked by `test/gps_budget_test.dart` and "sin seguimiento
+  NO se abre el sensor" in `test/journey_live_location_test.dart`, which drives the real
+  `resumed → inactive → hidden → paused` cycle (`AppLifecycleListener` asserts on skipped
+  states). The GPS halo's `Timer.periodic` is paused the same way in
+  `maplibre_engine_sync.dart`.
 - Never read `MediaQuery` inside `initState` (the framework asserts as soon as the
   widget mounts under the shell's `MediaQuery`); decide in `didChangeDependencies`
   behind a "started once" guard, the way `_RevealState` does.
@@ -213,21 +235,27 @@ platform view; the merged map/result-sheet design is deliberate (see README).
   Measure the background that is actually painted (`Color.lerp(surface, tint, α)`
   for a translucent fill), not the raw token. Locked by
   `test/journey_micros_panel_test.dart` (dark and light contrast ≥ 4.5 specs).
-- `journey/presentation/journey_planner_controller.dart` is the state/controller
-  of the planner: a standing (non-`autoDispose`) Riverpod
-  `NotifierProvider<JourneyPlannerController, JourneyPlannerState>`
-  (`journeyPlannerControllerProvider`) holding origins/destinations (the shown
+- The `/journey` slice is hexagonal like the backend:
+  `journey/domain` (places, query, planner state, `decideEndpointDrag`),
+  `journey/application` (Riverpod controller, results projection, providers),
+  `journey/data` (GTFS/HTTP models + repo) and `journey/presentation`
+  (screen + widgets). Presentation still re-exports application so existing
+  test imports keep working; new code should import `application/` or
+  `domain/` directly. The standing (non-`autoDispose`)
+  `journeyPlannerControllerProvider` holds origins/destinations (the shown
   `origin`/`destination` fields vs the committed `plan*` points), the debounced
-  replan window, the anti-zoom drop barrier and the micros layers. Its
-  `copyWith` needs explicit `clear*` flags (`clearOrigin`, `clearTime`, …) to
-  NULL a field — passing `null` only REPLACES a non-null value. Above it,
+  replan window, the anti-zoom drop barrier and the micros layers. `copyWith`
+  uses the sentinel `keepJourneyField`: omit the parameter to KEEP the field,
+  pass `null` to CLEAR it, pass a value to REPLACE it. Above it,
   `journey_planner_screen.dart` is just the UI wiring (map `GlobalKey`,
   draggable sheet, open panel) and `journey/presentation/widgets/` are pure
-  props/callbacks. Keep new journey logic in the controller and new journey UI
-  in those widgets. Tests lock behavior around `ValueKey('planner-trigger')`, the
-  debounce delays (600/700 ms planner, 350 ms picker) and the "pin drop right after a
-  camera gesture is discarded" barrier — don't change those without reading
-  `test/journey_result_map_test.dart` first. Walk legs may carry a street-network
+  props/callbacks. Keep new trip policy in `domain/`, orchestration in the
+  controller, and new journey UI in those widgets. Tests lock behavior around
+  `ValueKey('planner-trigger')`, the debounce delays (600/700 ms planner,
+  350 ms picker) and the "pin drop right after a camera gesture is discarded"
+  barrier — don't change those without reading
+  `test/journey_result_map_test.dart` first (and `test/endpoint_drag_policy_test.dart`
+  for the pure decision). Walk legs may carry a street-network
   `geometry` (OTP2); the map widget renders that instead of the straight fallback.
 
 ## API contract

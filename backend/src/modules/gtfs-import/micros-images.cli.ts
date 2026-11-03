@@ -1,7 +1,7 @@
 import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from '../../app.module';
-import { GtfsImportService } from './gtfs-import.service';
+import { MicrosImagesService } from './micros-images.service';
 
 /**
  * CLI de imágenes de micros: npm run import:micros-images
@@ -13,8 +13,8 @@ async function main(): Promise<void> {
     logger: ['log', 'warn', 'error'],
   });
   try {
-    const importer = app.get(GtfsImportService);
-    const assigned = await importer.applyMicrosImages();
+    const images = app.get(MicrosImagesService);
+    const assigned = await images.apply();
     // eslint-disable-next-line no-console
     console.log(`\nImágenes de micros asignadas: ${assigned}\n`);
   } finally {

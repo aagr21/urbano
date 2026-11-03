@@ -11,14 +11,16 @@ import 'location_controller.dart';
 /// | Estado | Icono | Color |
 /// | --- | --- | --- |
 /// | Servicio (GPS) apagado | `location_off` + punto rojo | error |
-/// | Permiso pendiente | `my_location` | primario relleno |
+/// | Permiso pendiente | `my_location` | primario del tema |
 /// | Permiso bloqueado | `gps_off` + punto rojo | error |
-/// | Listo (seguir o no) | `my_location` | primario relleno |
+/// | Listo (seguir o no) | `my_location` | primario del tema |
 ///
-/// El FAB es **constante** cuando la ubicación está disponible: siempre azul
-/// y siempre con el mismo icono, aunque el usuario pulse y la cámara deje de
-/// seguir. El feedback de "estoy siguiendo" lo dan el mapa y la cámara, no el
-/// botón. Los estados rojos (GPS apagado / permiso bloqueado) sí cambian.
+/// El FAB es **constante** cuando la ubicación está disponible: siempre del
+/// mismo color (el primario del tema, [ColorScheme.primary], con su
+/// [ColorScheme.onPrimary] en el icono) y siempre con el mismo icono, aunque
+/// el usuario pulse y la cámara deje de seguir. El feedback de "estoy
+/// siguiendo" lo dan el mapa y la cámara, no el botón. Los estados rojos (GPS
+/// apagado / permiso bloqueado) sí cambian.
 ///
 /// El estado cambia **solo** si el usuario apaga/enciende el GPS (stream del
 /// sistema) o revoca el permiso (al reanudar la app). Al tocar:
@@ -109,7 +111,7 @@ class _LocationFabState extends ConsumerState<LocationFab>
     // controles del mapa ([AppControl.mapButton]) — antes era un
     // `FloatingActionButton.small` (40 px, ícono 24) y se veía distinto al
     // lado de los zoom. La superficie elevada + borde también son la misma
-    // familia; el relleno (primary/error) es su señal de estado.
+    // familia; el relleno (primario/error) es su señal de estado.
     return PressScale(
       scale: 0.92,
       child: DecoratedBox(

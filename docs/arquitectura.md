@@ -38,8 +38,11 @@ lib/
       home/      # header+buscador (rutas), stats, accesos, populares, mapa
       routes/    # modelos/repos (detalle, shape, direcciones, salidas), detail
                  # (el listado vive en el panel de micros de /journey)
-      journey/   # pantalla-mapa única (planeador + exploración): selector de
-                 # punto en el mapa (GPS o punto marcado), mapa de resultados
+      journey/   # pantalla-mapa única (planeador + exploración), hexagonal:
+                 # domain (lugares, query, estado, política de drop),
+                 # application (controller Riverpod, vista de resultados,
+                 # providers), data (repo HTTP) y presentation (pantalla +
+                 # widgets). Selector de punto, mapa de resultados
                  # (geometry de /journey), timeline y capas
       info/      # fuente GTFS, versión del API, créditos
 test/           # models, formatters, api_client, widget_test (Home mockeado),
@@ -91,7 +94,21 @@ bloqueado → ajustes de la app. `LocationFab` traduce cada estado a
 icono/color/tooltip y se reutiliza en la pantalla fusionada y en el
 selector de punto.
 
-### 🧮 La vista de resultados del planeador (`journey_results_view.dart`)
+**Presupuesto del sensor** (`core/location/gps_budget.dart`, puro y sin plugin):
+el GPS solo se escucha mientras hay *demanda* (`locationDemandProvider`: app en
+primer plano **y** intención de seguimiento **y** permiso concedido). Sin demanda
+el stream continuo está vacío — ni se llama al proveedor —, así que abrir o cerrar
+la pestaña, ir a segundo plano o soltar el seguimiento apaga el radio. La escucha
+activa usa `distanceFilter` de 8 m en el propio sistema más un filtro Dart que mide
+el desplazamiento desde el último punto **despachado** (con 2 m el ruido del GNSS
+movía la cámara en cada sacudida); con el móvil quieto se conserva un latido lento
+de 30 s para que el punto no se congele. Las lecturas puntuales («cerca de mí»,
+«usar mi ubicación») van con precisión `medium` y `timeLimit` de 15 s: solo el
+seguimiento paga por `high`. En Android se declara `intervalDuration` de 5 s sobre
+el proveedor fundido y en Apple `pauseLocationUpdatesAutomatically` con los
+actualizadores de fondo desactivados.
+
+### 🧮 La vista de resultados del planeador (`application/journey_results_view.dart`)
 
 El "modo resultados" de `/journey` — qué consulta está vigente, qué opciones
 mostrar sin parpadear durante un recálculo y qué pinta el mapa — vive en un

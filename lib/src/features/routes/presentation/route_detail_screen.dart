@@ -9,6 +9,7 @@ import '../../../core/utils/time_formatters.dart';
 import '../../../core/widgets/error_view.dart';
 import '../../../core/widgets/loading_shimmer.dart';
 import '../../../core/widgets/photo_shine.dart';
+import '../../../core/widgets/photo_viewer.dart';
 import '../../../core/widgets/route_badge.dart';
 import '../../../core/widgets/route_photo.dart';
 import '../data/route_models.dart';
@@ -141,14 +142,31 @@ class _DetailBody extends StatelessWidget {
                 slide: 10,
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-                  child: PhotoShine(
-                    child: SizedBox(
-                      height: 300,
-                      child: RoutePhoto(
-                        url: detail.imageUrl!,
-                        radius: BorderRadius.circular(AppRadius.lg),
-                        fit: BoxFit.fitHeight,
-                        showFull: true,
+                  // La foto se abre a pantalla completa con el mismo vuelo que
+                  // en el panel de micros: tocar la imagen la despega del
+                  // detalle ([openPhotoViewer]).
+                  child: GestureDetector(
+                    onTap: () => openPhotoViewer(
+                      context,
+                      url: detail.imageUrl!,
+                      tag: photoHeroTag('detail', detail.id),
+                      title: detail.longName,
+                      subtitle: 'Foto del micro',
+                      accent: routeColor,
+                      sourceRadius: AppRadius.lg,
+                    ),
+                    child: PhotoShine(
+                      child: SizedBox(
+                        height: 300,
+                        child: Hero(
+                          tag: photoHeroTag('detail', detail.id),
+                          child: RoutePhoto(
+                            url: detail.imageUrl!,
+                            radius: BorderRadius.circular(AppRadius.lg),
+                            fit: BoxFit.fitHeight,
+                            showFull: true,
+                          ),
+                        ),
                       ),
                     ),
                   ),

@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 import { Route } from '../../gtfs-import/entities/route.entity';
+import { ROUTE_NATURAL_ORDER_COLUMNS } from '../../../core/common/utils/route-order';
 import { RouteRepositoryPort } from '../domain/route.repository.port';
 import {
   DepartureSourceRecord,
@@ -19,6 +20,12 @@ const SORT_COLUMNS: Record<RouteQuery['sort'], string> = {
   stopCount: 'r.stop_count',
 };
 
+/** Sorts por línea (no por longitud ni paradas): usan orden natural. */
+const NATURAL_SHORT_NAME_SORTS: ReadonlySet<RouteQuery['sort']> = new Set([
+  'name',
+  'shortName',
+]);
+
 /** Implementación TypeORM del puerto de rutas. */
 @Injectable()
 export class TypeOrmRouteRepository implements RouteRepositoryPort {
@@ -27,10 +34,18 @@ export class TypeOrmRouteRepository implements RouteRepositoryPort {
   ) {}
 
   async findAll(query: RouteQuery): Promise<RoutePage> {
-    const qb = this.dataSource
-      .createQueryBuilder(Route, 'r')
-      .orderBy(SORT_COLUMNS[query.sort] ?? 'r.route_short_name', 'ASC')
-      .addOrderBy('r.route_id', 'ASC')
+    const qb = this.dataSource.createQueryBuilder(Route, 'r');
+
+    if (NATURAL_SHORT_NAME_SORTS.has(query.sort)) {
+      // "60 ROJO" se ordena junto al 60 y desempata por sufijo alfabético.
+      qb.orderBy(ROUTE_NATURAL_ORDER_COLUMNS[0], 'ASC');
+      for (const column of ROUTE_NATURAL_ORDER_COLUMNS.slice(1)) {
+        qb.addOrderBy(column, 'ASC');
+      }
+    } else {
+      qb.orderBy(SORT_COLUMNS[query.sort] ?? 'r.route_short_name', 'ASC');
+    }
+    qb.addOrderBy('r.route_id', 'ASC')
       .skip((query.page - 1) * query.limit)
       .take(query.limit);
 

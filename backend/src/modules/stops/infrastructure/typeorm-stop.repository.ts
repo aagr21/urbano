@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
+import { ROUTE_NATURAL_ORDER_COLUMNS } from '../../../core/common/utils/route-order';
 import {
   NearbyQuery,
   RouteRef,
@@ -171,12 +172,14 @@ export class TypeOrmStopRepository implements StopRepositoryPort {
       `SELECT DISTINCT st.stop_id AS "stopId",
               r.route_id AS id,
               r.route_short_name AS "shortName",
-              r.route_color AS color
+              r.route_color AS color,
+              ${ROUTE_NATURAL_ORDER_COLUMNS[0]} AS "sortNumber",
+              ${ROUTE_NATURAL_ORDER_COLUMNS[1]} AS "sortSuffix"
        FROM stop_time st
        JOIN trip t ON t.trip_id = st.trip_id
        JOIN route r ON r.route_id = t.route_id
        WHERE st.stop_id = ANY($1)
-       ORDER BY r.route_short_name ASC`,
+       ORDER BY "sortNumber" ASC, "sortSuffix" ASC, ${ROUTE_NATURAL_ORDER_COLUMNS[2]} ASC, r.route_id ASC`,
       [stopIds],
     );
     for (const row of rows) {

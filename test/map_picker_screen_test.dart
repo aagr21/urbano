@@ -19,10 +19,11 @@ Widget _launcher(
   void Function(JourneyPoint?) onResult,
   List<Override> overrides, {
   JourneyPoint? initial,
+  ThemeData? theme,
 }) => ProviderScope(
   overrides: overrides,
   child: MaterialApp(
-    theme: AppTheme.light(),
+    theme: theme ?? AppTheme.light(),
     home: Builder(
       builder: (context) => Scaffold(
         body: Center(
@@ -75,6 +76,41 @@ void main() {
     expect(picked!.lat, closeTo(-17.78, 0.0001));
     expect(picked!.lon, closeTo(-63.15, 0.0001));
   });
+
+  testWidgets(
+    'el FAB «Usar este punto» usa el primario del tema, también de noche',
+    (tester) async {
+      await tester.pumpWidget(
+        _launcher(
+          (_) {},
+          _overrides(),
+          initial: const (lat: -17.78, lon: -63.15),
+          theme: AppTheme.dark(),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('open-picker')));
+      await tester.pumpAndSettle();
+
+      final fab = tester.widget<FloatingActionButton>(
+        find.ancestor(
+          of: find.text('Usar este punto'),
+          matching: find.byType(FloatingActionButton),
+        ),
+      );
+      final scheme = AppTheme.dark().colorScheme;
+      expect(
+        fab.backgroundColor,
+        scheme.primary,
+        reason: 'mismo primario que el LocationFab de al lado',
+      );
+      expect(
+        fab.foregroundColor,
+        scheme.onPrimary,
+        reason: 'texto/ícono legible sobre el primario',
+      );
+    },
+  );
 
   testWidgets(
     'el pin queda fijo en el centro: mover el mapa cambia la coordenada',

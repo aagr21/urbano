@@ -3,10 +3,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/network/api_client.dart';
 import '../../../core/network/endpoints.dart';
 import '../../../core/network/providers.dart';
+import '../domain/journey_place.dart';
 import 'journey_models.dart';
 
-/// Punto geográfico del origen/destino del viaje.
-typedef JourneyPoint = ({double lat, double lon});
+export '../domain/journey_place.dart' show JourneyPoint;
 
 /// Contrato del planeador de viajes.
 abstract class JourneyRepository {

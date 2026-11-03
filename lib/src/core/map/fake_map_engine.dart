@@ -160,6 +160,17 @@ class FakeMapEngineState extends State<FakeMapEngine> implements MapEngineHost {
     }
   }
 
+  /// Simula un gesto del usuario sobre el mapa (pan o pellizco): deja la
+  /// cámara donde la soltó el dedo y avisa con `hasGesture: true`, igual que
+  /// el motor real al detectar el toque sobre la vista nativa.
+  void debugFireCameraGesture(LatLng center, {double? zoom}) {
+    if (!mounted) return;
+    setState(
+      () => _camera = MapCamera(center: center, zoom: zoom ?? _camera.zoom),
+    );
+    widget.scene.onPositionChanged?.call(_camera, true);
+  }
+
   // ------------------------------------------------------------------
 
   @override
@@ -217,8 +228,8 @@ class FakeMapEngineState extends State<FakeMapEngine> implements MapEngineHost {
 
   /// Aura pulsante proyectada: un [Ambient] (kit de motion: bucle continuo
   /// en la app, acotado bajo `flutter test` y respetando «reducir
-  /// animaciones») pinta ondas que crecen desde [MapPulse.baseRadius] y se
-  /// funden al llegar a [MapPulse.maxRadius].
+  /// animaciones») pinta el halo difuso y las ondas que se encienden por
+  /// turnos, flotan un poco hacia fuera y se disuelven.
   Widget _buildPulse(MapPulse pulse, MapCamera camera, Size size) {
     final pixel = MapProjection.project(
       pulse.point,
@@ -226,15 +237,28 @@ class FakeMapEngineState extends State<FakeMapEngine> implements MapEngineHost {
       zoom: camera.zoom,
       viewport: size,
     );
-    final diameter = pulse.maxRadius * 2;
+    // Un par de px de aire: el aro se pinta centrado en el radio, así que su
+    // mitad exterior se saldría del box al llegar al radio máximo; el
+    // crecimiento de la onda ([MapPulse.growth]) también tiene que caber.
+    const padding = 2.0;
+    final radius = pulse.maxRadius + MapPulse.growth + padding;
+    final diameter = radius * 2;
     return Positioned(
-      left: pixel.dx - pulse.maxRadius,
-      top: pixel.dy - pulse.maxRadius,
+      left: pixel.dx - radius,
+      top: pixel.dy - radius,
       width: diameter,
       height: diameter,
       child: Ambient(
+        // El mismo reloj que el motor real ([MapPulse.period]).
+        period: MapPulse.period,
         builder: (context, _, phase, _) => CustomPaint(
-          painter: _PulsePainter(progress: phase, pulse: pulse),
+          painter: _PulsePainter(
+            progress: phase,
+            pulse: pulse,
+            // Lejos el latido se apaga y se achica: el mismo anillo sobre una
+            // ciudad entera se veía desproporcionado.
+            zoom: camera.zoom,
+          ),
         ),
       ),
     );
@@ -374,48 +398,96 @@ class _PolylinePainter extends CustomPainter {
       oldDelegate.viewport != viewport;
 }
 
-/// Pinta las ondas de un [MapPulse] en el motor simulado.
+/// Pinta el aura de un [MapPulse] en el motor simulado.
 ///
-/// El box local mide `maxRadius * 2` (ver `_buildPulse`), así que el centro
-/// del pulso cae justo en el centro del lienzo. Van DOS ondas escalonadas
-/// media vuelta entre sí —como el halo de Google Maps— que nacen en
-/// [MapPulse.baseRadius] con opacidad máxima y mueren en [MapPulse.maxRadius]
-/// con opacidad 0. El punto central NO se pinta aquí: llega como marcador de
-/// la escena.
+/// El box local mide `(maxRadius + growth) * 2` más un poco de aire (ver
+/// `_buildPulse`), así que el centro del pulso cae justo en el centro del
+/// lienzo. Dibuja, de dentro afuera:
+///
+/// 1. el **halo difuso** que respira ([pulseBreath]), que da la sensación de
+///    punto encendido;
+/// 2. tres **ondas** desfasadas ([MapPulse.waves]) cuyo brillo, radio y ancho
+///    de trazo salen de las curvas compartidas con MapLibre ([pulseWaveGlow],
+///    [pulseWaveGrowth]): entran sin golpe, flotan hacia fuera y se disuelven.
+///
+/// El punto central NO se pinta aquí: llega como marcador de la escena.
 class _PulsePainter extends CustomPainter {
-  const _PulsePainter({required this.progress, required this.pulse});
+  const _PulsePainter({
+    required this.progress,
+    required this.pulse,
+    required this.zoom,
+  });
 
   /// Fase de la vuelta actual (0..1), provista por [Ambient].
   final double progress;
   final MapPulse pulse;
 
-  /// Tres ondas simultáneas desfasadas un tercio de vuelta: con halos tan
-  /// delgados sería fácil que el halo muriera entre dos crestas.
-  static const int _waves = 3;
-
-  /// Opacidad con la que nace cada onda. < del halo de Google Maps
-  /// (~0.4 al nacer cerca del punto); 0.26 era invisible sobre tiles.
-  static const double _peakOpacity = 0.38;
+  /// Zoom del mapa: el aura se achica y se apaga cuando se aleja
+  /// ([pulseRadiusScale] y [pulsePresence]).
+  final double zoom;
 
   @override
   void paint(Canvas canvas, Size size) {
     final center = Offset(size.width / 2, size.height / 2);
-    for (var wave = 0; wave < _waves; wave++) {
-      final t = (progress + wave / _waves) % 1.0;
+    // Lejos, las ondas se achican (casi se esconden detrás del punto) y se
+    // apagan: el tamaño en pantalla no debe pelear con una ciudad entera.
+    final presence = pulsePresence(zoom);
+    final scale = pulseRadiusScale(zoom);
+    final color = pulse.color;
+
+    // 1) Halo difuso: un degradado radial que se abre y se cierra con la
+    // respiración. Es lo que hace que el punto se vea vivo entre onda y onda.
+    final glowRadius = pulse.baseRadius * MapPulse.glowRadiusScale * scale;
+    if (glowRadius > 0.5) {
+      final breath = 0.6 + 0.4 * pulseBreath(progress);
+      final glow = color.withValues(
+        alpha: MapPulse.glowOpacity * presence * breath,
+      );
+      canvas.drawCircle(
+        center,
+        glowRadius,
+        Paint()
+          ..isAntiAlias = true
+          ..shader = RadialGradient(
+            colors: [glow, glow.withValues(alpha: 0)],
+            stops: const [0.15, 1],
+          ).createShader(Rect.fromCircle(center: center, radius: glowRadius)),
+      );
+    }
+
+    // 2) Ondas: se encienden por turnos, así que siempre se ven varias a la
+    // vez y el halo nunca crece más allá de maxRadius + growth.
+    for (var wave = 0; wave < MapPulse.waves; wave++) {
+      final span = wave / (MapPulse.waves - 1);
+      final t = (progress + wave / MapPulse.waves) % 1.0;
+      final glow = pulseWaveGlow(t) * presence;
+      if (glow <= 0.002) continue;
       final radius =
-          pulse.baseRadius + (pulse.maxRadius - pulse.baseRadius) * t;
-      final color = pulse.color.withValues(alpha: _peakOpacity * (1 - t));
-      // Relleno DIFUSO, no un aro: el disco es plano por dentro y se
-      // desvanece en el borde, que es lo que hace que se lea como el halo de
-      // Google Maps y no como una onda dibujada.
+          (pulse.baseRadius +
+              (pulse.maxRadius - pulse.baseRadius) * span +
+              pulseWaveGrowth(t)) *
+          scale;
+      // Relleno tenue: solo da cuerpo al nacer la onda (se apaga con ella), así
+      // el aura no se ve como un disco relleno y plano.
       canvas.drawCircle(
         center,
         radius,
         Paint()
-          ..shader = RadialGradient(
-            colors: [color, color, color.withValues(alpha: 0)],
-            stops: const [0, 0.6, 1],
-          ).createShader(Rect.fromCircle(center: center, radius: radius))
+          ..color = color.withValues(
+            alpha: MapPulse.peakFillOpacity * glow * (1 - t),
+          )
+          ..isAntiAlias = true,
+      );
+      // Aro nítido, que se afina mientras la onda se aleja.
+      canvas.drawCircle(
+        center,
+        radius,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth =
+              MapPulse.strokeWidth +
+              (MapPulse.minStrokeWidth - MapPulse.strokeWidth) * t
+          ..color = color.withValues(alpha: MapPulse.peakStrokeOpacity * glow)
           ..isAntiAlias = true,
       );
     }
@@ -423,5 +495,7 @@ class _PulsePainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _PulsePainter oldDelegate) =>
-      oldDelegate.progress != progress || oldDelegate.pulse != pulse;
+      oldDelegate.progress != progress ||
+      oldDelegate.pulse != pulse ||
+      oldDelegate.zoom != zoom;
 }

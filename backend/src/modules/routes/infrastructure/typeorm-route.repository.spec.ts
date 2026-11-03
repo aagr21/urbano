@@ -1,5 +1,6 @@
 import { TypeOrmRouteRepository } from './typeorm-route.repository';
 import { Route } from '../../gtfs-import/entities/route.entity';
+import { ROUTE_NATURAL_ORDER_COLUMNS } from '../../../core/common/utils/route-order';
 import type { RouteQuery } from '../domain/route.model';
 
 /** QueryBuilder falso: registra la cadena orderBy/skip/take/where. */
@@ -112,6 +113,42 @@ describe('TypeOrmRouteRepository', () => {
       ],
       total: 1,
     });
+  });
+
+  it.each(['name', 'shortName'] as const)(
+    'findAll con sort=%s ordena por número y desempata por sufijo alfabético',
+    async (sort) => {
+      const ds = new FakeDataSource();
+      ds.builder = new FakeQueryBuilder([[], 0]);
+
+      await repo(ds).findAll(query({ sort }));
+
+      expect(ds.builder.calls.slice(0, 4)).toEqual([
+        { op: 'orderBy', args: [ROUTE_NATURAL_ORDER_COLUMNS[0], 'ASC'] },
+        { op: 'addOrderBy', args: [ROUTE_NATURAL_ORDER_COLUMNS[1], 'ASC'] },
+        { op: 'addOrderBy', args: [ROUTE_NATURAL_ORDER_COLUMNS[2], 'ASC'] },
+        { op: 'addOrderBy', args: ['r.route_id', 'ASC'] },
+      ]);
+      // "60 ROJO" va junto al 60: primero el prefijo numérico, luego el sufijo.
+      expect(ROUTE_NATURAL_ORDER_COLUMNS[0]).toContain(
+        "substring(r.route_short_name from '^[0-9]+')",
+      );
+      expect(ROUTE_NATURAL_ORDER_COLUMNS[1]).toContain(
+        "regexp_replace(r.route_short_name, '^[0-9]+', '')",
+      );
+    },
+  );
+
+  it('findAll con sort=longName conserva el orden literal (sin clave natural)', async () => {
+    const ds = new FakeDataSource();
+    ds.builder = new FakeQueryBuilder([[], 0]);
+
+    await repo(ds).findAll(query({ sort: 'longName' }));
+
+    expect(ds.builder.calls.slice(0, 2)).toEqual([
+      { op: 'orderBy', args: ['r.route_long_name', 'ASC'] },
+      { op: 'addOrderBy', args: ['r.route_id', 'ASC'] },
+    ]);
   });
 
   it('findAll con filtro de texto aplica LIKE en minúsculas a short y long name', async () => {

@@ -13,10 +13,11 @@ Widget _fabApp(
   FakeLocationService service, {
   bool following = false,
   ValueChanged<bool>? onFollowChanged,
+  ThemeData? theme,
 }) => ProviderScope(
   overrides: [locationServiceProvider.overrideWithValue(service)],
   child: MaterialApp(
-    theme: AppTheme.light(),
+    theme: theme ?? AppTheme.light(),
     home: Scaffold(
       body: Align(
         alignment: Alignment.topLeft,
@@ -218,5 +219,37 @@ void main() {
         LocationStatus.ready,
       );
     });
+  });
+
+  testWidgets('el relleno del FAB es el primario del tema, también de noche', (
+    tester,
+  ) async {
+    final service = FakeLocationService(
+      initialPermission: LocationPermission.whileInUse,
+    );
+    addTearDown(service.dispose);
+
+    await tester.pumpWidget(_fabApp(service, theme: AppTheme.dark()));
+    await tester.pumpAndSettle();
+
+    final fill = tester.widget<DecoratedBox>(
+      find
+          .descendant(
+            of: find.byType(LocationFab),
+            matching: find.byType(DecoratedBox),
+          )
+          .first,
+    );
+    final scheme = AppTheme.dark().colorScheme;
+    expect(
+      (fill.decoration as BoxDecoration).color,
+      scheme.primary,
+      reason: 'los botones de ubicación son del primario de la app',
+    );
+    expect(
+      tester.widget<Icon>(find.byIcon(Icons.my_location_rounded)).color,
+      scheme.onPrimary,
+      reason: 'sobre el primario (menta clara en oscuro) el glifo va oscuro',
+    );
   });
 }

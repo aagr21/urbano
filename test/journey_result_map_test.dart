@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:geolocator/geolocator.dart' show LocationPermission;
 import 'package:latlong2/latlong.dart';
 import 'package:urbano/src/core/map/fake_map_engine.dart';
 import 'package:urbano/src/core/map/map_tile.dart';
@@ -13,7 +14,6 @@ import 'package:urbano/src/core/theme/map_theme_controller.dart';
 import 'package:urbano/src/core/utils/location.dart';
 import 'package:urbano/src/core/widgets/urbano_map.dart';
 import 'package:urbano/src/features/journey/data/journey_models.dart';
-import 'package:urbano/src/features/journey/data/journey_repository.dart';
 import 'package:urbano/src/features/journey/presentation/journey_providers.dart';
 import 'package:urbano/src/features/journey/presentation/map_picker_screen.dart';
 import 'package:urbano/src/features/journey/presentation/widgets/journey_planner_card.dart';
@@ -339,6 +339,7 @@ void main() {
     Future<ProviderContainer> pumpPlanner(
       WidgetTester tester, {
       List<JourneyQuery>? queryLog,
+      FakeLocationService? service,
     }) async {
       final container = ProviderContainer(
         overrides: [
@@ -349,7 +350,9 @@ void main() {
             queryLog?.add(query);
             return [fixtureDirectOption(), fixtureTransferOption()];
           }),
-          locationServiceProvider.overrideWithValue(FakeLocationService()),
+          locationServiceProvider.overrideWithValue(
+            service ?? FakeLocationService(),
+          ),
         ],
       );
       addTearDown(container.dispose);
@@ -408,73 +411,77 @@ void main() {
       await tester.pumpAndSettle();
     }
 
-    testWidgets(
-      'un evento de ubicación mueve SOLO el mapa: el panel y la hoja no se '
-      'reconstruyen (regresión de rendimiento)',
-      (tester) async {
-        final container = await pumpPlanner(tester);
+    testWidgets('un evento de ubicación mueve SOLO el mapa: el panel y la hoja no se '
+        'reconstruyen (regresión de rendimiento)', (tester) async {
+      // Con permiso concedido: la capa viva se reconstruye por la DEMANDA de
+      // GPS (intención + permiso + primer plano), no por la intención sola. Con
+      // el permiso denegado no hay nada que aislar y el test sería vacío.
+      final container = await pumpPlanner(
+        tester,
+        service: FakeLocationService(
+          initialPermission: LocationPermission.whileInUse,
+        ),
+      );
 
-        // Viaje real planificado: así la hoja de resultados también está en el
-        // árbol y puede medirse.
-        await openPanel(tester);
-        await pickPlace(
-          tester,
-          'Marca un punto en el mapa o usa tu ubicación',
-          point: originPoint,
-        );
-        await pickPlace(
-          tester,
-          'Marca dónde quieres llegar',
-          point: destinationPoint,
-        );
-        await tester.tap(find.text('Viajar'));
-        await tester.pumpAndSettle();
-        // Al planificar el panel se guarda solo: se vuelve a abrir para tener
-        // también la tarjeta de origen/destino medida.
-        await openPanel(tester);
+      // Viaje real planificado: así la hoja de resultados también está en el
+      // árbol y puede medirse.
+      await openPanel(tester);
+      await pickPlace(
+        tester,
+        'Marca un punto en el mapa o usa tu ubicación',
+        point: originPoint,
+      );
+      await pickPlace(
+        tester,
+        'Marca dónde quieres llegar',
+        point: destinationPoint,
+      );
+      await tester.tap(find.text('Viajar'));
+      await tester.pumpAndSettle();
+      // Al planificar el panel se guarda solo: se vuelve a abrir para tener
+      // también la tarjeta de origen/destino medida.
+      await openPanel(tester);
 
-        // Sondas: `JourneyPlannerCard` (panel de origen/destino) y
-        // `JourneyResultsSheet` (hoja inferior). Son hijos directos del `build`
-        // de la pantalla y se construyen sin `const`, así que su identidad de
-        // widget es una prueba directa de si el `build` corrió o no.
-        final card = find.byType(JourneyPlannerCard);
-        final sheet = find.byType(JourneyResultsSheet);
-        final map = find.byType(JourneyResultMap);
-        expect(card, findsOneWidget);
-        expect(sheet, findsOneWidget);
-        expect(map, findsOneWidget);
-        final cardBefore = tester.widget(card);
-        final sheetBefore = tester.widget(sheet);
-        final mapBefore = tester.widget<JourneyResultMap>(map);
+      // Sondas: `JourneyPlannerCard` (panel de origen/destino) y
+      // `JourneyResultsSheet` (hoja inferior). Son hijos directos del `build`
+      // de la pantalla y se construyen sin `const`, así que su identidad de
+      // widget es una prueba directa de si el `build` corrió o no.
+      final card = find.byType(JourneyPlannerCard);
+      final sheet = find.byType(JourneyResultsSheet);
+      final map = find.byType(JourneyResultMap);
+      expect(card, findsOneWidget);
+      expect(sheet, findsOneWidget);
+      expect(map, findsOneWidget);
+      final cardBefore = tester.widget(card);
+      final sheetBefore = tester.widget(sheet);
+      final mapBefore = tester.widget<JourneyResultMap>(map);
 
-        // Encender el seguimiento: eso es exactamente lo que emite el stream de
-        // GPS al cambiar la cámara.
-        container.read(followLocationProvider.notifier).state = true;
-        await tester.pumpAndSettle();
+      // Encender el seguimiento: eso es exactamente lo que emite el stream de
+      // GPS al cambiar la cámara.
+      container.read(followLocationProvider.notifier).state = true;
+      await tester.pumpAndSettle();
 
-        // El mapa SÍ vio el cambio (el test no es vacío: la aislación existe,
-        // no se traga los eventos).
-        expect(
-          tester.widget<JourneyResultMap>(map),
-          isNot(same(mapBefore)),
-          reason: '_LiveMapLayer debe reconstruir el mapa con el seguimiento',
-        );
-        // El resto del árbol quedó en su sitio: antes, el `build` de la
-        // pantalla miraba `locationControllerProvider` y cada posición nueva
-        // reconstruía panel, chips, controles y hoja de resultados.
-        expect(
-          tester.widget(card),
-          same(cardBefore),
-          reason:
-              'un tick de GPS no debe reconstruir el panel de origen/destino',
-        );
-        expect(
-          tester.widget(sheet),
-          same(sheetBefore),
-          reason: 'un tick de GPS no debe reconstruir la hoja de resultados',
-        );
-      },
-    );
+      // El mapa SÍ vio el cambio (el test no es vacío: la aislación existe,
+      // no se traga los eventos).
+      expect(
+        tester.widget<JourneyResultMap>(map),
+        isNot(same(mapBefore)),
+        reason: '_LiveMapLayer debe reconstruir el mapa con el seguimiento',
+      );
+      // El resto del árbol quedó en su sitio: antes, el `build` de la
+      // pantalla miraba `locationControllerProvider` y cada posición nueva
+      // reconstruía panel, chips, controles y hoja de resultados.
+      expect(
+        tester.widget(card),
+        same(cardBefore),
+        reason: 'un tick de GPS no debe reconstruir el panel de origen/destino',
+      );
+      expect(
+        tester.widget(sheet),
+        same(sheetBefore),
+        reason: 'un tick de GPS no debe reconstruir la hoja de resultados',
+      );
+    });
 
     testWidgets(
       'el botón swap queda separado de los iconos de mapa/editar de los '

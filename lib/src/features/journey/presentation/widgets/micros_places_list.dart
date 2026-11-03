@@ -140,7 +140,7 @@ class _MicrosPlacesListState extends ConsumerState<MicrosPlacesList> {
         onRetry: () => ref.invalidate(stopNearbyProvider(local)),
         isEmpty: (items) => items.isEmpty,
         emptyIcon: Icons.search_off_rounded,
-        emptyTitle: 'No hay paradas cerca',
+        emptyTitle: 'No hay lugares cerca',
         emptyMessage: 'Prueba buscando por nombre o marcando otro punto.',
         loadingCount: 4,
         data: (items) => _hitsListView(colors, items),
@@ -262,7 +262,7 @@ class MicrosPlaceTile extends StatelessWidget {
               Padding(
                 padding: const EdgeInsets.only(top: 4),
                 child: Text(
-                  'Ninguna línea declarada en esta parada',
+                  'Ninguna línea pasa por este lugar',
                   style: text.labelSmall?.copyWith(
                     color: colors.onSurfaceVariant,
                   ),
@@ -429,66 +429,80 @@ class MicrosPlaceGuide extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.colors;
     final text = context.text;
-    return Padding(
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          // Insignia de color con el ícono dentro: la guía ya no es un ícono
-          // gris suelto en el vacío (y flota, como el resto de estados vacíos).
-          Container(
-            width: 74,
-            height: 74,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: Color.lerp(colors.surface, colors.primary, 0.14),
-              border: Border.all(color: colors.primary.withValues(alpha: 0.32)),
-            ),
-            child: Bob(
-              amplitude: 2.5,
-              child: Icon(
-                Icons.travel_explore_rounded,
-                size: 38,
-                color: AppColors.legible(
-                  colors.primary,
-                  Color.lerp(colors.surface, colors.primary, 0.14)!,
+    return CustomScrollView(
+      slivers: [
+        SliverFillRemaining(
+          hasScrollBody: false,
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                // Insignia de color con el ícono dentro: la guía ya no es un ícono
+                // gris suelto en el vacío (y flota, como el resto de estados vacíos).
+                Container(
+                  width: 74,
+                  height: 74,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Color.lerp(colors.surface, colors.primary, 0.14),
+                    border: Border.all(
+                      color: colors.primary.withValues(alpha: 0.32),
+                    ),
+                  ),
+                  child: Bob(
+                    amplitude: 2.5,
+                    child: Icon(
+                      Icons.travel_explore_rounded,
+                      size: 38,
+                      color: AppColors.legible(
+                        colors.primary,
+                        Color.lerp(colors.surface, colors.primary, 0.14)!,
+                      ),
+                    ),
+                  ),
                 ),
-              ),
+                const SizedBox(height: 14),
+                Text(
+                  '¿Qué línea pasa por donde quieres ir?',
+                  textAlign: TextAlign.center,
+                  style: text.titleSmall?.copyWith(fontWeight: FontWeight.w800),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Escribe una calle, esquina, barrio o hito '
+                  '(Terminal, Mercado, Cuarto Anillo…), marca el punto en el mapa '
+                  'o usa tu ubicación, y te decimos qué micros sirven ese lugar.',
+                  textAlign: TextAlign.center,
+                  style: text.bodySmall?.copyWith(
+                    color: colors.onSurfaceVariant,
+                  ),
+                ),
+                const SizedBox(height: 18),
+                Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    OutlinedButton.icon(
+                      onPressed: onNearby,
+                      icon: const Icon(Icons.my_location_rounded, size: 18),
+                      label: const Text('Cerca de mí'),
+                    ),
+                    const SizedBox(height: 8),
+                    OutlinedButton.icon(
+                      onPressed: onPickOnMap,
+                      icon: const Icon(
+                        Icons.add_location_alt_rounded,
+                        size: 18,
+                      ),
+                      label: const Text('Marcar en el mapa'),
+                    ),
+                  ],
+                ),
+              ],
             ),
           ),
-          const SizedBox(height: 14),
-          Text(
-            '¿Qué línea pasa por donde quieres ir?',
-            textAlign: TextAlign.center,
-            style: text.titleSmall?.copyWith(fontWeight: FontWeight.w800),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Escribe una calle, esquina, barrio o hito '
-            '(Terminal, Mercado, Cuarto Anillo…), marca el punto en el mapa '
-            'o usa tu ubicación, y te decimos qué micros sirven ese lugar.',
-            textAlign: TextAlign.center,
-            style: text.bodySmall?.copyWith(color: colors.onSurfaceVariant),
-          ),
-          const SizedBox(height: 18),
-          Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              OutlinedButton.icon(
-                onPressed: onNearby,
-                icon: const Icon(Icons.my_location_rounded, size: 18),
-                label: const Text('Cerca de mí'),
-              ),
-              const SizedBox(height: 8),
-              OutlinedButton.icon(
-                onPressed: onPickOnMap,
-                icon: const Icon(Icons.add_location_alt_rounded, size: 18),
-                label: const Text('Marcar en el mapa'),
-              ),
-            ],
-          ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }

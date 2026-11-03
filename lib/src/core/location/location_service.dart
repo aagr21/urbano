@@ -2,6 +2,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
 
+import 'gps_budget.dart';
+
 /// Fallo de ubicación con mensaje amigable.
 enum LocationFailureKind {
   permissionDenied,
@@ -108,18 +110,19 @@ class LocationService {
     return true;
   }
 
-  /// Posición actual de UN SOLO uso («cerca de mí», centrado inicial).
+  /// Posición actual de UN SOLO uso («cerca de mí», centrado inicial, «usar mi
+  /// ubicación»).
   ///
-  /// `medium` en vez de `high`: para nivel calle sobra, la fijación llega
-  /// antes y el radio GNSS trabaja menos posición por punto (batería y
-  /// calor). Los tracks continuos no usan [LocationService] sino la capa
-  /// nativa del mapa (ver LiveMapLayer, solo con seguimiento activo).
+  /// [gpsOneShotSettings]: `medium` porque para nivel calle sobra, la fijación
+  /// llega antes y el radio trabaja menos por punto (batería y calor), con
+  /// [gpsOneShotTimeLimit] para no dejar al receptor buscando fix indefinido si
+  /// no hay señal. La escucha continua no pasa por aquí: es
+  /// [myLocationRealtimeProvider] (en `location_controller.dart`) y solo se abre
+  /// cuando hay demanda de seguimiento.
   Future<LatLng> currentPosition() async {
     try {
       final position = await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(
-          accuracy: LocationAccuracy.medium,
-        ),
+        locationSettings: gpsOneShotSettings,
       );
       return LatLng(position.latitude, position.longitude);
     } catch (_) {
@@ -147,13 +150,21 @@ class LocationService {
   }
 
   /// Stream con la posición en tiempo real del GPS.
+  ///
+  /// Aquí solo se declara CÓMO se escucha ([gpsTrackingSettings]: umbral de
+  /// [gpsMinMovementMeters] en el propio proveedor, para que lo que no sea
+  /// desplazamiento real ni suba a Dart). CUÁNDO se escucha es política de
+  /// [myLocationRealtimeProvider], que además filtra el ruido restante.
+  ///
+  /// Devuelve el stream **sin filtrar**: es la frontera cruda del plugin, así los
+  /// tests pueden emitir lo que quieran y ver el filtro aplicado más arriba.
   Stream<LatLng> positionStream({
     LocationAccuracy accuracy = LocationAccuracy.high,
-    int distanceFilter = 2,
+    int distanceFilter = gpsMinMovementMeters,
   }) {
     try {
       return Geolocator.getPositionStream(
-        locationSettings: LocationSettings(
+        locationSettings: gpsTrackingSettings(
           accuracy: accuracy,
           distanceFilter: distanceFilter,
         ),
@@ -228,35 +239,17 @@ class LastKnownLocation extends Notifier<LatLng?> {
   }
 }
 
-/// Stream continuo de la ubicación del usuario en tiempo real.
-///
-/// Dueño ÚNICO del GPS junto con las lecturas puntuales: el puck nativo de
-/// MapLibre ya no pide su propia señal (ver `LiveMapLayer`). Arranca con la
-/// caché del sistema (instantánea) para pintar el punto sin esperar el fix
-/// y de ahí SIGUE con el stream puro — nunca bloquea con `currentPosition()`
-/// porque un primer fix lento dejaría sin eventos el seguimiento completo.
-final myLocationRealtimeProvider = StreamProvider.autoDispose<LatLng?>((
-  ref,
-) async* {
-  final service = ref.watch(locationServiceProvider);
-  if (!await service.hasGrantedPermission()) {
-    yield null;
-    return;
-  }
-  final cached = await service.lastKnownPosition();
-  if (cached != null) yield cached;
-
-  yield* service.positionStream();
-});
-
 /// Solicita permiso (diálogo) y, si sale concedido, refresca
-/// [myLocationProvider] y [myLocationRealtimeProvider].
+/// [myLocationProvider].
+///
+/// NO invalida [myLocationRealtimeProvider]: ese stream se abre y se cierra solo
+/// según [locationDemandProvider], que ya mira al estado del controlador —al
+/// conceder el permiso la demanda cambia y el stream renace consigo.
 extension MyLocationRef on WidgetRef {
   Future<PermissionOutcome> requestMyLocation() async {
     final permission = await read(locationServiceProvider).requestPermission();
     if (isPermissionGranted(permission)) {
       invalidate(myLocationProvider);
-      invalidate(myLocationRealtimeProvider);
       return PermissionOutcome.granted;
     }
     return switch (permission) {

@@ -4,26 +4,16 @@ import '../../../../core/animation/motion.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/utils/extensions.dart';
+import '../../../../core/widgets/photo_viewer.dart';
 import '../../../../core/widgets/route_badge.dart';
 import '../../../../core/widgets/route_photo.dart';
 import '../../../routes/data/route_models.dart';
-import '../journey_markers.dart';
+import '../../application/micros_catalog.dart';
 
 // Tarjetas del **panel de micros**: la tarjeta de una línea (con sus botones
 // Ida/Vuelta) y la píldora de recorridos dibujados. Es UI pura por props y
 // callbacks: el estado (qué recorridos están en el mapa, la búsqueda, el
-// scroll) vive en la pantalla padre y en la sesión del panel.
-
-/// Una dirección de un micro: id GTFS (0 = ida, 1 = vuelta) + headsign
-/// conocido (vacío si el detalle aún no se cargó).
-class MicroDirection {
-  const MicroDirection(this.directionId, this.headsign);
-
-  final int directionId;
-  final String headsign;
-
-  String get label => directionId == 0 ? 'Ida' : 'Vuelta';
-}
+// scroll) vive en el controller del panel y en su sesión.
 
 /// Tarjeta de una línea: **foto del micro como banner a todo el ancho** del
 /// card (si el feed la trae), con el numeral flotando a la izquierda y la
@@ -115,112 +105,162 @@ class JourneyMicroTile extends StatelessWidget {
                 // vertical (el sobrante horizontal lo rellena la misma foto
                 // difuminada); numeral flotando abajo a la izquierda y
                 // píldora de recorridos arriba a la derecha.
-                Container(
-                  height: 132,
-                  // Sin foto la franja la pinta la LÍNEA: un degradado de su
-                  // color al mismo tono hundido, nunca un bloque plano.
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [tint, Color.lerp(tint, Colors.black, 0.45)!],
+                //
+                // La foto es TOCABLE: se abre a pantalla completa con un vuelo
+                // desde esta misma franja ([openPhotoViewer]); sin foto no hay
+                // gesto (la franja es solo el tinte de la línea).
+                PressScale(
+                  enabled: micro.imageUrl != null,
+                  child: GestureDetector(
+                    onTap: micro.imageUrl == null
+                        ? null
+                        : () => openPhotoViewer(
+                            context,
+                            url: micro.imageUrl!,
+                            tag: photoHeroTag('panel', micro.id),
+                            title: micro.longName,
+                            subtitle: 'Foto del micro',
+                            accent: tint,
+                          ),
+                    child: Container(
+                      height: 132,
+                      // Sin foto la franja la pinta la LÍNEA: un degradado de su
+                      // color al mismo tono hundido, nunca un bloque plano.
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [tint, Color.lerp(tint, Colors.black, 0.45)!],
+                        ),
+                      ),
+                      child: Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          if (micro.imageUrl != null)
+                            Hero(
+                              tag: photoHeroTag('panel', micro.id),
+                              child: RoutePhoto(
+                                url: micro.imageUrl!,
+                                radius: BorderRadius.zero,
+                                fit: BoxFit.fitHeight,
+                                showFull: true,
+                              ),
+                            ),
+                          // Un solo scrub que cubre de arriba a abajo para
+                          // garantizar contraste para numeral y píldora sin
+                          // importar la foto (cielo claro, techo blanco…).
+                          DecoratedBox(
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                begin: Alignment.topCenter,
+                                end: Alignment.bottomCenter,
+                                colors: [
+                                  Colors.black.withValues(alpha: 0.16),
+                                  Colors.transparent,
+                                  // El pie se hunde hacia el color de la línea
+                                  // (30%): la tarjeta sigue diciendo «de qué micro
+                                  // es» aunque la foto sea de un cielo claro.
+                                  Color.lerp(
+                                    Colors.black,
+                                    tint,
+                                    0.3,
+                                  )!.withValues(alpha: 0.8),
+                                ],
+                                stops: const [0, 0.42, 1],
+                              ),
+                            ),
+                          ),
+                          // Barra acento al pie del banner: existe VISIBLEMENTE
+                          // cuando la línea tiene recorrido dibujado.
+                          Positioned(
+                            left: 0,
+                            right: 0,
+                            bottom: 0,
+                            child: AnimatedContainer(
+                              key: const ValueKey('route-accent-bar'),
+                              duration: Motion.settle,
+                              curve: Curves.easeOutCubic,
+                              height: alive ? 3 : 0,
+                              // Barra con brillo en el color de la línea: el
+                              // recorrido dibujado se marca con SU luz.
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  colors: [
+                                    tint,
+                                    Color.lerp(tint, Colors.white, 0.4)!,
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                          // Numeral: literal el cartel del parabrisas, flotando
+                          // del banner.
+                          Positioned(
+                            left: 12,
+                            bottom: 10,
+                            child: AnimatedScale(
+                              duration: Motion.transition,
+                              curve: Curves.easeOutBack,
+                              scale: alive ? 1.06 : 1,
+                              child: RouteBadge(
+                                label: micro.shortName,
+                                colorHex: micro.color,
+                                textColorHex: micro.textColor,
+                              ),
+                            ),
+                          ),
+                          // Píldora con los recorridos dibujados: siempre en el
+                          // árbol (a escala 0 si no hay nada) para que al
+                          // activar la fila no salte.
+                          Positioned(
+                            right: 10,
+                            top: 10,
+                            child: AnimatedOpacity(
+                              duration: const Duration(milliseconds: 180),
+                              opacity: alive ? 1 : 0,
+                              child: AnimatedScale(
+                                duration: Motion.settle,
+                                curve: Curves.easeOutBack,
+                                scale: alive ? 1 : 0.5,
+                                child: _ActivePill(
+                                  count: activeCount,
+                                  tint: tint,
+                                  cardBackground: colors.surface,
+                                ),
+                              ),
+                            ),
+                          ),
+                          // Señal de que la foto se abre: «expandir» discreto abajo
+                          // a la derecha, donde no pelea con el numeral (izquierda)
+                          // ni con la píldora de recorridos (arriba).
+                          if (micro.imageUrl != null)
+                            Positioned(
+                              right: 10,
+                              bottom: 10,
+                              child: IgnorePointer(
+                                child: Container(
+                                  width: 26,
+                                  height: 26,
+                                  decoration: BoxDecoration(
+                                    color: Colors.black.withValues(alpha: 0.34),
+                                    shape: BoxShape.circle,
+                                    border: Border.all(
+                                      color: Colors.white.withValues(
+                                        alpha: 0.5,
+                                      ),
+                                    ),
+                                  ),
+                                  child: const Icon(
+                                    Icons.open_in_full_rounded,
+                                    size: 13,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
                     ),
-                  ),
-                  child: Stack(
-                    fit: StackFit.expand,
-                    children: [
-                      if (micro.imageUrl != null)
-                        RoutePhoto(
-                          url: micro.imageUrl!,
-                          radius: BorderRadius.zero,
-                          fit: BoxFit.fitHeight,
-                          showFull: true,
-                        ),
-                      // Un solo scrub que cubre de arriba a abajo para
-                      // garantizar contraste para numeral y píldora sin
-                      // importar la foto (cielo claro, techo blanco…).
-                      DecoratedBox(
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            begin: Alignment.topCenter,
-                            end: Alignment.bottomCenter,
-                            colors: [
-                              Colors.black.withValues(alpha: 0.16),
-                              Colors.transparent,
-                              // El pie se hunde hacia el color de la línea
-                              // (30%): la tarjeta sigue diciendo «de qué micro
-                              // es» aunque la foto sea de un cielo claro.
-                              Color.lerp(
-                                Colors.black,
-                                tint,
-                                0.3,
-                              )!.withValues(alpha: 0.8),
-                            ],
-                            stops: const [0, 0.42, 1],
-                          ),
-                        ),
-                      ),
-                      // Barra acento al pie del banner: existe VISIBLEMENTE
-                      // cuando la línea tiene recorrido dibujado.
-                      Positioned(
-                        left: 0,
-                        right: 0,
-                        bottom: 0,
-                        child: AnimatedContainer(
-                          key: const ValueKey('route-accent-bar'),
-                          duration: Motion.settle,
-                          curve: Curves.easeOutCubic,
-                          height: alive ? 3 : 0,
-                          // Barra con brillo en el color de la línea: el
-                          // recorrido dibujado se marca con SU luz.
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              colors: [
-                                tint,
-                                Color.lerp(tint, Colors.white, 0.4)!,
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                      // Numeral: literal el cartel del parabrisas, flotando
-                      // del banner.
-                      Positioned(
-                        left: 12,
-                        bottom: 10,
-                        child: AnimatedScale(
-                          duration: Motion.transition,
-                          curve: Curves.easeOutBack,
-                          scale: alive ? 1.06 : 1,
-                          child: RouteBadge(
-                            label: micro.shortName,
-                            colorHex: micro.color,
-                            textColorHex: micro.textColor,
-                          ),
-                        ),
-                      ),
-                      // Píldora con los recorridos dibujados: siempre en el
-                      // árbol (a escala 0 si no hay nada) para que al
-                      // activar la fila no salte.
-                      Positioned(
-                        right: 10,
-                        top: 10,
-                        child: AnimatedOpacity(
-                          duration: const Duration(milliseconds: 180),
-                          opacity: alive ? 1 : 0,
-                          child: AnimatedScale(
-                            duration: Motion.settle,
-                            curve: Curves.easeOutBack,
-                            scale: alive ? 1 : 0.5,
-                            child: _ActivePill(
-                              count: activeCount,
-                              tint: tint,
-                              cardBackground: colors.surface,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
                   ),
                 ),
                 // Contenido debajo del banner: nombre, datos de la línea y
@@ -306,10 +346,10 @@ class JourneyMicroTile extends StatelessWidget {
   }
 }
 
-/// Datos de la línea bajo el nombre, en píldoras teñidas con SU color: cuántas
-/// paradas cubre y si tiene ida y vuelta. La tinta se calcula contra la mezcla
-/// que se pinta de verdad (`legible`), nunca se usa el tinte crudo como letra
-/// (un `F1C40F` de GTFS sobre hoja clara desaparecería).
+/// Datos de la línea bajo el nombre, en píldoras teñidas con SU color: si
+/// tiene ida y vuelta o solo ida. La tinta se calcula contra la mezcla que se
+/// pinta de verdad (`legible`), nunca se usa el tinte crudo como letra (un
+/// `F1C40F` de GTFS sobre hoja clara desaparecería).
 class _LineMeta extends StatelessWidget {
   const _LineMeta({
     required this.micro,
@@ -332,13 +372,6 @@ class _LineMeta extends StatelessWidget {
       spacing: 6,
       runSpacing: 6,
       children: [
-        if (micro.stopCount > 0)
-          _MetaPill(
-            icon: Icons.place_rounded,
-            label: '${micro.stopCount} paradas',
-            fill: fill,
-            ink: ink,
-          ),
         _MetaPill(
           icon: lines ? Icons.swap_horiz_rounded : Icons.arrow_forward_rounded,
           label: lines ? 'Ida y vuelta' : 'Solo ida',
@@ -350,7 +383,7 @@ class _LineMeta extends StatelessWidget {
   }
 }
 
-/// Píldora compacta de dato (paradas, sentido) con ícono y tinta ya resueltos.
+/// Píldora compacta de dato (sentido) con ícono y tinta ya resueltos.
 class _MetaPill extends StatelessWidget {
   const _MetaPill({
     required this.icon,

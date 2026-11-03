@@ -3,7 +3,10 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:latlong2/latlong.dart';
 
+import 'app_foreground.dart';
+import 'gps_budget.dart';
 import 'location_service.dart';
 
 /// Estado de la ubicación del usuario, derivado del servicio del sistema y
@@ -122,8 +125,9 @@ class LocationController extends Notifier<LocationState> {
     }
     state = LocationState(serviceEnabled: enabled, permission: permission);
     if (isPermissionGranted(permission)) {
+      // Solo la lectura puntual: el stream continuo renace solo con la demanda
+      // (aquí el permiso acaba de pasar el estado a `ready`).
       ref.invalidate(myLocationProvider);
-      ref.invalidate(myLocationRealtimeProvider);
       return true;
     }
     return false;
@@ -230,3 +234,79 @@ final locationControllerProvider =
 /// `followLocationProvider && status == ready` (ver el planner), de modo que
 /// si el GPS se apaga la cámara deja de seguir y vuelve sola al encenderse.
 final followLocationProvider = StateProvider<bool>((ref) => false);
+
+/// La ÚNICA llave del sensor: cuándo tiene sentido escuchar GPS continuo.
+///
+/// `true` solo si se cumplen las tres a la vez:
+/// 1. la app está en primer plano ([appForegroundProvider]) — en segundo plano no
+///    hay mapa que actualizar;
+/// 2. el usuario quiere seguimiento ([followLocationProvider]) — soltarlo (pan,
+///    toque, botón) debe APAGAR la escucha, no dejarla "por si acaso";
+/// 3. hay permiso y GPS del sistema activo (`status == ready`).
+///
+/// Vive aparte para que la política se pueda leer (y probar) sin tocar el plugin:
+/// [myLocationRealtimeProvider] se recrea con su valor.
+final locationDemandProvider = Provider<bool>((ref) {
+  if (!ref.watch(appForegroundProvider)) return false;
+  if (!ref.watch(followLocationProvider)) return false;
+  return ref.watch(locationControllerProvider).status == LocationStatus.ready;
+});
+
+/// Stream continuo de la ubicación, **solo mientras hay demanda**.
+///
+/// Dueño ÚNICO del GPS junto con las lecturas puntuales: el puck nativo de
+/// MapLibre ya no pide su propia señal (ver `LiveMapLayer`).
+///
+/// De aquí sale el ahorro de batería y de temperatura: la escucha estaba abierta
+/// SIEMPRE que el planeador estaba montado (y lo está: el shell no desmonta la
+/// pestaña Viaje), porque `LiveMapLayer` lo escuchaba con `ref.listen` sin
+/// condición y una escucha mantiene vivo al provider. Ahora el cuerpo del provider
+/// decide: sin demanda devuelve un stream VACÍO, así que `getPositionStream` no
+/// llega a llamarse ni un solo vez aunque haya oyentes.
+///
+/// Con demanda: arranca con la caché del sistema (instantánea, sin pedir fix — un
+/// primer fix lento dejaría sin eventos al seguimiento) y sigue con
+/// [onlyRealMovement], que solo deja pasar desplazamiento real de
+/// [gpsMinMovementMeters] o el latido lento de [gpsQuietHeartbeat].
+final myLocationRealtimeProvider = StreamProvider.autoDispose<LatLng?>((ref) {
+  // `watch`, no `read`: cambiar la demanda RECREA el provider, y con él la
+  // suscripción del plugin — la anterior se cancela sola. Ese es el
+  // "libera los listeners" del ciclo de vida, sin temporizador nuestro.
+  if (!ref.watch(locationDemandProvider)) {
+    return const Stream<LatLng?>.empty();
+  }
+  return _trackLiveLocation(ref.watch(locationServiceProvider));
+});
+
+/// Pipeline del seguimiento: caché instantánea + filtro de movimiento real.
+///
+/// Controlador explícito por dos razones que un `async*` no daba:
+/// - `service.positionStream()` se llama **al escucharse**, no al componerse: sin
+///   demanda el plugin ni siquiera se toca;
+/// - al cancelarse aguas abajo, [StreamController.onCancel] cancela la
+///   suscripción del filtro y con ella el listener nativo del GPS. Un generador
+///   `async*` deja la fuente viva (no propaga la cancelación), que es mantener
+///   el radio encendido para siempre.
+Stream<LatLng?> _trackLiveLocation(LocationService service) {
+  late final StreamController<LatLng?> out;
+  StreamSubscription<LatLng>? upstream;
+
+  out = StreamController<LatLng?>(
+    onListen: () async {
+      final cached = await service.lastKnownPosition();
+      // Nos cancelaron mientras esperábamos la caché (el usuario soltó el
+      // seguimiento o la app fue a segundo plano): no se abre ya el sensor.
+      if (out.isClosed) return;
+      if (cached != null) out.add(cached);
+      upstream = onlyRealMovement(service.positionStream())
+          .listen(out.add, onError: out.addError, onDone: out.close);
+    },
+    onCancel: () async {
+      final subscription = upstream;
+      upstream = null;
+      await subscription?.cancel();
+    },
+  );
+
+  return out.stream;
+}

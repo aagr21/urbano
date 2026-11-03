@@ -1,16 +1,13 @@
 part of 'maplibre_engine.dart';
 
 /// Latido con el que se reescribe el radio de las ondas nativas.
-const Duration _pulseTick = Duration(milliseconds: 60);
-
-/// Ondas simultáneas por pulso, desfasadas un tercio de vuelta entre sí:
-/// con el halo difuso del retroceso del aura, tres crestas seguidas (cada
-/// `Motion.ambient / 3` ≈ 800 ms) hacen que la onda nunca se apague.
-const int _pulseWaves = 3;
-
-/// Opacidad con la que nace cada onda. El halo de Google Maps nace con
-/// ~0.4 casi sustancial cerca del punto; 0.26 se perdía sobre tiles.
-const double _pulsePeakOpacity = 0.38;
+///
+/// 90 ms (~11 fps) en vez de 60: el aura es un brillo que se mueve lento sobre
+/// [MapPulse.period] (2,8 s), así que 90 ms siguen siendo ~31 pasos por vuelta y
+/// el ojo no nota la diferencia — mientras cada paso son unas pocas llamadas
+/// por canal al mapa nativo. Es el reloj que más despierta al teléfono cuando
+/// el mapa está montado, y el planeador lo está SIEMPRE.
+const Duration _pulseTick = Duration(milliseconds: 90);
 
 /// Sincronización escena → anotaciones nativas (métodos privados del
 /// [MapLibreEngineState], separados aquí porque son el bloque más denso
@@ -230,10 +227,11 @@ extension _EngineSync on MapLibreEngineState {
 
   /// Da de alta/baja los círculos del aura y gobierna su reloj.
   ///
-  /// El tick NO vive aquí: [_tickPulses] reescribe radio, opacidad y geometría
-  /// de cada círculo leyendo la escena, así que este método solo se ocupa de
-  /// altas y bajas. Con «reducir animaciones» ([Motion.reduced]) se pinta un
-  /// halo quieto y el reloj no arranca.
+  /// Por pulso se crean [MapPulse.waves] ondas + 1 halo difuso. El tick NO vive
+  /// aquí: [_tickPulses] reescribe radio, opacidad y geometría de cada círculo
+  /// leyendo la escena, así que este método solo se ocupa de altas y bajas. Con
+  /// «reducir animaciones» ([Motion.reduced]) se pinta un halo quieto y el reloj
+  /// no arranca.
   Future<void> _syncPulses(int generation) async {
     final manager = _map?.circleManager;
     if (manager == null) return;
@@ -249,31 +247,34 @@ extension _EngineSync on MapLibreEngineState {
     // Con «reducir animaciones» no se arranca el reloj: el halo queda quieto.
     final phase = reduced ? 0.0 : _pulsePhase();
     for (var i = 0; i < pulses.length; i++) {
-      for (var wave = 0; wave < _pulseWaves; wave++) {
-        final id = _pulseCircleId(i, wave);
-        final options = _pulseOptions(pulses[i], wave, phase, reduced: reduced);
-        final existing = _pulseCircles[id];
-        if (existing == null) {
-          final circle = ml.Circle(id, options);
-          await manager.add(circle);
-          if (!mounted || generation != _styleGeneration) return;
-          _pulseCircles[id] = circle;
-        } else {
-          // Reinicia radio/geometría (p. ej. tras un cambio de capa del mapa)
-          // sin recrear el círculo.
-          final updated = ml.Circle(id, options);
-          await manager.set(updated);
-          if (!mounted || generation != _styleGeneration) return;
-          _pulseCircles[id] = updated;
-        }
+      // El halo difuso va PRIMERO: los círculos nativos se pintan en orden de
+      // alta, así que las ondas quedan encima de él.
+      final glowOk = await _upsertPulseCircle(
+        manager,
+        _pulseGlowId(i),
+        _pulseGlowOptions(pulses[i], phase),
+        generation,
+      );
+      if (!glowOk) return;
+      for (var wave = 0; wave < MapPulse.waves; wave++) {
+        final ok = await _upsertPulseCircle(
+          manager,
+          _pulseCircleId(i, wave),
+          _pulseOptions(pulses[i], wave, phase),
+          generation,
+        );
+        if (!ok) return;
       }
     }
 
     // Retira auras de pulsos que salieron de la escena (p. ej. al desactivar
     // el seguimiento GPS).
     final liveIds = <String>{
-      for (var i = 0; i < pulses.length; i++)
-        for (var wave = 0; wave < _pulseWaves; wave++) _pulseCircleId(i, wave),
+      for (var i = 0; i < pulses.length; i++) ...[
+        _pulseGlowId(i),
+        for (var wave = 0; wave < MapPulse.waves; wave++)
+          _pulseCircleId(i, wave),
+      ],
     };
     final staleIds = _pulseCircles.keys
         .where((id) => !liveIds.contains(id))
@@ -292,6 +293,27 @@ extension _EngineSync on MapLibreEngineState {
     }
   }
 
+  /// Alta o refresco de un círculo del aura.
+  ///
+  /// Devuelve `false` si el estilo cambió mientras se esperaba al canal: la
+  /// sincronía en curso ya no sirve y hay que abandonarla.
+  Future<bool> _upsertPulseCircle(
+    ml.CircleManager manager,
+    String id,
+    ml.CircleOptions options,
+    int generation,
+  ) async {
+    final circle = ml.Circle(id, options);
+    if (_pulseCircles.containsKey(id)) {
+      await manager.set(circle);
+    } else {
+      await manager.add(circle);
+    }
+    if (!mounted || generation != _styleGeneration) return false;
+    _pulseCircles[id] = circle;
+    return true;
+  }
+
   /// Un paso del aura: reescribe radio/opacidad de cada onda según la fase.
   Future<void> _tickPulses() async {
     if (!mounted || !_styleLoaded) return;
@@ -302,13 +324,17 @@ extension _EngineSync on MapLibreEngineState {
     final phase = _pulsePhase();
     try {
       for (var i = 0; i < pulses.length; i++) {
-        for (var wave = 0; wave < _pulseWaves; wave++) {
+        final glowId = _pulseGlowId(i);
+        if (_pulseCircles.containsKey(glowId)) {
+          final glow = ml.Circle(glowId, _pulseGlowOptions(pulses[i], phase));
+          _pulseCircles[glowId] = glow;
+          await manager.set(glow);
+          if (!mounted) return;
+        }
+        for (var wave = 0; wave < MapPulse.waves; wave++) {
           final id = _pulseCircleId(i, wave);
           if (!_pulseCircles.containsKey(id)) continue;
-          final circle = ml.Circle(
-            id,
-            _pulseOptions(pulses[i], wave, phase, reduced: false),
-          );
+          final circle = ml.Circle(id, _pulseOptions(pulses[i], wave, phase));
           _pulseCircles[id] = circle;
           await manager.set(circle);
           if (!mounted) return;
@@ -324,44 +350,109 @@ extension _EngineSync on MapLibreEngineState {
     }
   }
 
-  /// Opciones de una onda. `t` = avance dentro de su vuelta: 0 nace (radio
-  /// mínimo, opacidad máxima) y 1 muere (radio máximo, opacidad 0).
-  ///
-  /// Con [reduced] se fija un halo quieto: la primera onda a mitad de camino y
-  /// la segunda invisible (mismo aspecto que el estado de reposo del simulado).
-  ml.CircleOptions _pulseOptions(
-    MapPulse pulse,
-    int wave,
-    double phase, {
-    required bool reduced,
-  }) {
-    final t = reduced
-        ? (wave == 0 ? 0.35 : 1.0)
-        : (phase + wave / _pulseWaves) % 1.0;
-    final radius = pulse.baseRadius + (pulse.maxRadius - pulse.baseRadius) * t;
-    final opacity = (_pulsePeakOpacity * (1 - t)).clamp(0.0, 1.0);
+  /// Opciones de una onda. `t` = avance de su vuelta (0 recién encendida, 1
+  /// apagada): el brillo sale de [pulseWaveGlow], el desplazamiento hacia fuera
+  /// de [pulseWaveGrowth] y el aro se afina mientras se aleja. Las MISMAS
+  /// curvas usa el motor simulado, así que el latido es idéntico en ambos.
+  ml.CircleOptions _pulseOptions(MapPulse pulse, int wave, double phase) {
+    // El estilo se pinta en px FÍSICOS: radios y aros viajan en px lógicos
+    // ([MapPulse]) y aquí se convierten con la densidad del dispositivo (en
+    // web la densidad ya es 1). Sin esto los anillos quedaban por dentro del
+    // punto en móviles.
+    final density = _nativeDensity();
+    // Al alejar el mapa el mismo anillo se veía gigante sobre la ciudad: se
+    // achica y se apaga con el zoom, hasta quedar casi imperceptible.
+    final zoom = _camera.zoom;
+    final span = (wave / (MapPulse.waves - 1)).clamp(0.0, 1.0);
+    final t = (phase + wave / MapPulse.waves) % 1.0;
+    final glow = pulseWaveGlow(t) * pulsePresence(zoom);
+    final radius =
+        (pulse.baseRadius +
+            (pulse.maxRadius - pulse.baseRadius) * span +
+            pulseWaveGrowth(t)) *
+        pulseRadiusScale(zoom) *
+        density;
+    final stroke =
+        MapPulse.strokeWidth +
+        (MapPulse.minStrokeWidth - MapPulse.strokeWidth) * t;
     return ml.CircleOptions(
       geometry: _toMl(pulse.point),
       circleRadius: radius,
       circleColor: _hex(pulse.color),
-      circleOpacity: opacity,
-      // Sin aro: el aura de Google Maps es un disco difuso. `circleBlur`
-      // reparte la opacidad hacia el borde y hace el degradado que en el motor
-      // simulado pinta `_PulsePainter` con un `RadialGradient`.
-      circleBlur: 0.65,
+      // El relleno se apaga con la onda: solo da cuerpo al nacer, no deja un
+      // disco relleno y plano sobre el mapa.
+      circleOpacity: MapPulse.peakFillOpacity * glow * (1 - t),
+      // Casi sin blur: el latido se lee por el ARO nítido, no por un disco
+      // difuso (con `circleBlur` alto el borde se comía el anillo).
+      circleBlur: 0.06,
+      circleStrokeColor: _hex(pulse.color),
+      circleStrokeOpacity: (MapPulse.peakStrokeOpacity * glow).clamp(0.0, 1.0),
+      circleStrokeWidth: stroke * density,
+    );
+  }
+
+  /// Halo difuso bajo las ondas: respira ([pulseBreath]) y es lo que hace que
+  /// el punto se sienta «encendido» entre onda y onda.
+  ///
+  /// `circleBlur: 1` es el máximo del estilo y aquí SÍ conviene: no hay aro
+  /// que proteger, todo el círculo es un degradado suave.
+  ml.CircleOptions _pulseGlowOptions(MapPulse pulse, double phase) {
+    final density = _nativeDensity();
+    final zoom = _camera.zoom;
+    final breath = 0.6 + 0.4 * pulseBreath(phase);
+    return ml.CircleOptions(
+      geometry: _toMl(pulse.point),
+      circleRadius:
+          pulse.baseRadius *
+          MapPulse.glowRadiusScale *
+          pulseRadiusScale(zoom) *
+          density,
+      circleColor: _hex(pulse.color),
+      circleOpacity: (MapPulse.glowOpacity * pulsePresence(zoom) * breath)
+          .clamp(0.0, 1.0),
+      circleBlur: 1.0,
     );
   }
 
   /// Fase actual (0..1) dentro de una vuelta del aura.
   double _pulsePhase() {
     if (!_pulseClock.isRunning) _pulseClock.start();
-    final period = Motion.ambient.inMilliseconds;
+    final period = MapPulse.period.inMilliseconds;
     return (_pulseClock.elapsedMilliseconds % period) / period;
   }
 
   void _startPulseClock() {
     _pulseClock.start();
     _pulseTimer ??= Timer.periodic(_pulseTick, (_) => unawaited(_tickPulses()));
+  }
+
+  /// Congela/descongela el aura según el ciclo de vida de la app.
+  ///
+  /// Un `Timer.periodic` en segundo plano sigue disparando `manager.set()` por
+  /// canal y pidiendo redraws de un mapa que nadie mira: CPU, batería y calor
+  /// tirados.
+  void _onAppLifecycleState(AppLifecycleState state) {
+    final invisible = switch (state) {
+      AppLifecycleState.paused ||
+      AppLifecycleState.hidden ||
+      AppLifecycleState.detached => true,
+      // `inactive` (sombra de notificaciones, diálogo de permiso) sigue animando:
+      // la app se ve, cortar aquí dejaría el halo congelado a la vista.
+      _ => false,
+    };
+    if (invisible) {
+      _pulseTimer?.cancel();
+      _pulseTimer = null;
+      // `stop()` SIN `reset()`: [_stopPulseClock] borra la fase y el aura
+      // rearrancaría desde cero. Así el latido continúa donde lo dejó.
+      _pulseClock.stop();
+      return;
+    }
+    // De vuelta: solo si hay círculos que mover y el estilo está listo (si no,
+    // `_syncPulses` se ocupa cuando llegue la próxima sincronía).
+    if (_styleLoaded && _pulseCircles.isNotEmpty && !Motion.reduced(context)) {
+      _startPulseClock();
+    }
   }
 
   void _stopPulseClock() {
@@ -383,6 +474,9 @@ extension _EngineSync on MapLibreEngineState {
 
   String _pulseCircleId(int index, int wave) => 'urbano-pulse-$index-$wave';
 
+  /// Id del halo difuso de un pulso (el círculo que va DEBAJO de las ondas).
+  String _pulseGlowId(int index) => 'urbano-pulse-$index-glow';
+
   /// Asegura que el icono PNG del marcador exista en el estilo actual.
   Future<String?> _ensureImage(MapMarker marker, int generation) async {
     final key = marker.imageCacheKey;
@@ -392,7 +486,7 @@ extension _EngineSync on MapLibreEngineState {
     var bytes = await MarkerRasterizer.rasterize(
       context,
       marker,
-      pixelRatio: _markerPixelRatio(),
+      pixelRatio: _nativeDensity(),
     );
     bytes ??= await MarkerRasterizer.fallbackMarker(
       width: marker.width,
@@ -407,14 +501,23 @@ extension _EngineSync on MapLibreEngineState {
     return name;
   }
 
-  /// Densidad con la que rasterizar los iconos.
+  /// Densidad nativa (píxeles físicos por px lógico) con la que MapLibre mide
+  /// todo lo que no es un widget de Flutter.
   ///
-  /// - **Web**: el plugin registra las imágenes con `pixelRatio: 1`, así que
-  ///   el PNG debe medir exactamente el tamaño lógico del marcador.
+  /// Importa para DOS cosas: rasterizar los iconos de los marcadores y
+  /// escalar los círculos del aura ([MapPulse]). El estilo se pinta en píxeles
+  /// del lienzo nativo, así que un radio "de 54" son 54 px FÍSICOS: en un
+  /// móvil de densidad 3 eso son 18 px lógicos y el anillo quedaba escondido
+  /// detrás del punto (22 px) — se veía en el motor simulado (1x) y no en el
+  /// teléfono.
+  ///
+  /// - **Web**: el plugin registra las imágenes con `pixelRatio: 1` y el
+  ///   lienzo ya trabaja en px lógicos, así que el PNG debe medir exactamente
+  ///   el tamaño lógico del marcador.
   /// - **iOS/Android**: el PNG se sube como píxeles crudos y MapLibre los
   ///   dibuja a tamaño de pantalla, así que hay que rasterizar a la densidad
   ///   del dispositivo.
-  double _markerPixelRatio() {
+  double _nativeDensity() {
     if (kIsWeb) return 1;
     final ratio = MediaQuery.maybeOf(context)?.devicePixelRatio;
     if (ratio == null || !ratio.isFinite || ratio <= 0) return 3;

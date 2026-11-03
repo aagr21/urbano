@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show PlatformException;
 import 'package:latlong2/latlong.dart';
@@ -56,6 +57,19 @@ class MapLibreEngineState extends State<MapLibreEngine>
   /// `onPositionChanged` puede reportar `hasGesture` igual que el simulado.
   bool _programmaticCamera = true;
 
+  /// Puntero que podría convertirse en un gesto de cámara y dónde cayó.
+  ///
+  /// Se usa para esperar a la slop: un tap en el mapa no es un gesto, un
+  /// arrastre o un segundo dedo sí.
+  int? _gesturePointer;
+  Offset? _gestureOrigin;
+
+  /// Punteros con el dedo abajo sobre el mapa.
+  final Set<int> _pointers = <int>{};
+
+  /// El dedo ya está moviendo el mapa (pan o pellizco).
+  bool _cameraGesture = false;
+
   bool _styleLoaded = false;
 
   /// Se incrementa en cada carga de estilo: las sincronizaciones en vuelo de
@@ -101,6 +115,9 @@ class MapLibreEngineState extends State<MapLibreEngine>
 
   Timer? _pulseTimer;
 
+  /// Ciclo de vida de la app, solo para el aura: ver [_onAppLifecycleState].
+  late final AppLifecycleListener _lifecycle;
+
   /// Reloj de fase: no se reinicia con cada tick, así el aura no "salta" si
   /// el timer derrapa (frames perdidos, app en segundo plano).
   final Stopwatch _pulseClock = Stopwatch();
@@ -119,6 +136,7 @@ class MapLibreEngineState extends State<MapLibreEngine>
     _camera = MapCamera(center: widget.scene.center, zoom: widget.scene.zoom);
     // El primer estilo se entrega tal cual: no hay recarga previa que serializar.
     _displayStyle = widget.scene.styleString;
+    _lifecycle = AppLifecycleListener(onStateChange: _onAppLifecycleState);
     widget.controller?.attach(this);
   }
 
@@ -166,6 +184,7 @@ class MapLibreEngineState extends State<MapLibreEngine>
 
   @override
   void dispose() {
+    _lifecycle.dispose();
     _stopPulseClock();
     final map = _map;
     if (map != null) {
@@ -248,6 +267,57 @@ class MapLibreEngineState extends State<MapLibreEngine>
       // `_onStyleLoaded` (que recrea los managers) vuelve a intentarlo.
       if (kDebugMode) debugPrint('[markers] solape no aplicado: ${e.code}');
     }
+  }
+
+  // ------------------------------------------------------------------
+  // Gestos del usuario sobre el mapa
+  // ------------------------------------------------------------------
+
+  /// El dedo superó la slop (o cayó un segundo dedo): la cámara es del USUARIO
+  /// hasta que suelte.
+  ///
+  /// [_programmaticCamera] solo se limpiaba en `camera#onIdle`, y ese evento NO
+  /// llega con el dedo abajo. Si el toque caía mientras estaba en vuelo el
+  /// `animateCamera` del seguimiento del GPS (la app reencuadra en cada tick),
+  /// TODOS los movimientos del arrastre se reportaban `hasGesture: false`: el
+  /// planeador seguía creyendo que la cámara era suya y el siguiente tick la
+  /// devolvía sola a «mi ubicación» con zoom de calle. Aquí se suelta la marca
+  /// en cuanto arranca el gesto —y [moveCamera] no la vuelve a tomar mientras
+  /// dure—, así el primer `camera#onMove` del dedo ya se reporta como gesto.
+  void _startCameraGesture() {
+    _gesturePointer = null;
+    _gestureOrigin = null;
+    _cameraGesture = true;
+    _programmaticCamera = false;
+  }
+
+  void _onCameraPointerDown(PointerDownEvent event) {
+    _pointers.add(event.pointer);
+    if (_pointers.length > 1) {
+      // Segundo dedo: un pellizco es SIEMPRE un gesto del usuario.
+      _startCameraGesture();
+      return;
+    }
+    _gesturePointer = event.pointer;
+    _gestureOrigin = event.localPosition;
+  }
+
+  void _onCameraPointerMove(PointerMoveEvent event) {
+    if (event.pointer != _gesturePointer) return;
+    final origin = _gestureOrigin;
+    if (origin == null) return;
+    if ((event.localPosition - origin).distance <= kTouchSlop) return;
+    // Recorrido de verdad (no un tap): el mapa pasa a manos del dedo.
+    _startCameraGesture();
+  }
+
+  void _onCameraPointerEnd(PointerEvent event) {
+    _pointers.remove(event.pointer);
+    if (event.pointer == _gesturePointer) {
+      _gesturePointer = null;
+      _gestureOrigin = null;
+    }
+    if (_pointers.isEmpty) _cameraGesture = false;
   }
 
   // ------------------------------------------------------------------
@@ -401,7 +471,10 @@ class MapLibreEngineState extends State<MapLibreEngine>
     _camera = MapCamera(center: center, zoom: clamped);
     final map = _map;
     if (map == null) return;
-    _programmaticCamera = true;
+    // Con el dedo sobre el mapa la cámara NO es nuestra: el seguimiento puede
+    // reencuadrar, pero el movimiento se reporta como gesto y no vuelve a
+    // enmascarar el arrastre en curso (véase [_startCameraGesture]).
+    _programmaticCamera = !_cameraGesture;
     final update = ml.CameraUpdate.newLatLngZoom(_toMl(center), clamped);
     if (animated) {
       unawaited(map.animateCamera(update));
@@ -419,7 +492,7 @@ class MapLibreEngineState extends State<MapLibreEngine>
     _camera = _camera.copyWith(zoom: target);
     final map = _map;
     if (map == null) return;
-    _programmaticCamera = true;
+    _programmaticCamera = !_cameraGesture;
     final update = ml.CameraUpdate.zoomBy(delta);
     if (animated) {
       unawaited(map.animateCamera(update));
@@ -525,55 +598,66 @@ class MapLibreEngineState extends State<MapLibreEngine>
                 bodyWidthPx: marker.width,
               ),
         ];
-        return EndpointDragDetector(
-          // Getter VIVO: la cámara muta en cada frame del desplazamiento sin
-          // pasar por build; leerla por evento es lo que hace que el arrastre
-          // acierte al pin donde esté.
-          camera: () => _camera,
-          viewport: size,
-          targets: endpoints,
-          onDragStart: _onDartDragStart,
-          onDragUpdate: _onDartDragMove,
-          onDragEnd: _onDartDragEnd,
-          onTap: _onDartEndpointTap,
-          child: ml.MapLibreMap(
-            styleString: _displayStyle ?? scene.styleString,
-            initialCameraPosition: ml.CameraPosition(
-              target: _toMl(initial.center),
-              zoom: initial.zoom,
+        return Listener(
+          // Observa SIN consumir: el gesto lo sigue ganando quien corresponda
+          // (la capa Dart del pin o el mapa nativo). Es la señal que hace que
+          // un arrastre/pellizco del usuario mande sobre el seguimiento del
+          // GPS (véase [_startCameraGesture]).
+          behavior: HitTestBehavior.translucent,
+          onPointerDown: _onCameraPointerDown,
+          onPointerMove: _onCameraPointerMove,
+          onPointerUp: _onCameraPointerEnd,
+          onPointerCancel: _onCameraPointerEnd,
+          child: EndpointDragDetector(
+            // Getter VIVO: la cámara muta en cada frame del desplazamiento sin
+            // pasar por build; leerla por evento es lo que hace que el arrastre
+            // acierte al pin donde esté.
+            camera: () => _camera,
+            viewport: size,
+            targets: endpoints,
+            onDragStart: _onDartDragStart,
+            onDragUpdate: _onDartDragMove,
+            onDragEnd: _onDartDragEnd,
+            onTap: _onDartEndpointTap,
+            child: ml.MapLibreMap(
+              styleString: _displayStyle ?? scene.styleString,
+              initialCameraPosition: ml.CameraPosition(
+                target: _toMl(initial.center),
+                zoom: initial.zoom,
+              ),
+              // CRÍTICO: sin esto el plugin NO reenvía `camera#onMove` a Dart
+              // (el nativo hace `if (!trackCameraPosition) return`) y el motor
+              // nunca se entera de los desplazamientos del usuario: se congelan
+              // la lectura de coordenadas del selector y el punto que devuelve
+              // `Usar este punto`. Con `true`, `onPositionChanged` llega en
+              // caliente y `_camera` refleja la cámara real en todo momento.
+              trackCameraPosition: true,
+              // El arrastre de pines es 100% la capa Dart (arena de Flutter,
+              // pellizco cancelado, agarre compensado): el nativo se apagó
+              // porque movía los marcadores sin pasar por esa lógica.
+              dragEnabled: false,
+              minMaxZoomPreference: ml.MinMaxZoomPreference(
+                scene.minZoom,
+                scene.maxZoom,
+              ),
+              scrollGesturesEnabled: scene.interactive,
+              zoomGesturesEnabled: scene.interactive,
+              doubleClickZoomEnabled: scene.interactive,
+              rotateGesturesEnabled: false,
+              tiltGesturesEnabled: false,
+              myLocationEnabled: scene.myLocationEnabled,
+              myLocationTrackingMode: scene.followMyLocation
+                  ? ml.MyLocationTrackingMode.tracking
+                  : ml.MyLocationTrackingMode.none,
+              onMapCreated: _onMapCreated,
+              onStyleLoadedCallback: _onStyleLoaded,
+              onMapClick: scene.onTap == null ? null : _onMapClick,
+              onCameraMove: _onCameraMove,
+              onCameraIdle: _onCameraIdle,
+              onCameraTrackingDismissed: scene.onTrackingDismissed == null
+                  ? null
+                  : () => widget.scene.onTrackingDismissed?.call(),
             ),
-            // CRÍTICO: sin esto el plugin NO reenvía `camera#onMove` a Dart
-            // (el nativo hace `if (!trackCameraPosition) return`) y el motor
-            // nunca se entera de los desplazamientos del usuario: se congelan
-            // la lectura de coordenadas del selector y el punto que devuelve
-            // `Usar este punto`. Con `true`, `onPositionChanged` llega en
-            // caliente y `_camera` refleja la cámara real en todo momento.
-            trackCameraPosition: true,
-            // El arrastre de pines es 100% la capa Dart (arena de Flutter,
-            // pellizco cancelado, agarre compensado): el nativo se apagó
-            // porque movía los marcadores sin pasar por esa lógica.
-            dragEnabled: false,
-            minMaxZoomPreference: ml.MinMaxZoomPreference(
-              scene.minZoom,
-              scene.maxZoom,
-            ),
-            scrollGesturesEnabled: scene.interactive,
-            zoomGesturesEnabled: scene.interactive,
-            doubleClickZoomEnabled: scene.interactive,
-            rotateGesturesEnabled: false,
-            tiltGesturesEnabled: false,
-            myLocationEnabled: scene.myLocationEnabled,
-            myLocationTrackingMode: scene.followMyLocation
-                ? ml.MyLocationTrackingMode.tracking
-                : ml.MyLocationTrackingMode.none,
-            onMapCreated: _onMapCreated,
-            onStyleLoadedCallback: _onStyleLoaded,
-            onMapClick: scene.onTap == null ? null : _onMapClick,
-            onCameraMove: _onCameraMove,
-            onCameraIdle: _onCameraIdle,
-            onCameraTrackingDismissed: scene.onTrackingDismissed == null
-                ? null
-                : () => widget.scene.onTrackingDismissed?.call(),
           ),
         );
       },

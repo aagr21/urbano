@@ -49,6 +49,10 @@ Colores hex **sin** `#` (ej: `D35400`), tal como vienen en GTFS.
 ### Routes
 - `GET /routes?q=&page=1&limit=20&sort=name`
   - `q`: búsqueda insensible a mayúsculas sobre `short_name`, `long_name`.
+  - `sort`: `name`/`shortName` (default) ordenan por **número de línea** y desempatan
+    por el sufijo alfabético: `1, 2, …, 9 AMARILLO, 9 VERDE, 10, …, 85, 85 FORTALEZA`
+    (no el orden textual `1, 10, 100, 104 C`). `longName` y `stopCount` conservan su
+    orden literal/numérico.
   - Item (`RouteSummary`):
 ```json
 { "id": "101 ANGOSTURA", "shortName": "101 ANGOSTURA", "longName": "Micro 101 ANGOSTURA",

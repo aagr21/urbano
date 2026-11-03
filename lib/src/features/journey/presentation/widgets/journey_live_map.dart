@@ -86,7 +86,10 @@ class LiveMapLayer extends ConsumerWidget {
         ref.watch(myLocationProvider).valueOrNull;
     final locationReady =
         ref.watch(locationControllerProvider).status == LocationStatus.ready;
-    final tracking = ref.watch(followLocationProvider) && locationReady;
+    // Seguimiento = demanda de GPS. Es el MISMO criterio que usa
+    // [myLocationRealtimeProvider] para abrir el sensor (intención + permiso +
+    // app en primer plano), así que la UI y el radio nunca se contradicen.
+    final tracking = ref.watch(locationDemandProvider);
     // Dueño ÚNICO del GPS: con seguimiento activo el stream propio
     // ([myLocationRealtimeProvider]) es la fuente fresca y manda sobre la
     // semilla; sin seguimiento queda la última posición conocida.
@@ -99,8 +102,11 @@ class LiveMapLayer extends ConsumerWidget {
 
     // Cámara en el seguimiento: la app la mueve con cada tick del stream.
     // Callback en lugar de watch: mover cámara NO debe reconstruir la capa.
+    // Escuchar el provider ya no enciende el sensor: sin demanda su stream es
+    // vacío, así que este oyente puede estar montado siempre (el planeador no se
+    // desmonta) sin costar una línea de GNSS.
     ref.listen(myLocationRealtimeProvider, (_, next) {
-      if (!ref.read(followLocationProvider)) return;
+      if (!ref.read(locationDemandProvider)) return;
       final point = next.valueOrNull;
       if (point != null) _followTo(mapKey, point);
     });
@@ -137,8 +143,16 @@ class LiveMapLayer extends ConsumerWidget {
           child: DecoratedBox(
             decoration: BoxDecoration(
               shape: BoxShape.circle,
+              // Relleno = primario del tema, el MISMO color de los botones de
+              // ubicación y del pin de origen: en oscuro es la menta de la
+              // marca, no un verde genérico.
               color: context.colors.primary,
-              border: Border.all(color: context.colors.surface, width: 3),
+              // Anillo SIEMPRE blanco, como los pines de origen/destino
+              // (`JourneyMarkers`): el punto va sobre el mapa, no sobre una
+              // superficie de la app, así que no debe seguir al tema — con
+              // `surface` el borde se volvía negro en modo oscuro y el punto
+              // se confundía con la cartografía oscura.
+              border: Border.all(color: Colors.white, width: 3),
             ),
           ),
         ),
@@ -148,38 +162,58 @@ class LiveMapLayer extends ConsumerWidget {
         MapPulse(point: shownPoint, color: context.colors.primary),
     ];
 
-    return JourneyResultMap(
-      key: mapKey,
-      option: option,
-      origin: mapOrigin,
-      // Sin destino marcado el mapa encuadra sobre el origen (criterio previo).
-      destination: destination ?? mapOrigin,
-      showControls: false,
-      showLegend: false,
-      showJourneyLayers: hasResults,
-      // En modo exploración se pintan los extremos que el usuario YA fijó: lo
-      // que se marca en el selector debe verse antes de planificar.
-      showOrigin: hasResults || origin != null,
-      showDestination: hasResults || destination != null,
-      fitPadding: fitPadding,
-      extraPolylines: extraPolylines,
-      onOriginMoved: (point) => onEndpointMoved(true, point),
-      onDestinationMoved: (point) => onEndpointMoved(false, point),
-      // Tocar el pin de origen/destino lo edita: abre el selector encima del
-      // punto actual.
-      onOriginTap: () => onEndpointTapped(true),
-      onDestinationTap: () => onEndpointTapped(false),
-      onPositionChanged: onPositionChanged,
-      // GPS DE UN SOLO DUEÑO: MapLibre NUNCA pide ubicación nativa (`false`
-      // es el default de la fachada; el comentario lo documenta a propósito):
-      // su capa enciende un GPS continuo de alta precisión sin control
-      // nuestro. Toda la señal —puntual, caché del sistema y stream— sale de
-      // [LocationService] (geolocator) y el punto propio la dibuja; la cámara
-      // del seguimiento la mueve la app (véase `ref.listen` arriba).
-      extraPulses: pulses,
-      extraMarkers: markers,
-      onTrackingDismissed: () =>
+    return Listener(
+      // Señal TEMPRANA e incondicional: el mapa es del dedo en cuanto se toca.
+      // Sin ella, el tick del GPS que cae justo entre el `down` y el primer
+      // `camera#onMove` del arrastre todavía alcanzaba a recentrar la cámara.
+      // Va aquí (y no en el motor) porque es POLÍTICA del planeador: con
+      // seguimiento activo, cualquier toque sobre el mapa lo suelta.
+      behavior: HitTestBehavior.translucent,
+      onPointerDown: (_) =>
           ref.read(followLocationProvider.notifier).state = false,
+      child: JourneyResultMap(
+        key: mapKey,
+        option: option,
+        origin: mapOrigin,
+        // Sin destino marcado el mapa encuadra sobre el origen (criterio previo).
+        destination: destination ?? mapOrigin,
+        showControls: false,
+        showLegend: false,
+        showJourneyLayers: hasResults,
+        // En modo exploración se pintan los extremos que el usuario YA fijó: lo
+        // que se marca en el selector debe verse antes de planificar.
+        showOrigin: hasResults || origin != null,
+        showDestination: hasResults || destination != null,
+        fitPadding: fitPadding,
+        extraPolylines: extraPolylines,
+        onOriginMoved: (point) => onEndpointMoved(true, point),
+        onDestinationMoved: (point) => onEndpointMoved(false, point),
+        // Tocar el pin de origen/destino lo edita: abre el selector encima del
+        // punto actual.
+        onOriginTap: () => onEndpointTapped(true),
+        onDestinationTap: () => onEndpointTapped(false),
+        // Un GESTO del usuario suelta el seguimiento. El callback nativo
+        // `onCameraTrackingDismissed` no sirve aquí: el puck nativo está apagado
+        // (el seguimiento lo hace la app), así que nunca llega. Sin esto, mover
+        // el mapa a cualquier lado duraba un tick de GPS: la cámara volvía sola
+        // a «mi ubicación» y de paso saltaba a zoom de calle ([_followTo]).
+        onPositionChanged: (camera, hasGesture) {
+          if (hasGesture) {
+            ref.read(followLocationProvider.notifier).state = false;
+          }
+          onPositionChanged?.call(camera, hasGesture);
+        },
+        // GPS DE UN SOLO DUEÑO: MapLibre NUNCA pide ubicación nativa (`false`
+        // es el default de la fachada; el comentario lo documenta a propósito):
+        // su capa enciende un GPS continuo de alta precisión sin control
+        // nuestro. Toda la señal —puntual, caché del sistema y stream— sale de
+        // [LocationService] (geolocator) y el punto propio la dibuja; la cámara
+        // del seguimiento la mueve la app (véase `ref.listen` arriba).
+        extraPulses: pulses,
+        extraMarkers: markers,
+        onTrackingDismissed: () =>
+            ref.read(followLocationProvider.notifier).state = false,
+      ),
     );
   }
 }

@@ -99,8 +99,8 @@ class RoutePlaces extends ConsumerWidget {
       onRetry: () => ref.invalidate(routeStopsProvider(routeKey)),
       isEmpty: (items) => items.isEmpty,
       emptyIcon: Icons.route_rounded,
-      emptyTitle: 'Recorrido sin paradas',
-      emptyMessage: 'El feed no declara paradas en este sentido.',
+      emptyTitle: 'Recorrido sin referencias',
+      emptyMessage: 'El feed no declara puntos en este sentido.',
       onEmpty: () => const SizedBox.shrink(),
       loadingCount: 3,
       // La maqueta imita la forma real del recorrido.
@@ -218,7 +218,7 @@ class RoutePlaces extends ConsumerWidget {
                     const SizedBox(width: 6),
                     CountUp(
                       value: items.length,
-                      format: (v) => '$v paradas en este sentido',
+                      format: (v) => '$v puntos del recorrido',
                       style: text.labelSmall?.copyWith(
                         color: colors.onSurfaceVariant,
                         fontWeight: FontWeight.w700,

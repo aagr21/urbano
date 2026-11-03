@@ -59,6 +59,7 @@ LatLng _engineCameraCenter(WidgetTester tester) =>
 Future<ProviderContainer> _pumpLayer(
   WidgetTester tester, {
   required FakeLocationService service,
+  ThemeData? theme,
 }) async {
   final container = ProviderContainer(
     overrides: [
@@ -75,7 +76,7 @@ Future<ProviderContainer> _pumpLayer(
     UncontrolledProviderScope(
       container: container,
       child: MaterialApp(
-        theme: AppTheme.light(),
+        theme: theme ?? AppTheme.light(),
         home: Scaffold(
           body: LiveMapLayer(
             mapKey: GlobalKey<JourneyResultMapState>(),
@@ -155,6 +156,169 @@ void main() {
     },
   );
 
+  testWidgets(
+    'un pan del usuario suelta el seguimiento: el tick siguiente NO devuelve '
+    'la cámara a «mi ubicación» (regresión: volvía sola y con zoom)',
+    (tester) async {
+      final service = FakeLocationService(
+        initialPermission: LocationPermission.whileInUse,
+      );
+      final container = await _pumpLayer(tester, service: service);
+
+      container.read(followLocationProvider.notifier).state = true;
+      await tester.pumpAndSettle();
+      service.emitPosition(const LatLng(-17.68, -63.08));
+      await tester.pumpAndSettle();
+      expect(_engineCameraCenter(tester), const LatLng(-17.68, -63.08));
+
+      // El usuario arrastra el mapa a la nada, lejos de su ubicación.
+      const nowhere = LatLng(-17.60, -63.30);
+      tester
+          .state<FakeMapEngineState>(find.byType(FakeMapEngine))
+          .debugFireCameraGesture(nowhere, zoom: 12);
+      await tester.pump();
+      expect(
+        container.read(followLocationProvider),
+        isFalse,
+        reason: 'un gesto del usuario suelta el seguimiento',
+      );
+
+      // Aunque llegue un tick nuevo, la cámara se queda donde la dejó el dedo
+      // (antes volvía sola al GPS y de paso saltaba a zoom de calle).
+      service.emitPosition(const LatLng(-17.681, -63.079));
+      await tester.pumpAndSettle();
+      expect(_engineCameraCenter(tester), nowhere);
+    },
+  );
+
+  testWidgets(
+    'tocar el mapa suelta el seguimiento (señal temprana: no depende de que '
+    'el motor acierte con `hasGesture`)',
+    (tester) async {
+      final service = FakeLocationService(
+        initialPermission: LocationPermission.whileInUse,
+      );
+      final container = await _pumpLayer(tester, service: service);
+      container.read(followLocationProvider.notifier).state = true;
+      await tester.pumpAndSettle();
+      expect(container.read(followLocationProvider), isTrue);
+
+      // Lejos del punto propio: un toque cualquiera sobre el mapa.
+      await tester.tapAt(const Offset(120, 160));
+      await tester.pump();
+
+      expect(
+        container.read(followLocationProvider),
+        isFalse,
+        reason: 'el mapa es del dedo en cuanto se toca',
+      );
+    },
+  );
+
+  testWidgets(
+    'sin seguimiento NO se abre el sensor; con él se abre UNA vez y se suelta al '
+    'ir a segundo plano (regresión: la escucha era permanente y el teléfono se '
+    'calentaba)',
+    (tester) async {
+      final service = FakeLocationService(
+        initialPermission: LocationPermission.whileInUse,
+      );
+      final container = await _pumpLayer(tester, service: service);
+
+      // El planeador está montado desde el arranque (el shell no desmonta la
+      // pestaña Viaje) y el permiso está concedido: aun así, sin intención de
+      // seguimiento no se llama al plugin NI un solo vez.
+      expect(service.positionStreamCalls, 0);
+      expect(service.positionEvents.hasListener, isFalse);
+
+      container.read(followLocationProvider.notifier).state = true;
+      await tester.pumpAndSettle();
+      expect(
+        service.positionStreamCalls,
+        1,
+        reason: 'la demanda abre la escucha, una vez',
+      );
+      expect(service.positionEvents.hasListener, isTrue);
+
+      // Segundo plano: nadie mira el mapa → se LIBERA el listener del GPS.
+      // Se recorre la secuencia REAL del sistema (`resumed → inactive → hidden
+      // → paused`): `AppLifecycleListener` asserts si se salta un estado.
+      for (final state in [
+        AppLifecycleState.inactive,
+        AppLifecycleState.hidden,
+        AppLifecycleState.paused,
+      ]) {
+        tester.binding.handleAppLifecycleStateChanged(state);
+      }
+      await tester.pumpAndSettle();
+      expect(container.read(locationDemandProvider), isFalse);
+      expect(
+        service.positionEvents.hasListener,
+        isFalse,
+        reason: 'en segundo plano el sensor no sigue escuchando',
+      );
+
+      // De vuelta, con la intención todavía puesta: se reabre (una vez más, no
+      // dos streams simultáneos).
+      for (final state in [
+        AppLifecycleState.hidden,
+        AppLifecycleState.inactive,
+        AppLifecycleState.resumed,
+      ]) {
+        tester.binding.handleAppLifecycleStateChanged(state);
+      }
+      await tester.pumpAndSettle();
+      expect(service.positionStreamCalls, 2);
+      expect(service.positionEvents.hasListener, isTrue);
+
+      // Soltar el seguimiento lo apaga y no vuelve "por si acaso".
+      container.read(followLocationProvider.notifier).state = false;
+      await tester.pumpAndSettle();
+      expect(service.positionEvents.hasListener, isFalse);
+      expect(service.positionStreamCalls, 2);
+    },
+  );
+
+  testWidgets(
+    'con seguimiento la cámara se mueve SOLO con desplazamiento real: 3 m de '
+    'ruido del GNSS no despiertan el mapa (móvil quieto = menos CPU y menos calor)',
+    (tester) async {
+      final service = FakeLocationService(
+        initialPermission: LocationPermission.whileInUse,
+      );
+      final container = await _pumpLayer(tester, service: service);
+      container.read(followLocationProvider.notifier).state = true;
+      await tester.pumpAndSettle();
+
+      const here = LatLng(-17.68, -63.08);
+      service.emitPosition(here);
+      await tester.pumpAndSettle();
+      expect(_engineCameraCenter(tester), here);
+
+      // 3 m al norte: jitter típico con el dispositivo parado.
+      service.emitPosition(LatLng(here.latitude + 0.000027, here.longitude));
+      await tester.pumpAndSettle();
+      expect(
+        _engineCameraCenter(tester),
+        here,
+        reason: 'por debajo de gpsMinMovementMeters no se mueve la cámara',
+      );
+      expect(
+        _lastKnownMarker(tester)!.point,
+        here,
+        reason: 'ni siquiera se reconstruye el punto pintado',
+      );
+
+      // 12 m: desplazamiento de verdad → la cámara camina con el usuario.
+      const moved = LatLng(-17.679892, -63.08);
+      service.emitPosition(moved);
+      await tester.pumpAndSettle();
+      expect(_engineCameraCenter(tester), moved);
+
+      expect(container.read(locationDemandProvider), isTrue);
+    },
+  );
+
   testWidgets('sin caché del sistema se conserva la última posición conocida', (
     tester,
   ) async {
@@ -182,4 +346,45 @@ void main() {
     );
     expect(after!.point, before!.point);
   });
+
+  testWidgets(
+    'el punto de «mi ubicación» lleva anillo SIEMPRE blanco y relleno '
+    'del primario (también de noche)',
+    (tester) async {
+      final service = FakeLocationService(
+        initialPermission: LocationPermission.whileInUse,
+      );
+      await _pumpLayer(tester, service: service, theme: AppTheme.dark());
+
+      final marker = _lastKnownMarker(tester);
+      expect(marker, isNotNull);
+
+      final dot = marker!.child as DecoratedBox;
+      final decoration = dot.decoration as BoxDecoration;
+      final ring = decoration.border! as Border;
+      final primary = AppTheme.dark().colorScheme.primary;
+      expect(
+        ring.top.color,
+        Colors.white,
+        reason:
+            'el punto se pinta sobre el MAPA, no sobre una superficie de la '
+            'app: con `colors.surface` el borde salía negro en modo oscuro',
+      );
+      expect(
+        decoration.color,
+        primary,
+        reason: 'el punto GPS es del primario de la app, como su botón',
+      );
+
+      final map = tester.widget<JourneyResultMap>(
+        find.byType(JourneyResultMap),
+      );
+      expect(
+        map.extraPulses.single.color,
+        primary,
+        reason:
+            'el aura es del mismo color: punto y halo son un solo «estás aquí»',
+      );
+    },
+  );
 }

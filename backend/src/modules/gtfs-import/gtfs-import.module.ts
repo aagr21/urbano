@@ -9,7 +9,9 @@ import { Shape } from './entities/shape.entity';
 import { StopTime } from './entities/stop-time.entity';
 import { Stop } from './entities/stop.entity';
 import { Trip } from './entities/trip.entity';
+import { GtfsImportRepository } from './gtfs-import.repository';
 import { GtfsImportService } from './gtfs-import.service';
+import { MicrosImagesService } from './micros-images.service';
 
 export const GTFS_ENTITIES = [
   Agency,
@@ -25,7 +27,7 @@ export const GTFS_ENTITIES = [
 
 @Module({
   imports: [TypeOrmModule.forFeature(GTFS_ENTITIES)],
-  providers: [GtfsImportService],
-  exports: [GtfsImportService, TypeOrmModule],
+  providers: [GtfsImportService, GtfsImportRepository, MicrosImagesService],
+  exports: [GtfsImportService, MicrosImagesService, TypeOrmModule],
 })
 export class GtfsImportModule {}

@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
+import 'package:urbano/src/core/location/gps_budget.dart';
 import 'package:urbano/src/core/location/location_service.dart';
 
 /// Implementación falsa de [LocationService] para tests de widgets: nunca
@@ -22,7 +23,16 @@ class FakeLocationService implements LocationService {
   final serviceEvents = StreamController<bool>.broadcast();
 
   /// Eventos de posición en tiempo real. Se usan con [emitPosition].
+  /// Es un stream de múltiples oyentes: los tests pueden mirar [hasListener] para
+  /// saber si la app tiene el sensor ABIERTO (deber de la demanda de GPS) y
+  /// [positionStreamCalls] para cuántas veces se pidió abrirlo.
   final positionEvents = StreamController<LatLng>.broadcast();
+
+  /// Veces que la app pidió la escucha continua (`positionStream`).
+  ///
+  /// Con `hasListener` es la prueba de que sin demanda NO se llama al plugin: un
+  /// provider escuchado pero sin demanda devuelve un stream vacío aquí mismo.
+  int positionStreamCalls = 0;
 
   /// Permiso que concede `requestPermission` (por defecto `whileInUse`).
   LocationPermission grantOnRequest = LocationPermission.whileInUse;
@@ -57,8 +67,13 @@ class FakeLocationService implements LocationService {
   @override
   Stream<LatLng> positionStream({
     LocationAccuracy accuracy = LocationAccuracy.high,
-    int distanceFilter = 2,
-  }) => positionEvents.stream;
+    int distanceFilter = gpsMinMovementMeters,
+  }) {
+    positionStreamCalls++;
+    // Se emite SIN filtrar: el filtro de movimiento real vive más arriba, en
+    // `myLocationRealtimeProvider`, y los tests tienen que poder verlo.
+    return positionEvents.stream;
+  }
 
   @override
   Future<LocationPermission> checkPermission() async {

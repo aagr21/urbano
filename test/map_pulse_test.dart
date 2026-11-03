@@ -78,4 +78,53 @@ void main() {
     expect(withPulse, withoutPulse + 1);
     expect(tester.takeException(), isNull);
   });
+
+  test('el aura se apaga y se achica al alejar el mapa', () {
+    // A zoom de calle el latido se ve entero…
+    expect(pulsePresence(16), 1.0);
+    expect(pulsePresence(15), 1.0);
+    expect(pulseRadiusScale(16), 1.0);
+
+    // …y al alejarse se desvanece hasta casi imperceptible (nunca a 0).
+    expect(pulsePresence(10), closeTo(0.18, 1e-9));
+    expect(pulsePresence(13.75), closeTo(0.59, 1e-9));
+    expect(pulsePresence(14), lessThan(pulsePresence(15)));
+
+    // El radio acompaña: lejos los anillos casi se esconden tras el punto.
+    expect(pulseRadiusScale(10), lessThan(0.7));
+    expect(pulseRadiusScale(10), lessThan(pulseRadiusScale(16)));
+  });
+
+  test('cada onda entra sin golpe y se disuelve', () {
+    // En los extremos del recorrido la opacidad es 0: al reiniciar su vuelta
+    // no hay «flash» (el visto bueno anterior saltaba a plena opacidad).
+    expect(pulseWaveGlow(0), 0);
+    expect(pulseWaveGlow(1), 0);
+    // Sube rápido en el primer tramo, con el pico cerca del arranque…
+    expect(pulseWaveGlow(0.2), greaterThan(0.5));
+    expect(pulseWaveGlow(0.35), greaterThan(pulseWaveGlow(0.9)));
+    // …y el final del recorrido es casi invisible: la onda no se corta.
+    expect(pulseWaveGlow(0.9), lessThan(0.05));
+    expect(pulseWaveGlow(0.02), lessThan(0.1));
+  });
+
+  test('el anillo flota hacia fuera y frena (easeOut)', () {
+    expect(pulseWaveGrowth(0), 0);
+    expect(pulseWaveGrowth(1), MapPulse.growth);
+    // Ya a mitad de vuelta recorrió la mayor parte del camino…
+    expect(pulseWaveGrowth(0.5), greaterThan(MapPulse.growth * 0.6));
+    // …y nunca vuelve hacia dentro.
+    for (var i = 1; i <= 20; i++) {
+      expect(
+        pulseWaveGrowth(i / 20),
+        greaterThan(pulseWaveGrowth((i - 1) / 20)),
+      );
+    }
+  });
+
+  test('el halo respira entre 0 y 1', () {
+    expect(pulseBreath(0), closeTo(0.5, 1e-9));
+    expect(pulseBreath(0.25), closeTo(1.0, 1e-9));
+    expect(pulseBreath(0.75), closeTo(0.0, 1e-9));
+  });
 }

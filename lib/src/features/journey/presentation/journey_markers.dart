@@ -6,6 +6,11 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/widgets/urbano_map.dart' show MapsPin;
 
+/// La clave de un recorrido activo nació aquí; hoy vive con el resto de las
+/// funciones puras del catálogo de micros (`application/micros_catalog.dart`)
+/// y se reexporta para no cambiar los imports de quien la usa.
+export '../application/micros_catalog.dart' show microDirectionKey;
+
 /// Capa de INSIGNIAS del mapa — el pequeño módulo compartido entre los dos
 /// consumidores de capas: la planificación del viaje ([JourneyResultMap]) y
 /// el panel de micros (el controller clava estos marcadores). Vive APARTE de
@@ -13,15 +18,9 @@ import '../../../core/widgets/urbano_map.dart' show MapsPin;
 /// módulo de lógica (el controller del planeador) dependa de la pantalla del
 /// mapa: la dependencia gira hacia este archivo, que solo sabe pintar pins.
 ///
-/// Contenido: la clave de un recorrido activo (`routeId#directionId`), el
-/// punto medio de una polilínea, el ancho de la insignia y los tres widgets
-/// de marcador (pin de lugar, punto de parada e insignia de micro).
-
-/// Clave de un recorrido activo en el mapa: `routeId#directionId`.
-/// El panel y la pantalla padre comparten este formato para saber qué
-/// direcciones (ida/vuelta) de cada micro están dibujadas.
-String microDirectionKey(String routeId, int directionId) =>
-    '$routeId#$directionId';
+/// Contenido: el punto medio de una polilínea, el ancho de la insignia y los
+/// tres widgets de marcador (pin de lugar, punto de parada e insignia de
+/// micro).
 
 /// Punto medio de una polilínea por longitud acumulada (la insignia de la
 /// ruta queda encima de su propia línea, sin importar cuántas curvas tenga).

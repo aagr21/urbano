@@ -11,7 +11,6 @@ import '../../../core/utils/extensions.dart';
 import '../../../core/utils/location.dart';
 import '../../../core/utils/time_formatters.dart';
 import '../../routes/data/route_models.dart';
-import '../data/journey_repository.dart';
 import 'journey_planner_controller.dart';
 import 'journey_providers.dart';
 import 'journey_results_view.dart';
