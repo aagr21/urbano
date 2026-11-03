@@ -1,6 +1,8 @@
 # Urbano API — Contrato v1
 
-Base: `http://localhost:3000/api/v1`
+Base de producción: `https://backend-weld-seven-97.vercel.app/api/v1`
+
+En desarrollo local, sustituye la base por `http://localhost:3000/api/v1`.
 Formato: JSON. Codificación UTF-8. Todas las respuestas exitosas usan envoltorio:
 
 ```json

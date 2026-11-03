@@ -15,5 +15,10 @@ export function buildTypeOrmOptions(config: AppConfigService): TypeOrmModuleOpti
     entities: ALL_ENTITIES,
     synchronize: db.synchronize,
     logging: false,
+    extra: {
+      max: db.poolMax,
+      idleTimeoutMillis: 10_000,
+      connectionTimeoutMillis: 10_000,
+    },
   };
 }

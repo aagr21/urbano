@@ -14,6 +14,7 @@ export async function ensurePostgresExtensions(): Promise<void> {
     user: process.env.DB_USERNAME ?? 'urbano',
     password: process.env.DB_PASSWORD ?? 'urbano',
     database: process.env.DB_DATABASE ?? 'urbano',
+    connectionTimeoutMillis: 10_000,
   });
   await client.connect();
   try {

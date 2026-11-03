@@ -44,9 +44,9 @@ https://download.geofabrik.de/south-america/bolivia-latest.osm.pbf -o bolivia-la
 
 ## API base URL gotcha
 
-`lib/src/core/config/env.dart` defaults `API_BASE_URL` to the **LAN IP
-`http://192.168.1.40:3000/api/v1`**, not localhost as `README.md` claims. Always pass it
-explicitly for targeted runs (`.vscode/launch.json` already does, and adds
+`lib/src/core/config/env.dart` defaults `API_BASE_URL` to the **production
+Vercel URL**. Always pass it explicitly for targeted local runs
+(`.vscode/launch.json` already does, and adds
 `--dart-define-from-file=config/env.json` for the Google layer key):
 
 - Desktop/chrome: `--dart-define=API_BASE_URL=http://localhost:3000/api/v1`

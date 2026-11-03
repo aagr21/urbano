@@ -5,6 +5,7 @@ export interface DatabaseConfig {
   password: string;
   database: string;
   synchronize: boolean;
+  poolMax: number;
 }
 
 export interface AppConfig {

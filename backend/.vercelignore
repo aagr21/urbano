@@ -1,0 +1,11 @@
+.env
+.env.*
+node_modules
+dist
+coverage
+gtfs.zip
+otp-data
+*.log
+test
+docker-compose.yml
+docker-init

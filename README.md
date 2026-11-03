@@ -66,7 +66,7 @@ infrastructure,presentation}`), contrato en `docs/api-contract.md`, dataset en
 ```sh
 flutter pub get
 
-# Navegador / escritorio (default: http://localhost:3000/api/v1)
+# Navegador / escritorio (default: backend de producción en Vercel)
 flutter run -d chrome
 
 # Emulador de Android → el host se ve como 10.0.2.2
@@ -82,8 +82,10 @@ flutter run -d chrome --dart-define-from-file=config/env.json
 ```
 
 La base URL se inyecta con `--dart-define=API_BASE_URL=...`
-(ver `lib/src/core/config/env.dart`); el default compilado es la IP de la red
-local `http://192.168.1.40:3000/api/v1`, así que conviene pasarla explícita.
+(ver `lib/src/core/config/env.dart`); el default compilado apunta al backend
+de producción en Vercel. Para desarrollo local, pásala explícitamente con
+`http://localhost:3000/api/v1`, `http://10.0.2.2:3000/api/v1` o la IP LAN
+correspondiente.
 El contrato exacto del API vive en `docs/api-contract.md`.
 
 #### Capas de Google en el mapa

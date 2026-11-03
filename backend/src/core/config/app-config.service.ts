@@ -47,6 +47,7 @@ export class AppConfigService {
       database: this.configService.get<string>('DB_DATABASE', 'urbano'),
       // @Transform(toBoolean) ya puede haberlo convertido a boolean
       synchronize: syncRaw === true || syncRaw === 'true',
+      poolMax: Number(this.configService.get<number>('DB_POOL_MAX', 5)),
     };
   }
 

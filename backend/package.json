@@ -9,6 +9,7 @@
         "start": "nest start",
         "start:dev": "nest start --watch",
         "start:prod": "node dist/main",
+        "smoke:production": "node scripts/smoke-production.mjs",
         "import:gtfs": "ts-node -P tsconfig.json -r tsconfig-paths/register src/modules/gtfs-import/import.cli.ts",
         "import:micros-images": "ts-node -P tsconfig.json -r tsconfig-paths/register src/modules/gtfs-import/micros-images.cli.ts",
         "fix:gtfs-directions": "ts-node -P tsconfig.json -r tsconfig-paths/register src/modules/gtfs-import/fix-directions.cli.ts",

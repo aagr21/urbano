@@ -39,6 +39,34 @@ La API queda en `http://localhost:3000/api/v1` y la documentación en `http://lo
 > **Nota de puertos:** el 5432 puede estar ocupado por otro contenedor; por eso el compose
 > publica Postgres en el **5436** (`DB_PORT=5436` en `.env` y `docker-compose.yml`).
 
+### Despliegue en Vercel
+
+El backend incluye un handler para Vercel en [`api/index.ts`](api/index.ts).
+Al crear el proyecto en Vercel, selecciona `backend/` como **Root Directory**.
+No se ejecuta ninguna importación GTFS durante el despliegue: la base de datos
+debe contener previamente sus tablas y datos.
+
+Configura estas variables en Vercel, sin subirlas a Git:
+
+```env
+NODE_ENV=production
+PORT=3000
+GTFS_FILE=/tmp/gtfs-not-imported.zip
+DB_HOST=postgresql-arnolguevara21.alwaysdata.net
+DB_PORT=5432
+DB_USERNAME=<usuario de Alwaysdata>
+DB_PASSWORD=<contraseña de Alwaysdata>
+DB_DATABASE=<base de datos de Alwaysdata>
+DB_SYNCHRONIZE=false
+CORS_ORIGINS=https://<tu-frontend>
+OTP_URL=
+OTP_TIMEOUT_MS=8000
+```
+
+La cuenta de PostgreSQL debe permitir conexiones externas y tener disponibles
+las extensiones `postgis` y `pg_trgm`. Verifica primero
+`GET /api/v1/health` después del primer despliegue.
+
 ### Motor de ruteo OpenTripPlanner (opcional pero recomendado)
 
 Sin OTP2 el planeador funciona igual (planner propio sobre PostGIS) pero las
@@ -108,8 +136,9 @@ curl 'http://localhost:3000/api/v1/journey?originLat=-17.78&originLon=-63.15&des
 | Variable | Descripción | Default |
 | --- | --- | --- |
 | `PORT` | Puerto HTTP | `3000` |
-| `DB_HOST` / `DB_PORT` / `DB_NAME` / `DB_USER` / `DB_PASSWORD` | Conexión Postgres | ver `.env.example` |
+| `DB_HOST` / `DB_PORT` / `DB_USERNAME` / `DB_DATABASE` / `DB_PASSWORD` | Conexión Postgres | ver `.env.example` |
 | `DB_SYNCHRONIZE` | Sincroniza esquema al arrancar (solo dev) | `true` |
+| `DB_POOL_MAX` | Máximo de conexiones por instancia | `5` |
 | `CORS_ORIGINS` | Origenes permitidos (coma-separado) | `*` |
 | `CACHE_TTL_MS` | TTL de caché en memoria | `60000` |
 | `LOG_LEVEL` | Nivel de logging | `info` |

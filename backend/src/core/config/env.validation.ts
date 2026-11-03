@@ -63,6 +63,13 @@ export class EnvironmentVariables {
   @IsBoolean()
   DB_SYNCHRONIZE: boolean;
 
+  @Transform(toNumber)
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(100)
+  DB_POOL_MAX?: number;
+
   @IsOptional()
   @IsString()
   CORS_ORIGINS?: string;

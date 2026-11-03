@@ -1,14 +1,14 @@
 /// Configuración inyectada en tiempo de compilación vía `--dart-define`.
 ///
 /// ```sh
-/// # Navegador / escritorio (default)
-/// flutter run --dart-define=API_BASE_URL=http://localhost:3000/api/v1
+/// # Producción (default)
+/// https://backend-weld-seven-97.vercel.app/api/v1
 ///
 /// # Emulador de Android: el host se ve como 10.0.2.2
 /// flutter run --dart-define=API_BASE_URL=http://10.0.2.2:3000/api/v1
 ///
-/// # Dispositivo físico en la misma red WiFi
-/// flutter run --dart-define=API_BASE_URL=http://192.168.1.40:3000/api/v1
+/// # Desarrollo local en un dispositivo físico (misma WiFi)
+/// flutter run --dart-define=API_BASE_URL=http://<IP-DE-TU-PC>:3000/api/v1
 /// ```
 ///
 /// Capas de Google (Map Tiles API). Las cuatro capas aparecen SIEMPRE en el
@@ -24,7 +24,7 @@ class Env {
 
   static const String apiBaseUrl = String.fromEnvironment(
     'API_BASE_URL',
-    defaultValue: 'http://192.168.1.40:3000/api/v1',
+    defaultValue: 'https://backend-weld-seven-97.vercel.app/api/v1',
   );
 
   /// Clave de la Map Tiles API de Google (`''` = capas de Google bloqueadas).
