@@ -1,17 +1,21 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../../core/animation/motion.dart';
+import '../../../core/identity/passenger_identity.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/extensions.dart';
 import '../../../core/widgets/async_value_view.dart';
 import '../../../core/widgets/empty_state.dart';
 import '../../../core/widgets/loading_shimmer.dart';
+import '../../home/presentation/widgets/home_route_lattice.dart';
 import '../../routes/data/route_models.dart';
+import '../../routes/presentation/widgets/route_list_tile.dart';
 import '../application/complaints_feed_controller.dart';
 import '../application/passenger_controller.dart';
 import '../data/complaint_repository.dart';
@@ -57,57 +61,56 @@ class ComplaintsScreen extends ConsumerWidget {
     final total = visible.valueOrNull?.length ?? 0;
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Quejas'),
-        actions: [
-          IconButton(
-            tooltip: 'Nueva queja',
-            onPressed: () => _openForm(context, ref, routes),
-            icon: const Icon(Icons.add_comment_rounded),
-          ),
-          Padding(
-            padding: const EdgeInsets.only(right: AppSpace.sm),
-            child: IconButton(
-              tooltip: identity == null
-                  ? 'Tu apodo'
-                  : 'Tu apodo: ${identity.nickname}',
-              onPressed: () => showPassengerNameSheet(context),
-              icon: identity == null
-                  ? Icon(
-                      Icons.account_circle_outlined,
-                      color: context.colors.onSurfaceVariant,
-                    )
-                  : PassengerAvatar.from(identity, size: 34),
-            ),
-          ),
-        ],
-      ),
+      // Sin AppBar: la sección abre con su propia portada de marca a sangre. La
+      // barra plana de una sola palabra era justo lo que hacía que «Quejas»
+      // pareciera un listado más de la app.
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(
-              AppSpace.lg,
-              AppSpace.sm,
-              AppSpace.lg,
-              AppSpace.sm,
-            ),
-            child: _CommunityHeader(
+          // El campo de la portada es oscuro: los íconos del sistema van claros
+          // mientras se está sobre ella (y el resto de la app sigue su tema).
+          AnnotatedRegion<SystemUiOverlayStyle>(
+            value: SystemUiOverlayStyle.light,
+            child: _CoverHeader(
               stats: ref.watch(complaintsStatsProvider),
               loading: visible.isLoading,
+              identity: identity,
               onCreate: () => _openForm(context, ref, routes),
+              onIdentity: () => showPassengerNameSheet(context),
             ),
           ),
-          _CategoryFilterBar(on: context.colors.surface),
+          // Las pastillas se miden contra el fondo REALMENTE pintado de la
+          // pantalla (el lienzo del tema), no contra `surface`.
+          Padding(
+            padding: const EdgeInsets.only(top: AppSpace.sm),
+            child: _CategoryFilterBar(
+              on: context.colors.surfaceContainerLowest,
+            ),
+          ),
           Padding(
             padding: const EdgeInsets.fromLTRB(
               AppSpace.lg,
-              AppSpace.sm,
               AppSpace.md,
-              0,
+              AppSpace.sm,
+              AppSpace.xs,
             ),
             child: Row(
               children: [
+                // La misma barra de marca que abre las secciones del home:
+                // firma visual, no adorno suelto.
+                Container(
+                  width: 4,
+                  height: 18,
+                  margin: const EdgeInsets.only(right: AppSpace.sm),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(AppRadius.pill),
+                    gradient: const LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [AppColors.primary, AppColors.aqua],
+                    ),
+                  ),
+                ),
                 Expanded(
                   child: Text(
                     'La comunidad reporta',
@@ -119,11 +122,32 @@ class ComplaintsScreen extends ConsumerWidget {
                 // El número de la derecha es el de lo visible: si un filtro está
                 // puesto, lo que dice el contador es lo que hay abajo.
                 if (visible.hasValue)
-                  Text(
-                    '$total',
-                    style: context.text.titleMedium?.copyWith(
-                      color: context.colors.primary,
-                      fontWeight: FontWeight.w800,
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: AppSpace.sm,
+                      vertical: 1,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AppColors.tint(
+                        context.colors.primary,
+                        context.colors.surfaceContainerLowest,
+                        0.14,
+                      ),
+                      borderRadius: BorderRadius.circular(AppRadius.pill),
+                    ),
+                    child: Text(
+                      '$total',
+                      style: context.text.labelLarge?.copyWith(
+                        color: AppColors.legible(
+                          context.colors.primary,
+                          AppColors.tint(
+                            context.colors.primary,
+                            context.colors.surfaceContainerLowest,
+                            0.14,
+                          ),
+                        ),
+                        fontWeight: FontWeight.w800,
+                      ),
                     ),
                   ),
                 // Compacto y sin área táctil de 48: esta fila NO es contenido,
@@ -200,175 +224,314 @@ class _CategoryFilterBar extends ConsumerWidget {
       // Barra delgada: cada píxel entre la cabecera y el listado es una línea
       // menos de la primera queja (las pastillas miden ~30).
       height: 42,
-      child: ListView(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: AppSpace.lg),
+      child: Stack(
         children: [
-          ComplaintPill(
-            label: 'Todas',
-            icon: Icons.apps_rounded,
-            accent: colors.primary,
-            on: on,
-            emphasized: filter == null,
-            onTap: () => notifier.state = null,
+          ListView(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: AppSpace.lg),
+            children: [
+              ComplaintPill(
+                label: 'Todas',
+                icon: Icons.apps_rounded,
+                accent: colors.primary,
+                on: on,
+                emphasized: filter == null,
+                onTap: () => notifier.state = null,
+              ),
+              for (final category in reported) ...[
+                const SizedBox(width: AppSpace.sm),
+                CategoryChip(
+                  category: category,
+                  on: on,
+                  selected: filter == category,
+                  // Tocarlo de nuevo lo quita: el filtro es un toggle, no un
+                  // callejón.
+                  onTap: () =>
+                      notifier.state = filter == category ? null : category,
+                ),
+              ],
+            ],
           ),
-          for (final category in reported) ...[
-            const SizedBox(width: AppSpace.sm),
-            CategoryChip(
-              category: category,
-              on: on,
-              selected: filter == category,
-              // Tocarlo de nuevo lo quita: el filtro es un toggle, no un callejón.
-              onTap: () =>
-                  notifier.state = filter == category ? null : category,
+          // El contenido se desvanece en el borde: así se entiende que la fila
+          // sigue y que la pastilla cortada se puede arrastrar.
+          Positioned(
+            top: 0,
+            bottom: 0,
+            right: 0,
+            width: AppSpace.xl,
+            child: IgnorePointer(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.centerRight,
+                    end: Alignment.centerLeft,
+                    colors: [on, on.withValues(alpha: 0)],
+                  ),
+                ),
+              ),
             ),
-          ],
+          ),
         ],
       ),
     );
   }
 }
 
-/// Cabecera de la pantalla: tarjeta CTA de la marca con las cifras de la
-/// comunidad (reportes, apoyos, comentarios) rodando con [CountUp].
-class _CommunityHeader extends StatelessWidget {
-  const _CommunityHeader({
+/// Portada de la sección: un campo de marca **a sangre** (sin AppBar) con los
+/// anillos de la ciudad, el título, el CTA de crear, el apodo y las cifras de la
+/// comunidad rodando con [CountUp].
+///
+/// Sustituye a la tarjeta CTA flotante de la iteración anterior: una tarjeta
+/// dentro de una pantalla con AppBar seguía leyéndose como «un listado más».
+/// Aquí la pantalla arranca en la marca y el contenido entra debajo.
+class _CoverHeader extends StatelessWidget {
+  const _CoverHeader({
     required this.stats,
     required this.loading,
+    required this.identity,
     required this.onCreate,
+    required this.onIdentity,
   });
 
   final ({int reports, int supports, int comments}) stats;
   final bool loading;
+  final PassengerIdentity? identity;
   final VoidCallback onCreate;
+  final VoidCallback onIdentity;
 
   @override
   Widget build(BuildContext context) {
-    // Sobre el degradado de marca (siempre oscuro): la tinta se MIDE contra él
-    // con `onColor` en vez de escribir blanco a mano, y el velo de las
-    // pasadillas es esa misma tinta al 16%.
-    final onGradient = AppColors.onColor(AppColors.primaryDark);
-    final veil = onGradient.withValues(alpha: 0.16);
-    return Container(
-      // Compacta por diseño: esta tarjeta NO es contenido, es la cortina del
-      // listado, y todo lo que mide se le descuenta a la primera queja.
-      padding: const EdgeInsets.all(AppSpace.md),
-      decoration: BoxDecoration(
-        gradient: urbanoGradient,
-        borderRadius: AppRadius.card,
-        boxShadow: AppTheme.softShadow(
-          color: AppColors.primaryDark,
-          opacity: 0.22,
-        ),
+    // El campo es la laguna profunda, no el `urbanoGradient` completo: aquí va
+    // texto pequeño encima, así que la tinta clara se mide contra el extremo
+    // MÁS CLARO del degradado ([AppColors.fieldMid]) y no contra `primaryDark`,
+    // que es el extremo oscuro. El verde agua de la marca entra como riel al
+    // pie. Es el mismo campo que abre Inicio: una sola marca, no dos verdes.
+    const deep = AppColors.primaryDark;
+    const field = AppColors.fieldMid;
+    final ink = AppColors.onColor(field);
+    final softInk = ink.withValues(alpha: 0.86);
+    // Vidrio de las cifras: la misma tinta al 10 %, con filo del 18 %.
+    final veil = ink.withValues(alpha: 0.10);
+    final edge = ink.withValues(alpha: 0.18);
+
+    return ClipRRect(
+      // Esquinas inferiores: la portada es una hoja de marca, no una banda que
+      // corta la pantalla en dos.
+      borderRadius: const BorderRadius.vertical(
+        bottom: Radius.circular(AppRadius.xl),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 36,
-                height: 36,
-                alignment: Alignment.center,
+      child: DecoratedBox(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              AppColors.primaryDark,
+              AppColors.fieldMid,
+              AppColors.primary,
+            ],
+            stops: [0, 0.55, 1],
+          ),
+        ),
+        child: Stack(
+          children: [
+            // Los anillos de la ciudad que ya pinta el home: la misma textura de
+            // marca, con la unidad circulando. No ocupa layout (va de fondo) y es
+            // `IgnorePointer`, así que no roba toques al CTA.
+            const Positioned.fill(child: HomeRouteLattice()),
+            // Orilla de la laguna: el riel verde agua → laguna de las secciones,
+            // ahora al pie de la portada.
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              height: 3,
+              child: DecoratedBox(
                 decoration: BoxDecoration(
-                  color: veil,
-                  borderRadius: BorderRadius.circular(AppRadius.md),
-                ),
-                child: Icon(
-                  Icons.campaign_rounded,
-                  color: onGradient,
-                  size: 20,
-                ),
-              ),
-              const SizedBox(width: AppSpace.md),
-              // `FittedBox` en vez de elipsis: el título es lo primero que se
-              // lee de la marca y con la etiqueta larga del CTA se quedaba en
-              // «La voz del pasaj…». Si no cabe, se achica, nunca se corta.
-              Expanded(
-                child: FittedBox(
-                  fit: BoxFit.scaleDown,
-                  alignment: Alignment.centerLeft,
-                  child: Text(
-                    'La voz del pasajero',
-                    maxLines: 1,
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      color: onGradient,
-                      fontWeight: FontWeight.w900,
-                    ),
+                  gradient: LinearGradient(
+                    colors: [
+                      AppColors.aqua,
+                      AppColors.primary,
+                      AppColors.primary.withValues(alpha: 0),
+                    ],
                   ),
                 ),
               ),
-              const SizedBox(width: AppSpace.md),
-              // El CTA va pegado al título, no ocupando una fila de 48 px para
-              // él solo abajo (la creación también vive en la AppBar). La
-              // etiqueta es corta por lo mismo: el espacio que usa se lo quita
-              // al título; el tooltip dice el nombre completo.
-              Tooltip(
-                message: 'Crear queja',
-                child: FilledButton.icon(
-                  onPressed: onCreate,
-                  icon: const Icon(Icons.add_comment_rounded, size: 16),
-                  label: const Text('Crear'),
-                  style: FilledButton.styleFrom(
-                    foregroundColor: AppColors.primaryDark,
-                    backgroundColor: onGradient,
-                    visualDensity: VisualDensity.compact,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: AppSpace.md,
-                      vertical: AppSpace.xs,
+            ),
+            SafeArea(
+              bottom: false,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(
+                  AppSpace.lg,
+                  AppSpace.sm,
+                  AppSpace.md,
+                  AppSpace.lg,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Quejas',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: context.text.titleLarge?.copyWith(
+                                  color: ink,
+                                  fontSize: 28,
+                                  fontWeight: FontWeight.w900,
+                                  height: 1.05,
+                                  letterSpacing: -0.6,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Row(
+                                children: [
+                                  // Punto de la orilla: la marca en el lugar más
+                                  // pequeño de la portada.
+                                  Container(
+                                    width: 6,
+                                    height: 6,
+                                    decoration: const BoxDecoration(
+                                      color: AppColors.aqua,
+                                      shape: BoxShape.circle,
+                                    ),
+                                  ),
+                                  const SizedBox(width: AppSpace.sm),
+                                  // `FittedBox` en vez de elipsis: el lema es lo
+                                  // primero que se lee de la sección y con la
+                                  // etiqueta del CTA se quedaba en «La voz del
+                                  // pasaj…». Si no cabe, se achica, nunca se
+                                  // corta.
+                                  Expanded(
+                                    child: FittedBox(
+                                      fit: BoxFit.scaleDown,
+                                      alignment: Alignment.centerLeft,
+                                      child: Text(
+                                        'La voz del pasajero',
+                                        maxLines: 1,
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .titleSmall
+                                            ?.copyWith(
+                                              color: softInk,
+                                              fontWeight: FontWeight.w700,
+                                            ),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: AppSpace.sm),
+                        // El CTA va pegado al título, no ocupando una fila de
+                        // 48 px para él solo. La etiqueta es corta por lo mismo:
+                        // el espacio que usa se lo quita al título; el tooltip
+                        // dice el nombre completo.
+                        Tooltip(
+                          message: 'Crear queja',
+                          child: FilledButton.icon(
+                            onPressed: onCreate,
+                            icon: const Icon(
+                              Icons.add_comment_rounded,
+                              size: 16,
+                            ),
+                            label: const Text('Crear'),
+                            style: FilledButton.styleFrom(
+                              foregroundColor: deep,
+                              backgroundColor: ink,
+                              visualDensity: VisualDensity.compact,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: AppSpace.md,
+                                vertical: AppSpace.sm,
+                              ),
+                              // Se parte de un estilo del tema (titleSmall ya
+                              // trae Inter) en vez de un `TextStyle` desnudo:
+                              // sin familia el botón cae en la fuente por
+                              // defecto y gasta ancho de más, que es justo el
+                              // que necesita el título para no cortarse.
+                              textStyle: Theme.of(context).textTheme.titleSmall
+                                  ?.copyWith(
+                                    fontSize: 12.5,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(
+                                  AppRadius.pill,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                        IconButton(
+                          tooltip: identity == null
+                              ? 'Tu apodo'
+                              : 'Tu apodo: ${identity!.nickname}',
+                          onPressed: onIdentity,
+                          visualDensity: VisualDensity.compact,
+                          icon: identity == null
+                              ? Icon(
+                                  Icons.account_circle_outlined,
+                                  color: ink,
+                                  size: 26,
+                                )
+                              : PassengerAvatar.from(identity!, size: 32),
+                        ),
+                      ],
                     ),
-                    // Se parte de un estilo del tema (titleSmall ya trae Inter)
-                    // en vez de un `TextStyle` desnudo: sin familia el botón
-                    // cae en la fuente por defecto y gasta ancho de más, que es
-                    // justo el que necesita el título para no cortarse.
-                    textStyle: Theme.of(context).textTheme.titleSmall
-                        ?.copyWith(fontSize: 12.5, fontWeight: FontWeight.w800),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(AppRadius.input),
+                    const SizedBox(height: AppSpace.md),
+                    Row(
+                      children: [
+                        _StatTile(
+                          value: stats.reports,
+                          label: 'reportes',
+                          icon: Icons.forum_rounded,
+                          veil: veil,
+                          ink: ink,
+                          edge: edge,
+                          loading: loading,
+                        ),
+                        const SizedBox(width: AppSpace.sm),
+                        _StatTile(
+                          value: stats.supports,
+                          label: 'apoyos',
+                          icon: Icons.favorite_rounded,
+                          veil: veil,
+                          ink: ink,
+                          edge: edge,
+                          loading: loading,
+                        ),
+                        const SizedBox(width: AppSpace.sm),
+                        _StatTile(
+                          value: stats.comments,
+                          label: 'comentarios',
+                          icon: Icons.chat_bubble_rounded,
+                          veil: veil,
+                          ink: ink,
+                          edge: edge,
+                          loading: loading,
+                        ),
+                      ],
                     ),
-                  ),
+                  ],
                 ),
               ),
-            ],
-          ),
-          const SizedBox(height: AppSpace.md),
-          Row(
-            children: [
-              _StatTile(
-                value: stats.reports,
-                label: 'reportes',
-                icon: Icons.forum_rounded,
-                veil: veil,
-                ink: onGradient,
-                loading: loading,
-              ),
-              const SizedBox(width: AppSpace.sm),
-              _StatTile(
-                value: stats.supports,
-                label: 'apoyos',
-                icon: Icons.favorite_rounded,
-                veil: veil,
-                ink: onGradient,
-                loading: loading,
-              ),
-              const SizedBox(width: AppSpace.sm),
-              _StatTile(
-                value: stats.comments,
-                label: 'comentarios',
-                icon: Icons.chat_bubble_rounded,
-                veil: veil,
-                ink: onGradient,
-                loading: loading,
-              ),
-            ],
-          ),
-        ],
+            ),
+          ],
+        ),
       ),
     );
   }
 }
 
-/// Mini-tile de cifra dentro de la cabecera de marca.
+/// Mini-tile de cifra dentro de la portada de marca.
 class _StatTile extends StatelessWidget {
   const _StatTile({
     required this.value,
@@ -376,6 +539,7 @@ class _StatTile extends StatelessWidget {
     required this.icon,
     required this.veil,
     required this.ink,
+    required this.edge,
     required this.loading,
   });
 
@@ -384,16 +548,21 @@ class _StatTile extends StatelessWidget {
   final IconData icon;
   final Color veil;
   final Color ink;
+  final Color edge;
   final bool loading;
 
   @override
   Widget build(BuildContext context) {
     return Expanded(
       child: Container(
-        padding: const EdgeInsets.all(AppSpace.sm),
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpace.sm,
+          vertical: AppSpace.xs + 2,
+        ),
         decoration: BoxDecoration(
           color: veil,
-          borderRadius: BorderRadius.circular(AppRadius.tile),
+          borderRadius: BorderRadius.circular(AppRadius.md),
+          border: Border.all(color: edge),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -423,7 +592,7 @@ class _StatTile extends StatelessWidget {
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
-                color: ink.withValues(alpha: 0.78),
+                color: ink.withValues(alpha: 0.82),
                 fontSize: 11,
                 fontWeight: FontWeight.w600,
               ),
@@ -597,50 +766,72 @@ class _CreateComplaintScreenState extends ConsumerState<CreateComplaintScreen> {
             AppSpace.lg,
             AppSpace.sm,
             AppSpace.lg,
-            AppSpace.xxl,
+            AppSpace.xl,
           ),
           children: [
             Container(
-              padding: const EdgeInsets.all(AppSpace.lg),
               decoration: BoxDecoration(
-                gradient: urbanoGradient,
                 borderRadius: AppRadius.card,
                 boxShadow: AppTheme.softShadow(
                   color: AppColors.primaryDark,
                   opacity: 0.16,
                 ),
               ),
-              child: Row(
-                children: [
-                  Icon(Icons.campaign_rounded, color: onGradient, size: 32),
-                  const SizedBox(width: AppSpace.md),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Cuéntanos qué ocurrió',
-                          style: Theme.of(context).textTheme.titleLarge
-                              ?.copyWith(
-                                color: onGradient,
-                                fontWeight: FontWeight.w800,
+              child: ClipRRect(
+                borderRadius: AppRadius.card,
+                child: DecoratedBox(
+                  decoration: const BoxDecoration(gradient: urbanoGradient),
+                  child: Stack(
+                    children: [
+                      // La misma trama de anillos del feed y del home: el
+                      // formulario también es parte de la marca.
+                      const Positioned.fill(child: HomeRouteLattice()),
+                      Padding(
+                        padding: const EdgeInsets.all(AppSpace.lg),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.campaign_rounded,
+                              color: onGradient,
+                              size: 32,
+                            ),
+                            const SizedBox(width: AppSpace.md),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Cuéntanos qué ocurrió',
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .titleLarge
+                                        ?.copyWith(
+                                          color: onGradient,
+                                          fontWeight: FontWeight.w800,
+                                        ),
+                                  ),
+                                  const SizedBox(height: AppSpace.xs),
+                                  Text(
+                                    'Tu reporte es anónimo y nos ayuda a '
+                                    'mejorar.',
+                                    style: TextStyle(
+                                      color: onGradient.withValues(alpha: 0.88),
+                                    ),
+                                  ),
+                                ],
                               ),
+                            ),
+                          ],
                         ),
-                        const SizedBox(height: AppSpace.xs),
-                        Text(
-                          'Tu reporte es anónimo y nos ayuda a mejorar.',
-                          style: TextStyle(
-                            color: onGradient.withValues(alpha: 0.88),
-                          ),
-                        ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
-                ],
+                ),
               ),
             ),
-            const SizedBox(height: AppSpace.xl),
+            const SizedBox(height: AppSpace.lg),
             _FormSection(
+              step: 1,
               title: '¿Qué micro está involucrado?',
               icon: Icons.directions_bus_rounded,
               child: FormField<RouteSummary>(
@@ -749,6 +940,7 @@ class _CreateComplaintScreenState extends ConsumerState<CreateComplaintScreen> {
             ),
             const SizedBox(height: AppSpace.md),
             _FormSection(
+              step: 2,
               title: '¿Cuál es el motivo?',
               icon: Icons.category_rounded,
               subtitle: 'Su color es el mismo con el que se lista en el feed.',
@@ -770,6 +962,7 @@ class _CreateComplaintScreenState extends ConsumerState<CreateComplaintScreen> {
             ),
             const SizedBox(height: AppSpace.md),
             _FormSection(
+              step: 3,
               title: 'Describe lo ocurrido',
               icon: Icons.edit_note_rounded,
               child: TextFormField(
@@ -808,36 +1001,43 @@ class _CreateComplaintScreenState extends ConsumerState<CreateComplaintScreen> {
                 ),
               ),
             ),
-            const SizedBox(height: AppSpace.sm),
+            const SizedBox(height: AppSpace.md),
             _FormSection(
+              step: 4,
               title: 'Añade pruebas (opcional)',
               icon: Icons.photo_library_rounded,
               subtitle: 'Hasta 5 fotos para ayudarnos a revisar el reporte.',
-              child: OutlinedButton.icon(
-                onPressed: _sending ? null : _showPhotoOptions,
-                icon: const Icon(Icons.add_photo_alternate_rounded),
-                label: Text('Seleccionar fotos (${_photos.length}/5)'),
-              ),
-            ),
-            if (_photos.isNotEmpty) ...[
-              const SizedBox(height: AppSpace.md),
-              _PhotoGrid(
+              child: _PhotoPicker(
                 photos: _photos,
+                onAdd: _sending ? null : _showPhotoOptions,
                 onRemove: (index) => setState(() => _photos.removeAt(index)),
               ),
-            ],
-            const SizedBox(height: AppSpace.xl),
-            FilledButton.icon(
-              onPressed: _sending ? null : _submit,
-              icon: _sending
-                  ? const SizedBox.square(
-                      dimension: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.send_rounded),
-              label: Text(_sending ? 'Enviando…' : 'Enviar queja'),
             ),
           ],
+        ),
+      ),
+      // El envío vive fuera del scroll: la acción principal queda siempre a la
+      // vista (y a un pulgar de distancia) en vez de al final de un formulario
+      // largo.
+      bottomNavigationBar: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(
+            AppSpace.lg,
+            AppSpace.sm,
+            AppSpace.lg,
+            AppSpace.sm,
+          ),
+          child: FilledButton.icon(
+            onPressed: _sending ? null : _submit,
+            icon: _sending
+                ? const SizedBox.square(
+                    dimension: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.send_rounded),
+            label: Text(_sending ? 'Enviando…' : 'Enviar queja'),
+          ),
         ),
       ),
     );
@@ -846,12 +1046,16 @@ class _CreateComplaintScreenState extends ConsumerState<CreateComplaintScreen> {
 
 class _FormSection extends StatelessWidget {
   const _FormSection({
+    required this.step,
     required this.title,
     required this.icon,
     required this.child,
     this.subtitle,
   });
 
+  /// Número del paso: convierte una pila de cajas en un formulario que se
+  /// entiende de un vistazo.
+  final int step;
   final String title;
   final IconData icon;
   final Widget child;
@@ -860,11 +1064,12 @@ class _FormSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
+    final badgeFill = AppColors.tint(colors.primary, colors.surface, 0.14);
     return Container(
       padding: const EdgeInsets.all(AppSpace.md),
       decoration: BoxDecoration(
         color: colors.surface,
-        borderRadius: BorderRadius.circular(AppRadius.md),
+        borderRadius: BorderRadius.circular(AppRadius.lg),
         border: Border.all(color: colors.outlineVariant),
       ),
       child: Column(
@@ -872,7 +1077,24 @@ class _FormSection extends StatelessWidget {
         children: [
           Row(
             children: [
-              Icon(icon, size: 20, color: colors.primary),
+              Container(
+                width: 26,
+                height: 26,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: badgeFill,
+                  borderRadius: BorderRadius.circular(AppRadius.sm),
+                ),
+                child: Text(
+                  '$step',
+                  style: TextStyle(
+                    color: AppColors.legible(colors.primary, badgeFill),
+                    fontSize: 13,
+                    fontWeight: FontWeight.w900,
+                    height: 1,
+                  ),
+                ),
+              ),
               const SizedBox(width: AppSpace.sm),
               Expanded(
                 child: Text(
@@ -881,6 +1103,7 @@ class _FormSection extends StatelessWidget {
                       ?.copyWith(fontWeight: FontWeight.w800),
                 ),
               ),
+              Icon(icon, size: 18, color: colors.onSurfaceVariant),
             ],
           ),
           if (subtitle != null) ...[
@@ -931,48 +1154,6 @@ class _RouteImage extends StatelessWidget {
     ),
     child: Icon(Icons.directions_bus_rounded, color: context.colors.primary),
   );
-}
-
-class _RouteListImage extends StatelessWidget {
-  const _RouteListImage({required this.route});
-
-  final RouteSummary route;
-
-  @override
-  Widget build(BuildContext context) {
-    final imageUrl = route.imageUrl;
-    final color = AppColors.fromHex(route.color);
-    final fallback = Container(
-      width: 68,
-      height: 56,
-      alignment: Alignment.center,
-      decoration: BoxDecoration(
-        color: color,
-        borderRadius: BorderRadius.circular(AppRadius.md),
-      ),
-      child: Text(
-        route.shortName,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: TextStyle(
-          color: AppColors.onColor(color),
-          fontWeight: FontWeight.w900,
-        ),
-      ),
-    );
-
-    if (imageUrl == null || imageUrl.isEmpty) return fallback;
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(AppRadius.md),
-      child: Image.network(
-        imageUrl,
-        width: 68,
-        height: 56,
-        fit: BoxFit.cover,
-        errorBuilder: (_, _, _) => fallback,
-      ),
-    );
-  }
 }
 
 class _RouteSelectorSheet extends StatefulWidget {
@@ -1094,21 +1275,25 @@ class _RouteSelectorSheetState extends State<_RouteSelectorSheet> {
                       itemBuilder: (context, index) {
                         final route = routes[index];
                         final selected = route.id == widget.selected?.id;
-                        return Card(
-                          margin: EdgeInsets.zero,
-                          color: selected
-                              ? colors.primaryContainer
-                              : colors.surfaceContainerLow,
-                          child: ListTile(
-                            onTap: () => Navigator.pop(context, route),
-                            leading: _RouteListImage(route: route),
-                            title: Text(
-                              route.longName.isEmpty
-                                  ? 'Micro ${route.shortName}'
-                                  : route.longName,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
+                        // La misma fila que el catálogo de micros: foto, insignia
+                        // del color GTFS y conteos. Elegir aquí no debería verse
+                        // distinto que reconocerlo en cualquier otro listado.
+                        return Container(
+                          decoration: BoxDecoration(
+                            borderRadius: AppRadius.card,
+                            // Anillo de selección, no fondo: la fila del
+                            // catálogo ya trae su propia superficie.
+                            border: Border.all(
+                              color: selected
+                                  ? colors.primary
+                                  : Colors.transparent,
+                              width: 2,
                             ),
+                          ),
+                          child: RouteListTile(
+                            route: route,
+                            index: index,
+                            onTap: () => Navigator.pop(context, route),
                             trailing: selected
                                 ? Icon(
                                     Icons.check_circle_rounded,
@@ -1127,14 +1312,26 @@ class _RouteSelectorSheetState extends State<_RouteSelectorSheet> {
   }
 }
 
-class _PhotoGrid extends StatelessWidget {
-  const _PhotoGrid({required this.photos, required this.onRemove});
+class _PhotoPicker extends StatelessWidget {
+  const _PhotoPicker({
+    required this.photos,
+    required this.onAdd,
+    required this.onRemove,
+  });
 
   final List<XFile> photos;
+
+  /// `null` mientras se envía: el mosaico se apaga pero no desaparece.
+  final VoidCallback? onAdd;
   final ValueChanged<int> onRemove;
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.colors;
+    final canAdd = photos.length < 5;
+    // Sin fotos, el botón es una zona ancha de «añadir»; con fotos, se vuelve
+    // la última pieza del mosaico. El gesto de añadir no cambia de sitio.
+    final wide = photos.isEmpty;
     return Wrap(
       spacing: AppSpace.sm,
       runSpacing: AppSpace.sm,
@@ -1164,16 +1361,62 @@ class _PhotoGrid extends StatelessWidget {
                     style: IconButton.styleFrom(
                       // Pastilla sobre la foto: `inverseSurface` se invierte con
                       // el tema en vez de fijar negro/blanco.
-                      backgroundColor: context.colors.inverseSurface.withValues(
+                      backgroundColor: colors.inverseSurface.withValues(
                         alpha: 0.72,
                       ),
-                      foregroundColor: context.colors.onInverseSurface,
+                      foregroundColor: colors.onInverseSurface,
                       minimumSize: const Size(28, 28),
                       padding: EdgeInsets.zero,
                     ),
                   ),
                 ),
               ],
+            ),
+          ),
+        if (canAdd)
+          SizedBox(
+            width: wide ? double.infinity : 86,
+            height: wide ? 92 : 86,
+            child: Material(
+              color: AppColors.tint(colors.primary, colors.surface, 0.07),
+              borderRadius: BorderRadius.circular(AppRadius.sm),
+              child: InkWell(
+                onTap: onAdd,
+                borderRadius: BorderRadius.circular(AppRadius.sm),
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(AppRadius.sm),
+                    border: Border.all(
+                      color: AppColors.tint(
+                        colors.primary,
+                        colors.outlineVariant,
+                        0.55,
+                      ),
+                    ),
+                  ),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.add_photo_alternate_rounded,
+                        size: 24,
+                        color: colors.primary,
+                      ),
+                      const SizedBox(height: AppSpace.xs),
+                      Text(
+                        wide
+                            ? 'Añadir fotos · ${photos.length} de 5'
+                            : 'Añadir',
+                        textAlign: TextAlign.center,
+                        style: context.text.labelSmall?.copyWith(
+                          color: colors.primary,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
             ),
           ),
       ],

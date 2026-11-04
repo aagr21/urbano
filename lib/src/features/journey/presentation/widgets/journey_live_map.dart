@@ -94,25 +94,31 @@ class LiveMapLayer extends ConsumerWidget {
     // Dueño ÚNICO del GPS: con seguimiento activo el stream propio
     // ([myLocationRealtimeProvider]) es la fuente fresca y manda sobre la
     // semilla; sin seguimiento queda la última posición conocida.
-    final livePoint = tracking
+    //
+    // El PUNTO usa `fix.point` de CADA fijación (avanza con el usuario a 1 Hz);
+    // la CÁMARA solo se mueve con `fix.moved` (desplazamiento real), porque
+    // re-animar la vista nativa por cada sacudida del GNSS es lo que calentaba
+    // el teléfono. Antes ambos compartían el umbral de 5 m y el punto quedaba
+    // congelado 3–4 s por vez: parecía que la ubicación no se actualizaba.
+    final liveFix = tracking
         ? ref.watch(myLocationRealtimeProvider).valueOrNull
         : null;
-    final shownPoint = livePoint ?? me;
+    final shownPoint = liveFix?.point ?? me;
     final initialCenter = shownPoint ?? santaCruzCenter;
     final mapOrigin = origin ?? pointOf(initialCenter);
     final heading = locationReady && shownPoint != null
         ? ref.watch(deviceHeadingProvider).valueOrNull ?? 0
         : 0.0;
 
-    // Cámara en el seguimiento: la app la mueve con cada tick del stream.
-    // Callback en lugar de watch: mover cámara NO debe reconstruir la capa.
-    // Escuchar el provider ya no enciende el sensor: sin demanda su stream es
-    // vacío, así que este oyente puede estar montado siempre (el planeador no se
-    // desmonta) sin costar una línea de GNSS.
+    // Cámara en el seguimiento: la app la mueve con cada punto que marca
+    // movimiento. Callback en lugar de watch: mover cámara NO debe reconstruir
+    // la capa. Escuchar el provider ya no enciende el sensor: sin demanda su
+    // stream es vacío, así que este oyente puede estar montado siempre (el
+    // planeador no se desmonta) sin costar una línea de GNSS.
     ref.listen(myLocationRealtimeProvider, (_, next) {
       if (!ref.read(locationDemandProvider)) return;
-      final point = next.valueOrNull;
-      if (point != null) _followTo(mapKey, point);
+      final fix = next.valueOrNull;
+      if (fix != null && fix.moved) _followTo(mapKey, fix.point);
     });
 
     // Al empezar o DEJAR de seguir (gesto en el mapa o botón): la semilla
@@ -126,7 +132,10 @@ class LiveMapLayer extends ConsumerWidget {
         ref.invalidate(myLocationProvider);
       }
       if (next && previous == false) {
-        _followTo(mapKey, ref.read(myLocationRealtimeProvider).valueOrNull);
+        _followTo(
+          mapKey,
+          ref.read(myLocationRealtimeProvider).valueOrNull?.point,
+        );
       }
     });
 

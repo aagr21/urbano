@@ -280,8 +280,10 @@ void main() {
   );
 
   testWidgets(
-    'con seguimiento la cámara se mueve SOLO con desplazamiento real: 3 m de '
-    'ruido del GNSS no despiertan el mapa (móvil quieto = menos CPU y menos calor)',
+    'con seguimiento el PUNTO avanza con cada fijación y la CÁMARA solo con '
+    'desplazamiento real: el usuario camina, el mapa se mueve, y 3 m de ruido '
+    'del GNSS no re-animan la vista (regresión: el punto esperaba los 5 m de la '
+    'cámara y parecía congelado)',
     (tester) async {
       final service = FakeLocationService(
         initialPermission: LocationPermission.whileInUse,
@@ -295,18 +297,24 @@ void main() {
       await tester.pumpAndSettle();
       expect(_engineCameraCenter(tester), here);
 
-      // 3 m al norte: jitter típico con el dispositivo parado.
-      service.emitPosition(LatLng(here.latitude + 0.000027, here.longitude));
+      // 3 m al norte: jitter típico con el dispositivo parado. La cámara no
+      // tiene por qué re-animar la vista nativa…
+      const jitter = LatLng(-17.679973, -63.08);
+      service.emitPosition(jitter);
       await tester.pumpAndSettle();
       expect(
         _engineCameraCenter(tester),
         here,
         reason: 'por debajo de gpsMinMovementMeters no se mueve la cámara',
       );
+      // …pero el punto SÍ se refresca: es la posición real que acaba de leer el
+      // GPS, y el usuario tiene que verlo.
       expect(
         _lastKnownMarker(tester)!.point,
-        here,
-        reason: 'ni siquiera se reconstruye el punto pintado',
+        jitter,
+        reason:
+            'el punto propio no puede esperar el umbral de la cámara: con el '
+            'umbral compartido quedaba quieto varios segundos al caminar',
       );
 
       // 12 m: desplazamiento de verdad → la cámara camina con el usuario.
@@ -316,6 +324,55 @@ void main() {
       expect(_engineCameraCenter(tester), moved);
 
       expect(container.read(locationDemandProvider), isTrue);
+    },
+  );
+
+  testWidgets(
+    'caminando 20 s el punto se mueve en CADA fijación y la cámara cada ~5 m: '
+    'el mapa nunca se queda quieto con el usuario avanzando',
+    (tester) async {
+      final service = FakeLocationService(
+        initialPermission: LocationPermission.whileInUse,
+      );
+      final container = await _pumpLayer(tester, service: service);
+      container.read(followLocationProvider.notifier).state = true;
+      await tester.pumpAndSettle();
+
+      const start = LatLng(-17.7833, -63.1821);
+      // 1 fix por segundo a 1,4 m/s (caminata normal).
+      LatLng walked(int second) =>
+          LatLng(start.latitude + (1.4 * second) / 111320, start.longitude);
+
+      service.emitPosition(start);
+      await tester.pumpAndSettle();
+
+      var cameraMoves = 0;
+      var lastCamera = _engineCameraCenter(tester);
+      for (var second = 1; second <= 20; second++) {
+        final fix = walked(second);
+        service.emitPosition(fix);
+        await tester.pumpAndSettle();
+        expect(
+          _lastKnownMarker(tester)!.point,
+          fix,
+          reason:
+              'segundo $second: el punto propio tiene que estar en la '
+              'posición real, no en la de hace 5 m',
+        );
+        final camera = _engineCameraCenter(tester);
+        if (camera != lastCamera) {
+          cameraMoves++;
+          lastCamera = camera;
+        }
+      }
+
+      expect(
+        cameraMoves,
+        inInclusiveRange(4, 6),
+        reason:
+            'la cámara acompaña cada ~5 m (no en cada fijación): re-animar la '
+            'vista nativa 20 veces por 28 m es lo que calentaba el teléfono',
+      );
     },
   );
 

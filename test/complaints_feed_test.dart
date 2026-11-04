@@ -480,8 +480,9 @@ void main() {
         find.byKey(const ValueKey('complaint-photo-thumb-2')),
         findsOneWidget,
       );
-      // La barra social del detalle cuenta el hilo en su pastilla.
-      expect(find.text('1 comentarios'), findsOneWidget);
+      // La barra social del detalle y el encabezado del hilo dicen lo mismo, en
+      // singular cuando solo hay uno.
+      expect(find.text('1 comentario'), findsNWidgets(2));
       expect(tester.takeException(), isNull);
     });
   });

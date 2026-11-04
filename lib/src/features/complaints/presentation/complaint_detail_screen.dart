@@ -14,6 +14,7 @@ import '../application/passenger_controller.dart';
 import '../data/complaint_repository.dart';
 import 'widgets/complaint_chips.dart';
 import 'widgets/complaint_photo_gallery.dart';
+import 'widgets/complaint_post_hero.dart';
 import 'widgets/like_button.dart';
 import 'widgets/passenger_avatar.dart';
 
@@ -113,9 +114,30 @@ class _ComplaintDetailScreenState extends ConsumerState<ComplaintDetailScreen> {
     final accent = AppColors.categoryAccent(live.category);
     final colors = context.colors;
     final page = colors.surfaceContainerLowest;
+    final routeName = widget.route?.shortName.isNotEmpty ?? false
+        ? widget.route!.shortName
+        : live.routeId;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Reporte')),
+      appBar: AppBar(
+        toolbarHeight: 64,
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('Reporte'),
+            Text(
+              'Micro $routeName · ${categoryLabelOf(live.category)}',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: context.text.labelSmall?.copyWith(
+                color: colors.onSurfaceVariant,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+      ),
       body: Column(
         children: [
           Expanded(
@@ -128,6 +150,19 @@ class _ComplaintDetailScreenState extends ConsumerState<ComplaintDetailScreen> {
                 const SizedBox(height: AppSpace.lg),
                 Row(
                   children: [
+                    Container(
+                      width: 4,
+                      height: 18,
+                      margin: const EdgeInsets.only(right: AppSpace.sm),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(AppRadius.pill),
+                        gradient: const LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [AppColors.primary, AppColors.aqua],
+                        ),
+                      ),
+                    ),
                     Expanded(
                       child: Text(
                         'Comentarios',
@@ -172,10 +207,11 @@ class _ComplaintDetailScreenState extends ConsumerState<ComplaintDetailScreen> {
   }
 }
 
-/// Versión ampliada del post (foto + texto completo) para el detalle.
+/// Versión ampliada del post (héroe + foto + texto completo) para el detalle.
 ///
-/// Usa las mismas piezas del feed ([MicroBadge], [CategoryChip], [StatusChip]) y
-/// su mismo borde teñido: abrir un reporte no debe cambiarle la identidad.
+/// Monta el MISMO [ComplaintPostHero] del feed (con póster en vez de foto: las
+/// fotos viven en la galería, con sus miniaturas y el visor) y la misma piel
+/// teñida del motivo: abrir un reporte no debe cambiarle la identidad.
 class _PostBody extends StatelessWidget {
   const _PostBody({required this.complaint, this.route});
 
@@ -186,16 +222,23 @@ class _PostBody extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.colors;
     final accent = AppColors.categoryAccent(complaint.category);
+    // Mismo velo del motivo que la tarjeta del feed.
     final cardSurface = colors.surfaceContainerLow;
+    final painted = AppColors.tint(accent, cardSurface, 0.055);
     final routeColor = AppColors.fromHex(route?.color);
     final routeName = route?.shortName.isNotEmpty ?? false
         ? route!.shortName
         : complaint.routeId;
+    final subtitle = routeSubtitleOf(route);
+    final meta = [
+      ?subtitle,
+      relativeDateLabel(complaint.createdAt),
+    ].join(' · ');
     final photos = complaint.photoUrls;
     return Container(
-      padding: const EdgeInsets.all(AppSpace.md),
+      clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
-        color: cardSurface,
+        color: painted,
         borderRadius: AppRadius.card,
         border: Border.all(
           color: AppColors.tint(accent, colors.outlineVariant, 0.45),
@@ -210,82 +253,50 @@ class _PostBody extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              MicroBadge(label: routeName, color: routeColor, size: 48),
-              const SizedBox(width: AppSpace.md),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            'Micro $routeName',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: context.text.titleMedium?.copyWith(
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: AppSpace.sm),
-                        Text(
-                          relativeDateLabel(complaint.createdAt),
-                          style: context.text.bodySmall?.copyWith(
-                            color: colors.onSurfaceVariant,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: AppSpace.xs),
-                    // Aquí SÍ se pinta el estado: la tarjeta del feed lo omite
-                    // cuando el reporte ya está verificado para no crecer.
-                    Wrap(
-                      spacing: AppSpace.sm,
-                      runSpacing: AppSpace.xs,
-                      children: [
-                        CategoryChip(
-                          category: complaint.category,
-                          on: cardSurface,
-                        ),
-                        StatusChip(status: complaint.status, on: cardSurface),
-                      ],
+          // El héroe del feed, con póster: la foto principal no se repite,
+          // porque justo debajo viene la galería completa.
+          ComplaintPostHero(
+            complaint: complaint,
+            routeName: routeName,
+            routeColor: routeColor,
+            meta: meta,
+            accent: accent,
+            // Aquí SÍ se pinta el estado siempre; la tarjeta del feed lo omite
+            // cuando el reporte ya está verificado para no crecer.
+          ),
+          Padding(
+            padding: const EdgeInsets.all(AppSpace.md),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (photos.isNotEmpty) ...[
+                  // TODAS las adjuntas: la principal, las demás en miniatura y
+                  // el visor a pantalla completa al tocar.
+                  ComplaintPhotoGallery(
+                    key: ValueKey('complaint-photos-${complaint.id}'),
+                    urls: photos,
+                  ),
+                  if (photos.length > 1) ...[
+                    const SizedBox(height: AppSpace.sm),
+                    Text(
+                      '${photos.length} fotos adjuntas',
+                      style: context.text.bodySmall?.copyWith(
+                        color: colors.onSurfaceVariant,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ],
-                ),
-              ),
-            ],
+                ],
+                if (complaint.description.trim().isNotEmpty) ...[
+                  const SizedBox(height: AppSpace.md),
+                  Text(
+                    complaint.description,
+                    style: context.text.bodyLarge?.copyWith(height: 1.5),
+                  ),
+                ],
+              ],
+            ),
           ),
-          if (photos.isNotEmpty) ...[
-            const SizedBox(height: AppSpace.md),
-            // TODAS las adjuntas: la principal, las demás en miniatura y el
-            // visor a pantalla completa al tocar (antes solo existía la primera).
-            ComplaintPhotoGallery(
-              key: ValueKey('complaint-photos-${complaint.id}'),
-              urls: photos,
-            ),
-            if (photos.length > 1) ...[
-              const SizedBox(height: AppSpace.sm),
-              Text(
-                '${photos.length} fotos adjuntas',
-                style: context.text.bodySmall?.copyWith(
-                  color: colors.onSurfaceVariant,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
-          ],
-          if (complaint.description.trim().isNotEmpty) ...[
-            const SizedBox(height: AppSpace.md),
-            Text(
-              complaint.description,
-              style: context.text.bodyLarge?.copyWith(height: 1.5),
-            ),
-          ],
         ],
       ),
     );
@@ -322,14 +333,17 @@ class _LikeBar extends ConsumerWidget {
           LikeButton(
             liked: complaint.likedByMe,
             count: complaint.likeCount,
+            on: barSurface,
             onTap: () =>
                 ref.read(complaintsFeedProvider.notifier).toggleLike(complaint),
           ),
           const Spacer(),
           ComplaintPill(
-            label: lively
-                ? '${complaint.commentCount} comentarios'
-                : 'Sin comentarios',
+            label: !lively
+                ? 'Sin comentarios'
+                : complaint.commentCount == 1
+                ? '1 comentario'
+                : '${complaint.commentCount} comentarios',
             icon: Icons.mode_comment_rounded,
             accent: lively ? colors.primary : colors.onSurfaceVariant,
             on: barSurface,
@@ -378,14 +392,32 @@ class _CommentsSection extends StatelessWidget {
       );
     }
     if (comments.isEmpty) {
-      return Padding(
-        padding: const EdgeInsets.symmetric(vertical: AppSpace.xl),
-        child: Text(
-          'Sé el primero en comentar.',
-          textAlign: TextAlign.center,
-          style: context.text.bodyMedium?.copyWith(
-            color: context.colors.onSurfaceVariant,
-          ),
+      return Container(
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpace.lg,
+          vertical: AppSpace.xl,
+        ),
+        decoration: BoxDecoration(
+          color: context.colors.surfaceContainerLow,
+          borderRadius: BorderRadius.circular(AppRadius.md),
+          border: Border.all(color: context.colors.outlineVariant),
+        ),
+        child: Column(
+          children: [
+            Icon(
+              Icons.chat_bubble_outline_rounded,
+              size: 26,
+              color: context.colors.onSurfaceVariant,
+            ),
+            const SizedBox(height: AppSpace.sm),
+            Text(
+              'Sé el primero en comentar.',
+              textAlign: TextAlign.center,
+              style: context.text.bodyMedium?.copyWith(
+                color: context.colors.onSurfaceVariant,
+              ),
+            ),
+          ],
         ),
       );
     }
@@ -505,67 +537,84 @@ class _CommentComposer extends StatelessWidget {
     final colors = context.colors;
     return SafeArea(
       top: false,
-      child: Container(
+      child: Padding(
         padding: const EdgeInsets.fromLTRB(
           AppSpace.md,
           AppSpace.sm,
-          AppSpace.sm,
+          AppSpace.md,
           AppSpace.sm,
         ),
-        decoration: BoxDecoration(
-          color: colors.surface,
-          border: Border(top: BorderSide(color: colors.outlineVariant)),
-        ),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            if (identity != null)
-              PassengerAvatar.from(identity!, size: 36)
-            else
-              const SizedBox(width: 36, height: 36),
-            const SizedBox(width: AppSpace.sm),
-            Expanded(
-              child: TextField(
-                controller: controller,
-                minLines: 1,
-                maxLines: 4,
-                maxLength: 500,
-                textInputAction: TextInputAction.send,
-                onSubmitted: (_) => onSend(),
-                decoration: InputDecoration(
-                  isDense: true,
-                  counterText: '',
-                  hintText: identity == null
-                      ? 'Comentando como…'
-                      : 'Comenta como ${identity!.nickname}',
-                  filled: true,
-                  fillColor: colors.surfaceContainerHigh,
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: AppSpace.md,
-                    vertical: AppSpace.md,
-                  ),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(AppRadius.input),
-                    borderSide: BorderSide.none,
+        // Redactor flotante: una barra pegada al borde inferior parecía parte
+        // del sistema; esta se separa del contenido con su propia sombra.
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(
+            AppSpace.sm,
+            AppSpace.xs,
+            AppSpace.xs,
+            AppSpace.xs,
+          ),
+          decoration: BoxDecoration(
+            color: colors.surface,
+            borderRadius: BorderRadius.circular(AppRadius.lg),
+            border: Border.all(color: colors.outlineVariant),
+            boxShadow: AppTheme.softShadow(
+              color: colors.onSurface,
+              opacity: 0.06,
+              blur: 16,
+              dy: 4,
+            ),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              if (identity != null)
+                PassengerAvatar.from(identity!, size: 36)
+              else
+                const SizedBox(width: 36, height: 36),
+              const SizedBox(width: AppSpace.sm),
+              Expanded(
+                child: TextField(
+                  controller: controller,
+                  minLines: 1,
+                  maxLines: 4,
+                  maxLength: 500,
+                  textInputAction: TextInputAction.send,
+                  onSubmitted: (_) => onSend(),
+                  decoration: InputDecoration(
+                    isDense: true,
+                    counterText: '',
+                    hintText: identity == null
+                        ? 'Comentando como…'
+                        : 'Comenta como ${identity!.nickname}',
+                    filled: true,
+                    fillColor: colors.surfaceContainerHigh,
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: AppSpace.md,
+                      vertical: AppSpace.md,
+                    ),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(AppRadius.input),
+                      borderSide: BorderSide.none,
+                    ),
                   ),
                 ),
               ),
-            ),
-            const SizedBox(width: AppSpace.xs),
-            IconButton.filled(
-              onPressed: sending ? null : onSend,
-              icon: sending
-                  ? const SizedBox.square(
-                      dimension: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.send_rounded, size: 18),
-              style: IconButton.styleFrom(
-                backgroundColor: colors.primary,
-                foregroundColor: colors.onPrimary,
+              const SizedBox(width: AppSpace.xs),
+              IconButton.filled(
+                onPressed: sending ? null : onSend,
+                icon: sending
+                    ? const SizedBox.square(
+                        dimension: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.send_rounded, size: 18),
+                style: IconButton.styleFrom(
+                  backgroundColor: colors.primary,
+                  foregroundColor: colors.onPrimary,
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

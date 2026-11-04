@@ -51,3 +51,7 @@ app.*.map.json
 .widget_preview/
 .vercel
 .env*
+
+# Mediciones de arranque en dispositivo real (screenrecord + logcat). Efímeras:
+# videos y logs de un modelo de teléfono concreto; no son fuente ni doc.
+.measure/

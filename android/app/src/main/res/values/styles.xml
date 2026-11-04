@@ -5,13 +5,66 @@
         <!-- Show a splash screen on the activity. Automatically removed when
              the Flutter engine draws its first frame -->
         <item name="android:windowBackground">@drawable/launch_background</item>
-        <!-- Android 12+ dibuja SU propia portada (campo + ícono enmascarado) y
-             es lo único que se puede personalizar ahí. Los atributos son
-             ignorados en versiones anteriores; en 12+ evitan el cuadro blanco
-             con el ícono del lanzador (que no es de la marca laguna). -->
-        <item name="android:windowSplashScreenBackground" tools:targetApi="s">@color/urbano_primary_dark</item>
-        <item name="android:windowSplashScreenAnimatedIcon" tools:targetApi="s">@drawable/urbano_splash_logo</item>
+        <!-- Android 12+ mantiene esta carga visible hasta el primer frame.
+             El ícono transparente también va aquí: `flutter run` y
+             `am start -n …/.MainActivity` entran directo a esta Activity, y sin
+             estas tres líneas el sistema pintaría el ícono del launcher. -->
+        <item name="android:windowSplashScreenBackground" tools:targetApi="s">@color/urbano_primary</item>
+        <item name="android:windowSplashScreenIconBackgroundColor" tools:targetApi="s">@android:color/transparent</item>
+        <item name="android:windowSplashScreenAnimatedIcon" tools:targetApi="s">@drawable/urbano_splash_icon_blank</item>
     </style>
+    <!-- Theme de la SPLASH NATIVA ANIMADA (SplashActivity + Lottie).
+
+         Vive solo en values/: la portada de marca NO sigue el modo oscuro del
+         sistema, así que en values-night habría que duplicar exactamente lo mismo.
+
+         Claves:
+         * parent @android:style/Theme.DeviceDefault.NoActionBar: NO es opcional.
+           Los atributos `android:windowSplashScreen*` de API 12+ solo los lee el
+           sistema si el theme del arranque desciende de la familia DeviceDefault
+           (que en 31+ hereda de `Theme.DeviceDefault.SplashScreen`). Con
+           `Theme.AppCompat.*` —que desciende de Material— el plataforma ignora el
+           bloque y VUELVE A PINTAR SU PROPIA PANTALLA CON EL ÍCONO DEL LAUNCHER:
+           eso es literalmente «se ve el logo al arrancar» y fue una regresión
+           introducida al cambiar el parent para callar el aviso de ThemeUtils.
+           El arreglo de ese aviso no es el parent, es el ThemeOverlay (abajo).
+         * El `E ThemeUtils: LottieAnimationView … can only be used with a
+           Theme.AppCompat theme` se silencia envolviendo el context de la vista
+           con `ThemeOverlay.AppCompat` en `SplashActivity`, no heredando de
+           AppCompat: el overlay le da a `AppCompatImageView` el theme base que
+           exige sin tocar el theme de la ventana.
+          * windowBackground = COLOR SÓLIDO, no @drawable/launch_background. Con
+            un drawable de degradado aquí, el degradado se vería DOS veces (la
+            ventana y el Lottie encima) y cualquier diferencia de ángulo se lee
+            como parpadeo. El color es urbano_primary (#008C7B), el promedio del
+            degradado: es el mismo valor que windowSplashScreenBackground y el
+            que mide el primer frame de la portada de Dart, medido con
+            screenrecord en el Honor.
+          * windowAnimationStyle @null: sin transición de ventana en ninguna
+            dirección (la splash no debe «entrar» ni «salir», solo desaparecer).
+          * statusBarColor/navigationBarColor: en API 35+ con targetSdk 35 el
+            sistema los IGNORA (edge-to-edge obligatorio), así que el color de la
+            franja lo da windowBackground; se ponen igual para que en 24..34 no
+            salga una barra negra.
+          * windowSplashScreenAnimatedIcon = `urbano_splash_icon_blank`, un vector
+            TRANSPARENTE de 240x240dp, y el círculo del ícono transparente: en 12+
+            omitirlos (o darles un recurso degenerado de 1dp) hace aparecer el
+            ícono del launcher, que es la segunda splash que el usuario rechazó.
+          * enforce*Contrast false: sin esto el sistema oscurece la barra de
+            estado sobre fondos claros y sale una franja distinta del verde. -->
+    <style name="SplashTheme" parent="@android:style/Theme.DeviceDefault.NoActionBar">
+        <item name="android:windowBackground">@color/urbano_primary</item>
+        <item name="android:statusBarColor">@color/urbano_primary</item>
+        <item name="android:navigationBarColor">@color/urbano_primary</item>
+        <item name="android:windowLightStatusBar" tools:targetApi="m">false</item>
+        <item name="android:windowAnimationStyle">@null</item>
+        <item name="android:enforceStatusBarContrast" tools:targetApi="q">false</item>
+        <item name="android:enforceNavigationBarContrast" tools:targetApi="q">false</item>
+        <item name="android:windowSplashScreenBackground" tools:targetApi="s">@color/urbano_primary</item>
+        <item name="android:windowSplashScreenIconBackgroundColor" tools:targetApi="s">@android:color/transparent</item>
+        <item name="android:windowSplashScreenAnimatedIcon" tools:targetApi="s">@drawable/urbano_splash_icon_blank</item>
+    </style>
+
     <!-- Theme applied to the Android Window as soon as the process has started.
          This theme determines the color of the Android Window while your
          Flutter UI initializes, as well as behind your Flutter UI while its

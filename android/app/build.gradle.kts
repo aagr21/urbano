@@ -44,6 +44,17 @@ kotlin {
     }
 }
 
+dependencies {
+    // Splash nativa animada (SplashActivity). Es la ÚNICA forma de mover píxeles
+    // antes de que exista el engine de Flutter: windowBackground solo admite
+    // drawables estáticos y la SplashScreen de API 31 está pensada para un ícono.
+    // OJO: esto es lottie-ANDROID (Kotlin), no el paquete `lottie` de Dart; se
+    // necesitan los dos porque cada fase del arranque vive en un mundo distinto.
+    // Lottie arrastra androidx.appcompat (LottieAnimationView hereda de
+    // AppCompatImageView), así que la app pasa de ~0 libs nativas a 2.
+    implementation("com.airbnb.android:lottie:6.7.1")
+}
+
 flutter {
     source = "../.."
 }

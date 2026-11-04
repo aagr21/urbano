@@ -11,22 +11,22 @@ LatLng _northOf(LatLng from, double meters) =>
 
 const _base = LatLng(-17.7833, -63.1821);
 
-/// Drena el evento real: el generador `async*` de [onlyRealMovement] cruza
-/// varias microtareas por punto, y aquí (test puro, sin `FakeAsync`) no existe
-/// el `pumpEventQueue` de los widget tests.
+/// Drena el evento real: el controlador de [trackedFixes] cruza varias
+/// microtareas por punto, y aquí (test puro, sin `FakeAsync`) no existe el
+/// `pumpEventQueue` de los widget tests.
 Future<void> _settle() async {
   for (var i = 0; i < 24; i++) {
     await Future<void>.delayed(Duration.zero);
   }
 }
 
-Future<List<LatLng>> _drain(
+Future<List<TrackedFix>> _drain(
   List<LatLng> fixes, {
   DateTime Function()? clock,
 }) async {
   final source = StreamController<LatLng>();
-  final gated = onlyRealMovement(source.stream, clock: clock ?? DateTime.now);
-  final seen = <LatLng>[];
+  final gated = trackedFixes(source.stream, clock: clock ?? DateTime.now);
+  final seen = <TrackedFix>[];
   final sub = gated.listen(seen.add);
   for (final fix in fixes) {
     source.add(fix);
@@ -38,80 +38,103 @@ Future<List<LatLng>> _drain(
 }
 
 void main() {
-  group('onlyRealMovement', () {
-    test(
-      'deja pasar el primer punto y el desplazamiento real; el ruido no',
-      () async {
-        final seen = await _drain([
-          _base,
-          _northOf(_base, 3),
-          _northOf(_base, 12),
-        ]);
-
-        expect(seen, [
-          _base,
-          _northOf(_base, 12),
-        ], reason: '3 m es jitter del GNSS; 12 m supera gpsMinMovementMeters');
-      },
-    );
-
-    test('movimiento lento: un solo punto aguas abajo, no uno por fijación', () async {
-      // 20 fijaciones de 0,5 m: hay ~10 m de avance REAL, pero la cámara no debe
-      // moverse 20 veces (cada punto = reconstruir la capa y animar la cámara).
+  group('trackedFixes', () {
+    test('el punto propio avanza con cada fijación; la cámara solo con '
+        'desplazamiento real', () async {
       final seen = await _drain([
         _base,
-        for (var step = 1; step <= 20; step++) _northOf(_base, 0.5 * step),
+        _northOf(_base, 3),
+        _northOf(_base, 12),
+      ]);
+
+      expect(
+        seen.map((fix) => fix.point),
+        [_base, _northOf(_base, 3), _northOf(_base, 12)],
+        reason:
+            'el punto de «mi ubicación» no puede esperar 5 m: si no, el '
+            'usuario camina y el mapa parece congelado',
+      );
+      expect(seen.map((fix) => fix.moved), [
+        true,
+        false,
+        true,
+      ], reason: '3 m es jitter del GNSS; 12 m supera gpsMinMovementMeters');
+    });
+
+    test('caminata lenta: el punto sube en cada paso y la cámara una vez', () async {
+      // 20 fijaciones de 1,4 m (caminata a paso normal, 1 fix/s): ~28 m de
+      // avance REAL. El punto propio las sigue todas (es lo que se ve avanzar,
+      // con el umbral de 1 m que descarta repeticiones); la cámara, no: cada
+      // movimiento suyo re-anima la vista nativa.
+      final seen = await _drain([
+        _base,
+        for (var step = 1; step <= 20; step++) _northOf(_base, 1.4 * step),
       ]);
 
       expect(
         seen.length,
-        2,
+        21,
         reason:
-            'el umbral se mide desde el último punto DESPACHADO: cruza una vez, '
-            'no veinte',
+            'el punto propio avanza con la caminata (fijación a fijación), no '
+            'se queda esperando los 5 m de la cámara',
       );
-      expect(seen.first, _base);
+      expect(
+        seen.where((fix) => fix.moved).length,
+        6,
+        reason:
+            'la cámara se mueve al entrar y cada ~5 m recorridos, no veinte '
+            'veces',
+      );
+      expect(seen.first.point, _base);
     });
 
-    test(
-      'quietud prolongada: el latido lento igualmente refresca el punto',
-      () async {
-        var now = DateTime(2026, 10, 30, 8);
-        final source = StreamController<LatLng>();
-        addTearDown(source.close);
-        final seen = <LatLng>[];
-        final sub = onlyRealMovement(
-          source.stream,
-          clock: () => now,
-        ).listen(seen.add);
-        addTearDown(sub.cancel);
+    test('quietud: las repeticiones se descartan, el latido refresca', () async {
+      var now = DateTime(2026, 10, 30, 8);
+      final source = StreamController<LatLng>();
+      addTearDown(source.close);
+      final seen = <TrackedFix>[];
+      final sub = trackedFixes(
+        source.stream,
+        clock: () => now,
+      ).listen(seen.add);
+      addTearDown(sub.cancel);
 
-        source.add(_base);
-        await _settle();
-        expect(seen, [_base]);
+      source.add(_base);
+      await _settle();
+      expect(seen.map((fix) => fix.point), [_base]);
 
-        // Un rato después del latido llegan 2 m de jitter: sin latido el punto
-        // quedaría congelado para siempre.
-        now = now.add(gpsQuietHeartbeat + const Duration(seconds: 1));
-        source.add(_northOf(_base, 2));
-        await _settle();
-        expect(seen, [
-          _base,
-          _northOf(_base, 2),
-        ], reason: 'pasado el latido se deja pasar aunque no haya movimiento');
+      // Ruido submétrico con el móvil quieto: es la MISMA posición.
+      now = now.add(const Duration(seconds: 1));
+      source.add(_northOf(_base, 0.4));
+      await _settle();
+      expect(seen, hasLength(1), reason: 'por debajo de gpsMinDrawMeters');
 
-        // Y el latido vuelve a contar desde el punto recién despachado.
-        now = now.add(gpsQuietHeartbeat ~/ 2);
-        source.add(_northOf(_base, 4));
-        await _settle();
-        expect(seen, hasLength(2), reason: 'aún no toca otro latido');
-      },
-    );
+      // Un rato después del latido llegan 2 m de jitter: sin latido el punto
+      // quedaría congelado para siempre.
+      now = now.add(gpsQuietHeartbeat + const Duration(seconds: 1));
+      source.add(_northOf(_base, 2));
+      await _settle();
+      expect(seen.map((fix) => fix.point), [_base, _northOf(_base, 2)]);
+      expect(seen.last.moved, isTrue, reason: 'el latido re-ancla la cámara');
+
+      // Y el latido vuelve a contar desde el punto recién despachado: 2 m de
+      // avance real mueven el punto pero NO la cámara (aún no hay 5 m desde la
+      // última vez que la cámara se movió).
+      now = now.add(gpsQuietHeartbeat ~/ 2);
+      source.add(_northOf(_base, 4));
+      await _settle();
+      expect(seen, hasLength(3), reason: 'el punto sí avanza 2 m');
+      expect(
+        seen.last.moved,
+        isFalse,
+        reason: 'la cámara espera a gpsMinMovementMeters',
+      );
+    });
 
     test('cancelar aguas abajo libera la suscripción del sensor', () async {
       final source = StreamController<LatLng>();
       addTearDown(source.close);
-      final sub = onlyRealMovement(source.stream).listen((_) {});
+      final sub = trackedFixes(source.stream).listen((_) {});
 
       await _settle();
       expect(
@@ -120,19 +143,28 @@ void main() {
         reason: 'el filtro se engancha al plugin',
       );
       await sub.cancel();
-      // El `await for` termina con la cancelación: el plugin se queda sin
-      // oyentes, que es como se suelta el listener del GPS sin temporizador.
       expect(source.hasListener, isFalse);
     });
   });
 
   test('los umbrales del presupuesto son los acordados', () {
-    // Cambiarlos es cambiar lo que la app le pide al radio: se prueban para que
-    // no se muevan "de paso".
+    // Cambiarlos es cambiar lo que la app le pide al radio y lo que el usuario
+    // ve moverse: se prueban para que no se muevan "de paso".
     expect(gpsMinMovementMeters, 5);
+    expect(gpsMinDrawMeters, 1);
     expect(gpsQuietHeartbeat, const Duration(seconds: 30));
     expect(gpsOneShotTimeLimit, const Duration(seconds: 15));
     expect(gpsReportInterval, const Duration(seconds: 1));
     expect(gpsOneShotSettings.accuracy, LocationAccuracy.medium);
   });
+
+  test(
+    'el seguimiento NO le pide filtro de distancia al proveedor: el punto se '
+    'congelaba con el usuario avanzando',
+    () {
+      final settings = gpsTrackingSettings();
+      expect(settings.distanceFilter, 0);
+      expect(settings.accuracy, LocationAccuracy.high);
+    },
+  );
 }

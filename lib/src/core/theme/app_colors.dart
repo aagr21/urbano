@@ -26,6 +26,14 @@ class AppColors {
   /// Primario profundo para gradientes (fondo de laguna).
   static const Color primaryDark = Color(0xFF00584F);
 
+  /// Punto medio del **campo de marca** con el que abren las secciones
+  /// (la portada de Inicio y la de Quejas): la laguna aclarada hacia la
+  /// orilla. Vale `tint(primary, primaryDark, 0.55)` y existe como token
+  /// porque es el extremo MÁS CLARO del degradado, o sea el peor caso contra
+  /// el que se mide la tinta que va encima ([onColor] devuelve blanco, ≥5.6:1).
+  /// Si las dos portadas no comparten este punto, dejan de ser la misma marca.
+  static const Color fieldMid = Color(0xFF007567);
+
   /// Acento cálido (coral, atardecer cruceño).
   static const Color accent = Color(0xFFFF5B35);
 

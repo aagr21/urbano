@@ -49,7 +49,7 @@ final featuredRouteShapeProvider =
     FutureProvider.autoDispose<FeaturedRouteShape?>((ref) async {
       try {
         final page = await ref.watch(
-          routesListProvider(const RoutesQuery(limit: 6)).future,
+          routesListProvider(homeCatalogQuery).future,
         );
         if (page.items.isEmpty) return null;
         final detail = await ref.watch(

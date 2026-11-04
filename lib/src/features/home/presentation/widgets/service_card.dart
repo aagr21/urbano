@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/animation/motion.dart';
+import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/utils/extensions.dart';
 import '../../../../core/utils/time_formatters.dart';
@@ -16,6 +17,10 @@ import '../home_providers.dart';
 /// [statsProvider] trae la foto entera del GTFS; aquí solo se muestran los
 /// tres datos sobre los que alguien decide salir. Sin backend, degradamos a
 /// guiones elegantes en vez de romper el home.
+///
+/// Es un **panel de marca**, no otra tarjeta blanca: fondo verde agua al 8 %,
+/// riel de laguna a la izquierda y el recuento en tinta verde medida contra su
+/// propio relleno. Es el dato vivo de la app, así que se tiñe como tal.
 class ServiceCard extends ConsumerWidget {
   const ServiceCard({super.key});
 
@@ -24,11 +29,11 @@ class ServiceCard extends ConsumerWidget {
     final stats = ref.watch(statsProvider);
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 20, 16, 0),
+      padding: const EdgeInsets.symmetric(horizontal: AppSpace.lg),
       child: stats.when(
         loading: () => const Reveal(
           slide: 8,
-          child: LoadingShimmer(height: 88, radius: AppRadius.md),
+          child: LoadingShimmer(height: 108, radius: AppRadius.md),
         ),
         error: (_, _) => const _ServiceCardBody(
           lines: null,
@@ -76,16 +81,50 @@ class _ServiceCardBody extends StatelessWidget {
     final colors = context.colors;
     final text = context.text;
     final hasData = lines != null;
+    // Todo lo que se pinta aquí se mide contra el relleno REAL del panel.
+    final fill = AppColors.tint(colors.primary, colors.surface, 0.08);
+    final edge = AppColors.tint(colors.primary, colors.outlineVariant, 0.6);
+    final accentInk = AppColors.legible(colors.primary, fill);
+    final captionInk = AppColors.legible(colors.onSurfaceVariant, fill);
 
     return Container(
-      padding: const EdgeInsets.all(AppSpace.lg),
+      clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
-        color: colors.surface,
+        color: fill,
         borderRadius: BorderRadius.circular(AppRadius.md),
+        border: Border.all(color: edge),
+        boxShadow: AppTheme.softShadow(
+          color: colors.primary,
+          opacity: 0.12,
+          blur: 20,
+        ),
       ),
-      child: Row(
+      child: Stack(
         children: [
-          Expanded(
+          // Riel de laguna: el mismo gesto del encabezado de sección, así el
+          // panel se siente parte de la página y no un objeto pegado.
+          Positioned(
+            left: 0,
+            top: 0,
+            bottom: 0,
+            width: 4,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [colors.primary, AppColors.aqua],
+                ),
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+              AppSpace.md + 2 + 4,
+              AppSpace.md + 2,
+              AppSpace.md + 2,
+              AppSpace.md + 2,
+            ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -95,20 +134,21 @@ class _ServiceCardBody extends StatelessWidget {
                       color: hasData ? colors.primary : colors.tertiary,
                       size: 6,
                     ),
-                    const SizedBox(width: 8),
+                    const SizedBox(width: AppSpace.sm),
                     Flexible(
                       child: Text(
                         hasData ? 'El servicio anda' : 'Servicio sin datos',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: text.titleSmall?.copyWith(
+                        style: text.titleMedium?.copyWith(
                           fontWeight: FontWeight.w800,
+                          letterSpacing: -0.2,
                         ),
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: 2),
                 // El conteo de líneas entra subiendo: es el «dato recién
                 // traído del feed» del home, ahora con significado propio.
                 if (lines != null)
@@ -119,8 +159,8 @@ class _ServiceCardBody extends StatelessWidget {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: text.labelMedium?.copyWith(
-                      color: colors.onSurfaceVariant,
-                      fontWeight: FontWeight.w600,
+                      color: accentInk,
+                      fontWeight: FontWeight.w700,
                     ),
                   )
                 else
@@ -129,31 +169,34 @@ class _ServiceCardBody extends StatelessWidget {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: text.labelMedium?.copyWith(
-                      color: colors.onSurfaceVariant,
+                      color: captionInk,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
+                const SizedBox(height: AppSpace.md),
+                // Ventana y frecuencia a lo ancho del panel: antes vivían en
+                // una columna a la derecha que recortaba el título en
+                // pantallas angostas.
+                Wrap(
+                  spacing: AppSpace.sm,
+                  runSpacing: AppSpace.sm,
+                  children: [
+                    _ScheduleChip(
+                      icon: Icons.schedule_rounded,
+                      label: window ?? '—',
+                      background: colors.secondaryContainer,
+                      foreground: colors.onSecondaryContainer,
+                    ),
+                    _ScheduleChip(
+                      icon: Icons.update_rounded,
+                      label: headway ?? '—',
+                      background: colors.tertiaryContainer,
+                      foreground: colors.onTertiaryContainer,
+                    ),
+                  ],
+                ),
               ],
             ),
-          ),
-          const SizedBox(width: 10),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              _ScheduleChip(
-                icon: Icons.schedule_rounded,
-                label: window ?? '—',
-                background: colors.secondaryContainer,
-                foreground: colors.onSecondaryContainer,
-              ),
-              const SizedBox(height: 8),
-              _ScheduleChip(
-                icon: Icons.update_rounded,
-                label: headway ?? '—',
-                background: colors.tertiaryContainer,
-                foreground: colors.onTertiaryContainer,
-              ),
-            ],
           ),
         ],
       ),
@@ -178,7 +221,10 @@ class _ScheduleChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpace.sm + 2,
+        vertical: 5,
+      ),
       decoration: BoxDecoration(
         color: background,
         borderRadius: BorderRadius.circular(AppRadius.pill),
@@ -187,7 +233,7 @@ class _ScheduleChip extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(icon, size: 14, color: foreground),
-          const SizedBox(width: 6),
+          const SizedBox(width: AppSpace.xs + 2),
           Text(
             label,
             maxLines: 1,

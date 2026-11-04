@@ -1,8 +1,58 @@
-<?xml version="1.0" encoding="UTF-8" standalone="no"?>
-<document type="com.apple.InterfaceBuilder3.CocoaTouch.Storyboard.XIB" version="3.0" toolsVersion="12121" systemVersion="16G29" targetRuntime="iOS.CocoaTouch" propertyAccessControl="none" useAutolayout="YES" launchScreen="YES" colorMatched="YES" initialViewController="01J-lp-oVM">
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  LAUNCH SCREEN DE iOS: ESTÁTICO A PROPÓSITO.
+
+  Apple NO permite animar esta pantalla. El sistema la captura como una
+  INSTANTÁNEA antes de crear el proceso de la app (por eso arranca tan rápido:
+  en realidad estás viendo una foto). La documentación de UIKit (`UIScene`
+  /"Launch Screens") pide que sea «instantánea, simple y no interactiva»: no se
+  ejecuta código tuyo, así que animarla exige incrustar una secuencia de imágenes
+  o un `UIImageView` animado en el storyboard —algo que además de ir contra esa
+  guía no funciona: el snapshot se congela—, y en la práctica es de lo más común
+  que App Store Review lo devuelva. No hay workaround legítimo: en iOS la fase
+  del sistema operativo SIEMPRE es una imagen quieta.
+
+  Lo que sí se puede —y es lo que hace este archivo— es que esa imagen quieta sea
+  el PRIMER FOTOGRAMA de la animación que va a reproducir Flutter. Así el cambio
+  launch screen → Lottie no se lee como un corte, porque no cambia nada:
+
+   * El fondo es `#008C7B` (`urbano_primary`), el promedio del degradado de marca
+     que pinta `SplashGate` y el mismo color del campo nativo de Android. Medido
+     con `screenrecord`: si aquí quedara el `#00584F` del template, el primer
+     frame de Flutter se vería como un parpadeo de verde oscuro a verde claro.
+   * La imagen es `LaunchImage` (en `Assets.xcassets`), render de
+     `assets/lottie/splash-frame0.svg`, o sea el frame 0 literal de
+     `assets/lottie/splash.json`, el mismo JSON que en Android reproduce la splash
+     nativa en Kotlin (`SplashActivity`). Se regenera con
+     `tools/make-ios-splash-frame0.sh`.
+   * Tamaño y posición copy-pasteados de `_SplashCover` (lib/src/core/widgets/
+     splash_gate.dart), que en iOS monta ese JSON como líder de la columna de
+     carga:
+        ancho  = 0,40 × ancho de pantalla   (`lottieSide`)
+        centerY ≈ 0,35 × alto de pantalla. De dónde sale el 0,35, sobre un
+        iPhone de 393x852 con insets 59/34:
+          alto de la Column ≈ 157 (lienzo) + 24 + ~60 (textos) + 24 + 4 (barra)
+                                                  = 269 pt
+          centro de la Column = 59 + 0,39 × (852 - 59 - 34) = 355 pt
+          centro del lienzo   = 355 - 269/2 + 157/2 = 299 pt → 299/852 = 0,351
+        Es una APROXIMACIÓN (la altura de los textos no es constante): se AJUSTA EN
+        EL SIMULADOR mirando si el aro se queda quieto en el momento del handoff,
+        y se recalcula si cambia la columna.
+   * `contentMode="scaleAspectFit"` + constraints cuadradas: el lienzo del JSON es
+     360x360 y no debe deformarse en elíptico, igual que `CENTER_INSIDE` en
+     `SplashActivity`.
+
+  El Lottie en sí se reproduce en Dart (`_SplashLottie` dentro de `SplashGate`,
+  activado solo cuando `defaultTargetPlatform == TargetPlatform.iOS`), NO en
+  `AppDelegate`: ahí todavía no hay nada que animar (la app sigue en el launch
+  screen) y meter un `UIView` encima es justo lo que Review rechaza.
+-->
+<document type="com.apple.InterfaceBuilder3.CocoaTouch.Storyboard.XIB" version="3.0" toolsVersion="23504" targetRuntime="iOS.CocoaTouch" propertyAccessControl="none" useAutolayout="YES" launchScreen="YES" colorMatched="YES" initialViewController="01J-lp-oVM">
+    <device id="retina6_12" orientation="portrait" appearance="light"/>
     <dependencies>
         <deployment identifier="iOS"/>
-        <plugIn identifier="com.apple.InterfaceBuilder.IBCocoaTouchPlugin" version="12089"/>
+        <plugIn identifier="com.apple.InterfaceBuilder.IBCocoaTouchPlugin" version="23506"/>
+        <capability name="documents saved in the Xcode 8 format" minToolsVersion="8.0"/>
     </dependencies>
     <scenes>
         <!--View Controller-->
@@ -14,11 +64,22 @@
                         <viewControllerLayoutGuide type="bottom" id="xbc-2k-c8Z"/>
                     </layoutGuides>
                     <view key="view" contentMode="scaleToFill" id="Ze5-6b-2t3">
+                        <rect key="frame" x="0.0" y="0.0" width="393" height="852"/>
                         <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
-                        <!-- Laguna profunda de la marca (#00584F): la portada de iOS
-                             es un campo liso y la identidad (logo, anillos, nombre) la
-                             pinta ya la app en su propia portada animada. -->
-                        <color key="backgroundColor" red="0" green="0.34509803921568627" blue="0.30980392156862745" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
+                        <subviews>
+                            <imageView opaque="NO" clipsSubviews="YES" multipleTouchEnabled="YES" contentMode="scaleAspectFit" image="LaunchImage" translatesAutoresizingMaskIntoConstraints="NO" id="L0t-00-fr0">
+                                <rect key="frame" x="118.0" y="224.0" width="157.0" height="157.0"/>
+                                <constraints>
+                                    <constraint firstAttribute="width" secondAttribute="height" multiplier="1:1" id="L0t-00-sq1"/>
+                                </constraints>
+                            </imageView>
+                        </subviews>
+                        <color key="backgroundColor" red="0" green="0.5490196078431373" blue="0.4823529411764706" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
+                        <constraints>
+                            <constraint firstItem="L0t-00-fr0" firstAttribute="centerX" secondItem="Ze5-6b-2t3" secondAttribute="centerX" id="L0t-00-cx1"/>
+                            <constraint firstItem="L0t-00-fr0" firstAttribute="width" secondItem="Ze5-6b-2t3" secondAttribute="width" multiplier="0.4" id="L0t-00-wd1"/>
+                            <constraint firstItem="L0t-00-fr0" firstAttribute="centerY" secondItem="Ze5-6b-2t3" secondAttribute="bottom" multiplier="0.35" id="L0t-00-cy1"/>
+                        </constraints>
                     </view>
                 </viewController>
                 <placeholder placeholderIdentifier="IBFirstResponder" id="iYj-Kq-Ea1" userLabel="First Responder" sceneMemberID="firstResponder"/>
@@ -26,4 +87,7 @@
             <point key="canvasLocation" x="53" y="375"/>
         </scene>
     </scenes>
+    <resources>
+        <image name="LaunchImage" width="360" height="360"/>
+    </resources>
 </document>

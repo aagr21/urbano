@@ -31,13 +31,17 @@ dependencies:
     # GPS
     geolocator: ^13.0.2
 
-
     # Utilidades / UI
     intl: ^0.20.3
     google_fonts: ^6.2.1
     maplibre_gl: ^0.27.1
     image_picker: ^1.2.0
     sensors_plus: ^7.1.1
+    # Portada de arranque en iOS. En Android el mismo JSON lo reproduce la splash
+    # NATIVA (`com.airbnb.android:lottie` en el `build.gradle.kts`), así que este
+    # paquete solo entra por el lado de Apple, donde el launch screen no se puede
+    # animar. Es el paquete Dart, NO la librería de Kotlin: son dos cosas distintas.
+    lottie: ^3.8.2
 
 dev_dependencies:
     flutter_test:
@@ -53,3 +57,8 @@ flutter:
     # arranca offline sin parpadeo y los tests no intentan descargar nada.
     assets:
         - assets/fonts/
+        # Portada animada. El MISMO JSON que reproduce la splash nativa de Android
+        # (`android/app/src/main/assets/splash.json` es copia de este archivo);
+        # en iOS es la única animación posible, porque Apple no deja animar el
+        # launch screen.
+        - assets/lottie/

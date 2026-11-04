@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  POSE DEL FRAME 0 de `splash.json`, dibujada a mano sobre el mismo lienzo
+  (360x360). Sirve SOLO para el launch screen de iOS, que Apple exige estático:
+  la imagen es lo que el Lottie muestra en su primer fotograma, para que el paso
+  storyboard -> Lottie no se lea como un corte.
+
+  NO es un export del JSON (no hay headless renderer en el repo): es una
+  traducción geométrica capa a capa del frame 0. De ahí los números:
+
+   * Capa `bus`: en t=0 su `ks.p` está en [150, 172], o sea el centro del autobús
+     en (150,172). Todos los sub-grupos se desplazan respecto a ese centro con el
+     mismo offset que en el JSON (carrocería 152x84 r=20 blanco α0,96; franja
+     coral 152x12 en +16y; luneta aqua 26x30 en +52x/-14y; tres ventanales laterales
+     aqua 26x26; ruedas coral Ø30 con buje blanco Ø12 en ±42x/+40y).
+   * Capa `carretera`: línea blanca 252x5 en (180,250) a α0,16, estática.
+   * Capa `estelas`: NO aparece. Sus tres `tr.o` arrancan en 0 (t=0, t=3 y t=2),
+     así que en el frame 0 todavía no hay rastro de velocidad.
+
+  Las ruedas van ANTES que la carrocería (detrás), igual que en el array de shapes
+  del JSON. Si el JSON cambia de pose inicial, regenerar el PNG:
+    tools/make-ios-splash-frame0.sh
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 360" width="360" height="360">
+  <!-- carretera -->
+  <rect x="54" y="247.5" width="252" height="5" rx="2.5" fill="#FFFFFF" fill-opacity="0.16"/>
+  <!-- ruedas (detrás de la carrocería) -->
+  <circle cx="108" cy="212" r="15" fill="#FF5B35"/>
+  <circle cx="108" cy="212" r="6" fill="#FFFFFF"/>
+  <circle cx="192" cy="212" r="15" fill="#FF5B35"/>
+  <circle cx="192" cy="212" r="6" fill="#FFFFFF"/>
+  <!-- carrocería -->
+  <rect x="74" y="130" width="152" height="84" rx="20" fill="#FFFFFF" fill-opacity="0.96"/>
+  <!-- franja coral -->
+  <rect x="74" y="182" width="152" height="12" rx="6" fill="#FF5B35"/>
+  <!-- luneta frontal (aqua) -->
+  <rect x="189" y="143" width="26" height="30" rx="8" fill="#2AD8C3" fill-opacity="0.92"/>
+  <!-- ventanales laterales (aqua) -->
+  <rect x="151" y="143" width="26" height="26" rx="7" fill="#2AD8C3" fill-opacity="0.92"/>
+  <rect x="115" y="143" width="26" height="26" rx="7" fill="#2AD8C3" fill-opacity="0.92"/>
+  <rect x="79" y="143" width="26" height="26" rx="7" fill="#2AD8C3" fill-opacity="0.92"/>
+</svg>

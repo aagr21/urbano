@@ -25,15 +25,13 @@ import '../../../routes/presentation/route_providers.dart';
 class MicrosStrip extends ConsumerWidget {
   const MicrosStrip({super.key});
 
-  static const _query = RoutesQuery(limit: 6);
-
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final routes = ref.watch(routesListProvider(_query));
+    final routes = ref.watch(routesListProvider(homeCatalogQuery));
 
     return AsyncValueView(
       value: routes,
-      onRetry: () => ref.invalidate(routesListProvider(_query)),
+      onRetry: () => ref.invalidate(routesListProvider(homeCatalogQuery)),
       // Catálogo vacío: la sección no es indispensable, se retira en silencio.
       isEmpty: (page) => page.items.isEmpty,
       onEmpty: () => const SizedBox.shrink(),
@@ -96,7 +94,6 @@ class _MicroCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final text = context.text;
     // Color GTFS arbitrario y texto GTFS arbitrario encima: [onColor] decide
     // (y respeta `textColor` del feed si contrasta).
     final background = AppColors.fromHex(
@@ -107,6 +104,9 @@ class _MicroCard extends StatelessWidget {
       background,
       preferred: AppColors.fromHex(route.textColor),
     );
+    // Tinta sobre foto: el peor caso real detrás de la letra es el scrub negro
+    // del pie, no la foto.
+    final onPhoto = AppColors.onColor(Colors.black);
 
     final radius = BorderRadius.circular(AppRadius.md);
     final photoUrl = route.imageUrl;
@@ -125,10 +125,8 @@ class _MicroCard extends StatelessWidget {
               borderRadius: radius,
               child: photoUrl != null
                   ? // Vitrina: foto a sangre, scrub degradado y el nombre
-                    // encima (patrón de FeaturedMapCard; el único contenido
-                    // claro posible sobre foto oscura es blanco). El
-                    // destello Ken Burns de entrada lo pone [PhotoShine]
-                    // (una pasada y en reposo, sin loops).
+                    // encima. El destello Ken Burns de entrada lo pone
+                    // [PhotoShine] (una pasada y en reposo, sin loops).
                     PhotoShine(
                       child: ClipRRect(
                         borderRadius: radius,
@@ -152,56 +150,13 @@ class _MicroCard extends StatelessWidget {
                               ),
                             ),
                             Positioned(
-                              left: 12,
-                              right: 12,
-                              bottom: 10,
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  // «Cartel» frontal: el identificador de la
-                                  // línea, como el letrero del parabrisas.
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 8,
-                                      vertical: 4,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: Colors.white.withValues(
-                                        alpha: 0.18,
-                                      ),
-                                      borderRadius: BorderRadius.circular(
-                                        AppRadius.pill,
-                                      ),
-                                      border: Border.all(
-                                        color: Colors.white.withValues(
-                                          alpha: 0.32,
-                                        ),
-                                      ),
-                                    ),
-                                    child: Text(
-                                      route.shortName,
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: text.titleSmall?.copyWith(
-                                        color: Colors.white,
-                                        fontWeight: FontWeight.w800,
-                                      ),
-                                    ),
-                                  ),
-                                  const SizedBox(height: 6),
-                                  Text(
-                                    route.longName,
-                                    maxLines: 2,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: text.labelSmall?.copyWith(
-                                      color: Colors.white.withValues(
-                                        alpha: 0.92,
-                                      ),
-                                      fontWeight: FontWeight.w600,
-                                      height: 1.3,
-                                    ),
-                                  ),
-                                ],
+                              left: AppSpace.md,
+                              right: AppSpace.md,
+                              bottom: AppSpace.sm + 2,
+                              child: _RouteInfo(
+                                route: route,
+                                ink: onPhoto,
+                                openHint: false,
                               ),
                             ),
                           ],
@@ -209,80 +164,126 @@ class _MicroCard extends StatelessWidget {
                       ),
                     )
                   : Padding(
-                      padding: const EdgeInsets.all(AppSpace.md),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          // «Cartel» frontal: el identificador de la línea, como
-                          // el letrero que cuelga del parabrisas.
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 4,
-                            ),
-                            decoration: BoxDecoration(
-                              color: Colors.white.withValues(alpha: 0.18),
-                              borderRadius: BorderRadius.circular(
-                                AppRadius.pill,
-                              ),
-                              border: Border.all(
-                                color: Colors.white.withValues(alpha: 0.32),
-                              ),
-                            ),
-                            child: Text(
-                              route.shortName,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: text.titleSmall?.copyWith(
-                                color: foreground,
-                                fontWeight: FontWeight.w800,
-                              ),
-                            ),
-                          ),
-                          const Spacer(),
-                          Text(
-                            route.longName,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: text.labelSmall?.copyWith(
-                              color: foreground,
-                              fontWeight: FontWeight.w600,
-                              height: 1.3,
-                            ),
-                          ),
-                          const SizedBox(height: 6),
-                          Row(
-                            children: [
-                              Icon(
-                                route.directionsCount > 1
-                                    ? Icons.swap_horiz_rounded
-                                    : Icons.arrow_forward_rounded,
-                                size: 13,
-                                color: foreground,
-                              ),
-                              const SizedBox(width: 4),
-                              Flexible(
-                                child: Text(
-                                  route.directionsCount > 1
-                                      ? 'Ida y vuelta'
-                                      : 'Solo ida',
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: text.labelSmall?.copyWith(
-                                    color: foreground.withValues(alpha: 0.85),
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
+                      padding: const EdgeInsets.all(AppSpace.md + 2),
+                      child: _RouteInfo(
+                        route: route,
+                        ink: foreground,
+                        openHint: true,
                       ),
                     ),
             ),
           ),
         ),
       ),
+    );
+  }
+}
+
+/// Cartel frontal de la línea (su identificador), su nombre largo y si tiene
+/// ida y vuelta.
+///
+/// La píldora del identificador es **vidrio de la tinta**, no un blanco fijo:
+/// sobre un micro amarillo (`F1C40F`) el vidrio blanco de antes desaparecía y
+/// dejaba el número flotando; con la tinta medida se ve en cualquier color.
+class _RouteInfo extends StatelessWidget {
+  const _RouteInfo({
+    required this.route,
+    required this.ink,
+    required this.openHint,
+  });
+
+  final RouteSummary route;
+
+  /// Tinta ya medida contra el fondo realmente pintado (color del micro o
+  /// scrub de la foto).
+  final Color ink;
+
+  /// La tarjeta sin foto deja sitio para la pista de «abre el detalle»; la que
+  /// lleva foto ya lo dice la propia imagen.
+  final bool openHint;
+
+  @override
+  Widget build(BuildContext context) {
+    final text = context.text;
+    final twoWays = route.directionsCount > 1;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      // Con pista de apertura la tarjeta reparte su alto (el nombre se apoya al
+      // pie); sobre la foto el bloque se ciñe a su contenido.
+      mainAxisSize: openHint ? MainAxisSize.max : MainAxisSize.min,
+      children: [
+        Row(
+          children: [
+            // «Cartel» frontal: el identificador de la línea, como el letrero
+            // que cuelga del parabrisas.
+            Flexible(
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpace.sm + 2,
+                  vertical: 3,
+                ),
+                decoration: BoxDecoration(
+                  color: ink.withValues(alpha: 0.16),
+                  borderRadius: BorderRadius.circular(AppRadius.pill),
+                  border: Border.all(color: ink.withValues(alpha: 0.3)),
+                ),
+                child: Text(
+                  route.shortName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: text.titleMedium?.copyWith(
+                    color: ink,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w900,
+                    height: 1.1,
+                  ),
+                ),
+              ),
+            ),
+            if (openHint) ...[
+              const Spacer(),
+              Icon(
+                Icons.arrow_outward_rounded,
+                size: 15,
+                color: ink.withValues(alpha: 0.65),
+              ),
+            ],
+          ],
+        ),
+        if (openHint) const Spacer() else const SizedBox(height: AppSpace.xs),
+        Text(
+          route.longName,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: text.labelMedium?.copyWith(
+            color: ink,
+            fontWeight: FontWeight.w700,
+            height: 1.25,
+          ),
+        ),
+        const SizedBox(height: AppSpace.xs + 2),
+        Row(
+          children: [
+            Icon(
+              twoWays ? Icons.swap_horiz_rounded : Icons.arrow_forward_rounded,
+              size: 13,
+              color: ink.withValues(alpha: 0.85),
+            ),
+            const SizedBox(width: AppSpace.xs),
+            Flexible(
+              child: Text(
+                twoWays ? 'Ida y vuelta' : 'Solo ida',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: text.labelSmall?.copyWith(
+                  color: ink.withValues(alpha: 0.85),
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ],
     );
   }
 }

@@ -8,8 +8,25 @@
     <application
         android:label="Urbano"
         android:usesCleartextTraffic="true"
-        android:name="${applicationName}"
+        android:name=".UrbanoSplashApplication"
         android:icon="@mipmap/ic_launcher">
+        <!-- SPLASH NATIVA ANIMADA. Es la actividad que arranca el launcher, no
+             MainActivity: es la única forma de tener movimiento durante la fase
+             del sistema operativo (antes de que exista el engine de Flutter).
+             Se termina (`finish()`) al acabar el Lottie, así que no queda en el
+             back stack y «atrás» desde la app sale de la app.
+             `configChanges` evita que girar el teléfono re-cree la actividad a
+             mitad de la animación. -->
+        <activity
+            android:name=".SplashActivity"
+            android:exported="true"
+            android:theme="@style/SplashTheme"
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity>
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -19,6 +36,10 @@
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
             android:hardwareAccelerated="true"
             android:windowSoftInputMode="adjustResize">
+            <!-- Ya NO es launcher (el filtro MAIN/LAUNCHER vive en SplashActivity),
+                 pero sigue `exported="true"` a propósito: `flutter run` y
+                 `am start -n` la arrancan directamente, y con `exported="false"`
+                 el tooling recibiría `Permission Denial`. -->
             <!-- Specifies an Android theme to apply to this Activity as soon as
                  the Android process has started. This theme is visible to the user
                  while the Flutter UI initializes. After that, this theme continues
@@ -27,10 +48,6 @@
               android:name="io.flutter.embedding.android.NormalTheme"
               android:resource="@style/NormalTheme"
               />
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN"/>
-                <category android:name="android.intent.category.LAUNCHER"/>
-            </intent-filter>
         </activity>
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
@@ -38,15 +55,20 @@
             android:name="flutterEmbedding"
             android:value="2" />
     </application>
-    <!-- Required to query activities that can process text, see:
-         https://developer.android.com/training/package-visibility and
-         https://developer.android.com/reference/android/content/Intent#ACTION_PROCESS_TEXT.
+    <!-- SIN bloque `<queries>` a propósito, aunque la plantilla de Flutter lo
+         agrega con `android.intent.action.PROCESS_TEXT`.
 
-         In particular, this is used by the Flutter engine in io.flutter.plugin.text.ProcessTextPlugin. -->
-    <queries>
-        <intent>
-            <action android:name="android.intent.action.PROCESS_TEXT"/>
-            <data android:mimeType="text/plain"/>
-        </intent>
-    </queries>
+         Ese permiso de visibilidad es lo que hace que el motor de Flutter
+         (`io.flutter.plugin.text.ProcessTextPlugin`, que rellena la barra de
+         selección de texto) resuelva TODAS las apps que procesan texto y cargue
+         su ícono y etiqueta en ESTE proceso: Claude, ChatGPT, Grok, DeepSeek,
+         Edge, SwiftKey… Cada APK resuelto entra a la caché nativa de `ApkAssets`
+         y al soltarse suelta el clásico
+         `W/.example.urbano: ApkAssets: Deleting an ApkAssets object …`, además de
+         un trabajo real (lectura de recursos ajenos) en cada selección de texto.
+
+         Sin el `<queries>`, Android 11+ filtra la visibilidad y la consulta
+         devuelve vacío: la portada de Urbano y sus campos no pierden nada, porque
+         en la app no hay ninguna acción de «procesar texto con apps externas».
+         Reponer el bloque es volver a meter ese ruido y ese coste. -->
 </manifest>

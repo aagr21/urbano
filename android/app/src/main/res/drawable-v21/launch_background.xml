@@ -1,8 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Portada nativa (API 21+): el campo de marca con la micro centrada. En 12+
-     el sistema ya muestra su propia portada con el mismo ícono
-     (`windowSplashScreenAnimatedIcon` en styles.xml), así que este fondo es lo
-     que queda al terminarla: el mismo dibujo, al mismo tamaño, sin salto. -->
+<!-- Solo el campo nativo; la identidad la pinta SplashGate. -->
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
     <item>
         <shape android:shape="rectangle">
@@ -14,9 +11,4 @@
                 android:type="linear" />
         </shape>
     </item>
-    <item
-        android:width="240dp"
-        android:height="240dp"
-        android:drawable="@drawable/urbano_splash_logo"
-        android:gravity="center" />
 </layer-list>

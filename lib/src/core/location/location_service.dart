@@ -151,16 +151,17 @@ class LocationService {
 
   /// Stream con la posición en tiempo real del GPS.
   ///
-  /// Aquí solo se declara CÓMO se escucha ([gpsTrackingSettings]: umbral de
-  /// [gpsMinMovementMeters] en el propio proveedor, para que lo que no sea
-  /// desplazamiento real ni suba a Dart). CUÁNDO se escucha es política de
-  /// [myLocationRealtimeProvider], que además filtra el ruido restante.
+  /// Aquí solo se declara CÓMO se escucha ([gpsTrackingSettings]: una fijación
+  /// por segundo, **sin filtro de distancia en el proveedor** — ese filtro es
+  /// todo-o-nada y congelaba el punto propio; el presupuesto se decide en
+  /// [trackedFixes]). CUÁNDO se escucha es política de
+  /// [myLocationRealtimeProvider].
   ///
   /// Devuelve el stream **sin filtrar**: es la frontera cruda del plugin, así los
   /// tests pueden emitir lo que quieran y ver el filtro aplicado más arriba.
   Stream<LatLng> positionStream({
     LocationAccuracy accuracy = LocationAccuracy.high,
-    int distanceFilter = gpsMinMovementMeters,
+    int distanceFilter = 0,
   }) {
     try {
       return Geolocator.getPositionStream(

@@ -68,23 +68,28 @@ class RouteListTile extends StatelessWidget {
                     ),
                     const SizedBox(width: AppSpace.md),
                   ],
-                  // Flexible con flex 0 (loose): intrínseco pero acotado al
-                  // espacio restante — con la foto y nombres largos la fila
-                  // no desborda; el texto del badge se elipsea.
-                  Flexible(
-                    flex: 0,
-                    child: RouteBadge(
-                      label: route.shortName,
-                      colorHex: route.color,
-                      textColorHex: route.textColor,
-                      size: RouteBadgeSize.large,
-                      heroTag: heroPrefix == null
-                          ? null
-                          : 'route-badge-$heroPrefix-${route.id}',
+                  // El badge va dentro de `Expanded + Align` a la izquierda: así
+                  // ocupa como máximo el espacio restante y su texto se elipsea
+                  // cuando el `shortName` es largo, en vez de desbordar la fila
+                  // (el `Flexible(flex: 0)` anterior no acotaba su ancho y con
+                  // un numeral largo se salía por la derecha).
+                  Expanded(
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: RouteBadge(
+                        label: route.shortName,
+                        colorHex: route.color,
+                        textColorHex: route.textColor,
+                        size: RouteBadgeSize.large,
+                        heroTag: heroPrefix == null
+                            ? null
+                            : 'route-badge-$heroPrefix-${route.id}',
+                      ),
                     ),
                   ),
                   const SizedBox(width: AppSpace.md),
                   Expanded(
+                    flex: 3,
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [

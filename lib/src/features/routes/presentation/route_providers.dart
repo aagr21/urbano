@@ -38,6 +38,15 @@ class RoutesQuery {
   int get hashCode => Object.hash(q, page, limit, sort);
 }
 
+/// Página del catálogo que ve el inicio.
+///
+/// La comparten la tirilla «Tus micros», el mini mapa destacado **y la pantalla
+/// de carga** (`bootReadinessProvider` en `core/boot`): como
+/// `routesListProvider` está indexado por la propia consulta, todos suscriben al
+/// mismo provider y el arranque dispara **un solo** `/routes`, no uno por
+/// pantalla.
+const RoutesQuery homeCatalogQuery = RoutesQuery(limit: 6);
+
 /// Identidad de detalle: ruta + dirección.
 class RouteKey {
   const RouteKey(this.routeId, {this.directionId = 0});

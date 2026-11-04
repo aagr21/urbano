@@ -2,7 +2,6 @@ import 'dart:async';
 
 import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
-import 'package:urbano/src/core/location/gps_budget.dart';
 import 'package:urbano/src/core/location/location_service.dart';
 
 /// Implementación falsa de [LocationService] para tests de widgets: nunca
@@ -67,7 +66,7 @@ class FakeLocationService implements LocationService {
   @override
   Stream<LatLng> positionStream({
     LocationAccuracy accuracy = LocationAccuracy.high,
-    int distanceFilter = gpsMinMovementMeters,
+    int distanceFilter = 0,
   }) {
     positionStreamCalls++;
     // Se emite SIN filtrar: el filtro de movimiento real vive más arriba, en

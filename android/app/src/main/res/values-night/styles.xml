@@ -5,10 +5,12 @@
         <!-- Show a splash screen on the activity. Automatically removed when
              the Flutter engine draws its first frame -->
         <item name="android:windowBackground">@drawable/launch_background</item>
-        <!-- Igual que en claro: la portada de 12+ va en la laguna profunda de
-             la marca, no en negro. El degradado y la micro son los mismos. -->
-        <item name="android:windowSplashScreenBackground" tools:targetApi="s">@color/urbano_primary_dark</item>
-        <item name="android:windowSplashScreenAnimatedIcon" tools:targetApi="s">@drawable/urbano_splash_logo</item>
+        <!-- Igual que en claro: la carga nativa queda visible hasta Flutter, y el
+             ícono del launcher NO debe asomarse (modo oscuro del sistema no cambia
+             la portada de marca: SplashTheme vive solo en values/). -->
+        <item name="android:windowSplashScreenBackground" tools:targetApi="s">@color/urbano_primary</item>
+        <item name="android:windowSplashScreenIconBackgroundColor" tools:targetApi="s">@android:color/transparent</item>
+        <item name="android:windowSplashScreenAnimatedIcon" tools:targetApi="s">@drawable/urbano_splash_icon_blank</item>
     </style>
     <!-- Theme applied to the Android Window as soon as the process has started.
          This theme determines the color of the Android Window while your

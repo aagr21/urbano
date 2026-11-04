@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Ícono de la SplashScreen de API 12+ deliberadamente INVISIBLE.
+
+     Por qué existe este archivo: en Android 12+ el sistema pinta SU PROPIA
+     pantalla de arranque (centro de la pantalla, sobre
+     `windowSplashScreenBackground`) usando `windowSplashScreenAnimatedIcon` y,
+     si ese recurso no se provee, cae en el ÍCONO DEL LAUNCHER. Esa era la
+     «segunda splash» que el usuario rechazó: el cuadrito azul de Urbano quieto
+     un segundo y medio antes de la animación.
+
+     Por qué 240x240dp y no 1x1dp: el lienzo recomendado por la guía de la
+     SplashScreen es 240x240dp con el dibujo dentro de un círculo seguro de
+     160dp. Un vector de 1dp es un caso degenerado que algunos fabricantes
+     (aquí: MagicOS sobre API 35) terminan ignorando, y «ignorado» significa
+     «muestra el ícono del launcher». Se dibuja un path que CUBRE todo el
+     viewport con relleno y trazo totalmente transparentes: el sistema tiene un
+     recurso real que medir, y no pinta nada.
+
+     La identidad (logo, anillos, micro) vive solo en dos lados: la animación
+     Lottie de `SplashActivity` y `SplashGate` en Dart. Nunca en el sistema. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="240dp"
+    android:height="240dp"
+    android:viewportWidth="240"
+    android:viewportHeight="240">
+    <path
+        android:fillColor="@android:color/transparent"
+        android:strokeColor="@android:color/transparent"
+        android:strokeWidth="1"
+        android:pathData="M0,0 L240,0 L240,240 L0,240 Z" />
+</vector>

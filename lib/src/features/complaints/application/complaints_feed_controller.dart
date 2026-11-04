@@ -42,6 +42,34 @@ IconData categoryIconOf(String category) => switch (category) {
   _ => Icons.more_horiz_rounded,
 };
 
+/// Nombre largo de la línea sin repetir su número (`Micro 12 San Juan` →
+/// `San Juan`).
+///
+/// La tarjeta y el detalle ya muestran `Micro 12` en el título, así que repetir
+/// el prefijo en la segunda línea no aporta nada: lo que el pasajero necesita
+/// es el recorrido. Devuelve `null` cuando no queda nada útil.
+String? routeSubtitleOf(RouteSummary? route) {
+  final long = route?.longName.trim() ?? '';
+  if (long.isEmpty) return null;
+  final short = route!.shortName.trim();
+  var text = long;
+  if (short.isNotEmpty) {
+    text = text.replaceFirst(
+      RegExp(
+        '^micro\\s*${RegExp.escape(short)}\\b[\\s·-]*',
+        caseSensitive: false,
+      ),
+      '',
+    );
+    text = text.replaceFirst(
+      RegExp('^${RegExp.escape(short)}\\b[\\s·-]*', caseSensitive: false),
+      '',
+    );
+  }
+  final trimmed = text.trim();
+  return trimmed.isEmpty ? null : trimmed;
+}
+
 /// Tiempo relativo corto ("Hace 5 min"), reutilizado por tarjeta y detalle.
 String relativeDateLabel(DateTime date) {
   final difference = DateTime.now().difference(date);

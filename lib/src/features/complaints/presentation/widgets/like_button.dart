@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/animation/motion.dart';
+import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/utils/extensions.dart';
 
@@ -17,11 +18,16 @@ class LikeButton extends StatefulWidget {
     required this.liked,
     required this.count,
     required this.onTap,
+    this.on,
   });
 
   final bool liked;
   final int count;
   final VoidCallback onTap;
+
+  /// Superficie sobre la que se pinta la pastilla. Se pasa explícita porque el
+  /// contraste se mide contra lo que REALMENTE hay detrás.
+  final Color? on;
 
   @override
   State<LikeButton> createState() => _LikeButtonState();
@@ -50,15 +56,25 @@ class _LikeButtonState extends State<LikeButton>
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
-    final tint = widget.liked ? colors.error : colors.onSurfaceVariant;
+    final surface = widget.on ?? colors.surfaceContainerLow;
+    final accent = widget.liked ? colors.error : colors.onSurfaceVariant;
+    // El fondo existe siempre (al 7 % cuando no hay apoyo): así el pie de la
+    // tarjeta se lee como dos acciones y no como un ícono suelto.
+    final fill = AppColors.tint(accent, surface, widget.liked ? 0.16 : 0.07);
+    final ink = AppColors.legible(accent, fill);
     return PressScale(
       child: InkWell(
         onTap: _handleTap,
         borderRadius: BorderRadius.circular(AppRadius.pill),
-        child: Padding(
+        child: AnimatedContainer(
+          duration: Motion.quick,
           padding: const EdgeInsets.symmetric(
             horizontal: AppSpace.sm,
             vertical: AppSpace.xs,
+          ),
+          decoration: BoxDecoration(
+            color: fill,
+            borderRadius: BorderRadius.circular(AppRadius.pill),
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
@@ -69,8 +85,8 @@ class _LikeButtonState extends State<LikeButton>
                   widget.liked
                       ? Icons.favorite_rounded
                       : Icons.favorite_border_rounded,
-                  color: tint,
-                  size: 22,
+                  color: ink,
+                  size: 20,
                 ),
               ),
               const SizedBox(width: AppSpace.xs),
@@ -78,7 +94,7 @@ class _LikeButtonState extends State<LikeButton>
                 duration: Motion.quick,
                 style: TextStyle(
                   fontSize: 14,
-                  color: widget.liked ? tint : colors.onSurfaceVariant,
+                  color: ink,
                   fontWeight: widget.liked ? FontWeight.w800 : FontWeight.w600,
                 ),
                 child: CountUp(

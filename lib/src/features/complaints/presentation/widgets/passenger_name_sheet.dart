@@ -83,11 +83,22 @@ class _PassengerNameSheetState extends ConsumerState<_PassengerNameSheet> {
                 const SizedBox(width: 44, height: 44),
               const SizedBox(width: AppSpace.md),
               Expanded(
-                child: Text(
-                  'Tu identidad en el feed',
-                  style: context.text.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w800,
-                  ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Tu identidad en el feed',
+                      style: context.text.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    Text(
+                      'Así te verán los demás al comentar.',
+                      style: context.text.bodySmall?.copyWith(
+                        color: colors.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
@@ -102,7 +113,6 @@ class _PassengerNameSheetState extends ConsumerState<_PassengerNameSheet> {
               hintText: identity == null
                   ? 'Generando apodo…'
                   : PassengerNames.nicknameFor(identity.deviceKey),
-              helperText: 'Así te verán los demás al comentar.',
               filled: true,
               fillColor: colors.surfaceContainerHighest,
               border: OutlineInputBorder(
@@ -112,10 +122,13 @@ class _PassengerNameSheetState extends ConsumerState<_PassengerNameSheet> {
             ),
           ),
           const SizedBox(height: AppSpace.sm),
-          FilledButton.icon(
-            onPressed: _saving ? null : _save,
-            icon: const Icon(Icons.check_rounded),
-            label: Text(_saving ? 'Guardando…' : 'Guardar apodo'),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
+              onPressed: _saving ? null : _save,
+              icon: const Icon(Icons.check_rounded),
+              label: Text(_saving ? 'Guardando…' : 'Guardar apodo'),
+            ),
           ),
         ],
       ),

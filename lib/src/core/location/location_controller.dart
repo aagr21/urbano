@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:latlong2/latlong.dart';
 
 import 'app_foreground.dart';
 import 'gps_budget.dart';
@@ -266,19 +265,22 @@ final locationDemandProvider = Provider<bool>((ref) {
 ///
 /// Con demanda: arranca con la caché del sistema (instantánea, sin pedir fix — un
 /// primer fix lento dejaría sin eventos al seguimiento) y sigue con
-/// [onlyRealMovement], que solo deja pasar desplazamiento real de
-/// [gpsMinMovementMeters] o el latido lento de [gpsQuietHeartbeat].
-final myLocationRealtimeProvider = StreamProvider.autoDispose<LatLng?>((ref) {
+/// [trackedFixes], que entrega **cada** avance del punto y marca cuáles mueven
+/// además la cámara: el punto propio camina con el usuario y la cámara solo
+/// cuando hay desplazamiento real.
+final myLocationRealtimeProvider = StreamProvider.autoDispose<TrackedFix?>((
+  ref,
+) {
   // `watch`, no `read`: cambiar la demanda RECREA el provider, y con él la
   // suscripción del plugin — la anterior se cancela sola. Ese es el
   // "libera los listeners" del ciclo de vida, sin temporizador nuestro.
   if (!ref.watch(locationDemandProvider)) {
-    return const Stream<LatLng?>.empty();
+    return const Stream<TrackedFix?>.empty();
   }
   return _trackLiveLocation(ref.watch(locationServiceProvider));
 });
 
-/// Pipeline del seguimiento: caché instantánea + filtro de movimiento real.
+/// Pipeline del seguimiento: caché instantánea + política de movimiento real.
 ///
 /// Controlador explícito por dos razones que un `async*` no daba:
 /// - `service.positionStream()` se llama **al escucharse**, no al componerse: sin
@@ -287,18 +289,20 @@ final myLocationRealtimeProvider = StreamProvider.autoDispose<LatLng?>((ref) {
 ///   suscripción del filtro y con ella el listener nativo del GPS. Un generador
 ///   `async*` deja la fuente viva (no propaga la cancelación), que es mantener
 ///   el radio encendido para siempre.
-Stream<LatLng?> _trackLiveLocation(LocationService service) {
-  late final StreamController<LatLng?> out;
-  StreamSubscription<LatLng>? upstream;
+Stream<TrackedFix?> _trackLiveLocation(LocationService service) {
+  late final StreamController<TrackedFix?> out;
+  StreamSubscription<TrackedFix>? upstream;
 
-  out = StreamController<LatLng?>(
+  out = StreamController<TrackedFix?>(
     onListen: () async {
       final cached = await service.lastKnownPosition();
       // Nos cancelaron mientras esperábamos la caché (el usuario soltó el
       // seguimiento o la app fue a segundo plano): no se abre ya el sensor.
       if (out.isClosed) return;
-      if (cached != null) out.add(cached);
-      upstream = onlyRealMovement(service.positionStream())
+      // La caché entra como movimiento: es el punto que usa la cámara para
+      // abordar en cuanto se enciende el seguimiento.
+      if (cached != null) out.add(TrackedFix(cached, moved: true));
+      upstream = trackedFixes(service.positionStream())
           .listen(out.add, onError: out.addError, onDone: out.close);
     },
     onCancel: () async {

@@ -9,14 +9,16 @@ import '../../../routes/data/route_models.dart';
 import '../../application/complaints_feed_controller.dart';
 import '../../data/complaint_repository.dart';
 import '../complaint_detail_screen.dart';
-import 'complaint_chips.dart';
+import 'complaint_post_hero.dart';
 import 'like_button.dart';
 
 /// Publicación del feed de quejas con pinta de red social.
 ///
-/// Identidad visual por motivos: el **riel** superior y la pastilla llevan el
-/// color de la categoría, la insignia el color GTFS de la línea, y la barra de
-/// acciones separa el apoyo del comentario. El toque abre el detalle.
+/// La identidad la lleva el **héroe** ([ComplaintPostHero]): foto a sangre (o
+/// póster del motivo) con la insignia GTFS de la línea, las pastillas de motivo
+/// y estado, el número del micro y el `recorrido · hora` encima. Debajo queda el
+/// relato y el pie social con el apoyo y los comentarios. El toque abre el
+/// detalle.
 class ComplaintPostCard extends ConsumerWidget {
   const ComplaintPostCard({
     super.key,
@@ -59,156 +61,116 @@ class ComplaintPostCard extends ConsumerWidget {
     // Fondo real de la tarjeta: todo tinte/letra de la tarjeta se mide contra él.
     final cardSurface = colors.surfaceContainerLow;
     final accent = AppColors.categoryAccent(complaint.category);
+    // Velo del motivo: la tarjeta deja de ser un rectángulo blanco más y cada
+    // reporte se reconoce por su color antes de leer una letra.
+    final painted = AppColors.tint(accent, cardSurface, 0.055);
     final routeColor = AppColors.fromHex(route?.color);
     final routeName = route?.shortName.isNotEmpty ?? false
         ? route!.shortName
         : complaint.routeId;
-    final photos = complaint.photoUrls;
-    final photo = photos.firstOrNull;
+    final subtitle = routeSubtitleOf(route);
+    // Recorrido + hora en UNA línea: la hora suelta en la esquina competía con
+    // el título y el subtítulo, y en pantalla angosta desbordaba.
+    final meta = [
+      ?subtitle,
+      relativeDateLabel(complaint.createdAt),
+    ].join(' · ');
 
     return Reveal(
       key: ValueKey('complaint-${complaint.id}'),
       index: index,
       slide: 10,
       child: PressScale(
-        child: Card(
-          margin: EdgeInsets.zero,
-          clipBehavior: Clip.antiAlias,
-          color: cardSurface,
-          elevation: 0,
-          shape: RoundedRectangleBorder(
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: painted,
             borderRadius: AppRadius.card,
-            // El borde se tiñe con el motivo: dos reportes distintos se
-            // distinguen antes incluso de leer el texto.
-            side: BorderSide(
-              color: AppColors.tint(accent, colors.outlineVariant, 0.45),
+            border: Border.all(
+              color: AppColors.tint(accent, colors.outlineVariant, 0.55),
+            ),
+            // Sombra del motivo: la tarjeta se despega del lienzo con el color
+            // de su categoría, no con un gris genérico.
+            boxShadow: AppTheme.softShadow(
+              color: accent,
+              opacity: 0.14,
+              blur: 22,
             ),
           ),
-          child: InkWell(
-            onTap: () => _openDetail(context, ref),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Riel del color del motivo, desvaneciéndose hacia la derecha
-                // para que no parezca una barra de progreso.
-                SizedBox(
-                  height: 4,
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [
-                          accent,
-                          AppColors.tint(accent, cardSurface, 0.05),
+          child: ClipRRect(
+            borderRadius: AppRadius.card,
+            child: Material(
+              // El material transparente permite que el ripple del InkWell se
+              // pinte sobre la foto del héroe.
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: () => _openDetail(context, ref),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    ComplaintPostHero(
+                      complaint: complaint,
+                      routeName: routeName,
+                      routeColor: routeColor,
+                      meta: meta,
+                      accent: accent,
+                      photo: complaint.photoUrls.firstOrNull,
+                      // El feed omite el estado verificado para no crecer.
+                      showStatus: false,
+                    ),
+                    if (complaint.description.trim().isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(
+                          AppSpace.md,
+                          AppSpace.md,
+                          AppSpace.md,
+                          AppSpace.sm,
+                        ),
+                        child: Text(
+                          complaint.description,
+                          maxLines: 4,
+                          overflow: TextOverflow.ellipsis,
+                          style: context.text.bodyMedium?.copyWith(
+                            height: 1.45,
+                          ),
+                        ),
+                      ),
+                    Divider(
+                      height: 1,
+                      thickness: 1,
+                      color: colors.outlineVariant,
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(
+                        AppSpace.xs,
+                        AppSpace.xs,
+                        AppSpace.sm,
+                        AppSpace.xs,
+                      ),
+                      child: Row(
+                        children: [
+                          LikeButton(
+                            liked: complaint.likedByMe,
+                            count: complaint.likeCount,
+                            on: painted,
+                            onTap: () => ref
+                                .read(complaintsFeedProvider.notifier)
+                                .toggleLike(complaint),
+                          ),
+                          const SizedBox(width: AppSpace.xs),
+                          _CommentPill(
+                            count: complaint.commentCount,
+                            on: painted,
+                            accent: accent,
+                            onTap: () => _openDetail(context, ref),
+                          ),
+                          const Spacer(),
+                          _OpenHint(accent: accent, on: painted),
                         ],
                       ),
                     ),
-                  ),
+                  ],
                 ),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(
-                    AppSpace.md,
-                    AppSpace.md,
-                    AppSpace.md,
-                    AppSpace.sm,
-                  ),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      MicroBadge(label: routeName, color: routeColor),
-                      const SizedBox(width: AppSpace.md),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: Text(
-                                    'Micro $routeName',
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: context.text.titleSmall?.copyWith(
-                                      fontWeight: FontWeight.w800,
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(width: AppSpace.sm),
-                                Text(
-                                  relativeDateLabel(complaint.createdAt),
-                                  style: context.text.bodySmall?.copyWith(
-                                    color: colors.onSurfaceVariant,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: AppSpace.xs),
-                            // `Wrap`, no `Row`: con el nombre largo de la línea
-                            // y dos pastillas, un Row desbordaba la tarjeta.
-                            Wrap(
-                              spacing: AppSpace.sm,
-                              runSpacing: AppSpace.xs,
-                              children: [
-                                CategoryChip(
-                                  category: complaint.category,
-                                  on: cardSurface,
-                                ),
-                                if (complaint.status != 'approved')
-                                  StatusChip(
-                                    status: complaint.status,
-                                    on: cardSurface,
-                                  ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                if (photo != null)
-                  _PhotoStrip(photo: photo, total: photos.length),
-                if (complaint.description.trim().isNotEmpty)
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(
-                      AppSpace.md,
-                      AppSpace.sm,
-                      AppSpace.md,
-                      AppSpace.md,
-                    ),
-                    child: Text(
-                      complaint.description,
-                      maxLines: 4,
-                      overflow: TextOverflow.ellipsis,
-                      style: context.text.bodyMedium?.copyWith(height: 1.45),
-                    ),
-                  ),
-                Divider(height: 1, thickness: 1, color: colors.outlineVariant),
-                Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: AppSpace.xs,
-                    vertical: AppSpace.xs,
-                  ),
-                  child: Row(
-                    children: [
-                      LikeButton(
-                        liked: complaint.likedByMe,
-                        count: complaint.likeCount,
-                        onTap: () => ref
-                            .read(complaintsFeedProvider.notifier)
-                            .toggleLike(complaint),
-                      ),
-                      const Spacer(),
-                      _CommentPill(
-                        count: complaint.commentCount,
-                        on: cardSurface,
-                        onTap: () => _openDetail(context, ref),
-                      ),
-                      const SizedBox(width: AppSpace.xs),
-                    ],
-                  ),
-                ),
-              ],
+              ),
             ),
           ),
         ),
@@ -217,63 +179,25 @@ class ComplaintPostCard extends ConsumerWidget {
   }
 }
 
-/// Foto principal a sangre con la cuenta de adjuntos encima.
-class _PhotoStrip extends StatelessWidget {
-  const _PhotoStrip({required this.photo, required this.total});
+/// Pista de navegación del pie: deja claro que la tarjeta se abre entera.
+class _OpenHint extends StatelessWidget {
+  const _OpenHint({required this.accent, required this.on});
 
-  final String photo;
-  final int total;
+  final Color accent;
+  final Color on;
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.colors;
-    return SizedBox(
-      height: 188,
-      width: double.infinity,
-      child: Stack(
-        fit: StackFit.expand,
-        children: [
-          Image.network(
-            photo,
-            fit: BoxFit.cover,
-            // Si la imagen no carga queda un hueco del tema (no negro/blanco
-            // fijos) con su ícono, para que la tarjeta no parezca rota.
-            errorBuilder: (_, _, _) => ColoredBox(
-              color: colors.surfaceContainerHighest,
-              child: Icon(
-                Icons.broken_image_outlined,
-                color: colors.onSurfaceVariant,
-              ),
-            ),
-          ),
-          if (total > 1)
-            Positioned(
-              right: AppSpace.sm,
-              bottom: AppSpace.sm,
-              // `inverseSurface` en vez de negro+blanco: la misma pastilla se
-              // lee en tema claro (oscura) y en oscuro (clara).
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  color: colors.inverseSurface.withValues(alpha: 0.88),
-                  borderRadius: BorderRadius.circular(AppRadius.pill),
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: AppSpace.sm,
-                    vertical: AppSpace.xs,
-                  ),
-                  child: Text(
-                    '+${total - 1} fotos',
-                    style: TextStyle(
-                      color: colors.onInverseSurface,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-        ],
+    final fill = AppColors.tint(accent, on, 0.12);
+    final ink = AppColors.legible(accent, fill);
+    return Tooltip(
+      message: 'Abrir reporte',
+      child: Container(
+        width: 30,
+        height: 30,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(color: fill, shape: BoxShape.circle),
+        child: Icon(Icons.arrow_forward_rounded, size: 16, color: ink),
       ),
     );
   }
@@ -287,20 +211,30 @@ class _CommentPill extends StatelessWidget {
   const _CommentPill({
     required this.count,
     required this.on,
+    required this.accent,
     required this.onTap,
   });
 
   final int count;
   final Color on;
+
+  /// Acento del motivo, solo para el fondo del pie.
+  final Color accent;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
     final lively = count > 0;
-    final accent = lively ? colors.primary : colors.onSurfaceVariant;
-    final fill = AppColors.tint(accent, on, lively ? 0.14 : 0);
-    final ink = AppColors.legible(accent, fill);
+    final tone = lively ? colors.primary : colors.onSurfaceVariant;
+    // El fondo siempre está: un pie con dos acciones de las cuales una es
+    // invisible deja el borde de la tarjeta cojo.
+    final fill = AppColors.tint(
+      lively ? tone : accent,
+      on,
+      lively ? 0.14 : 0.07,
+    );
+    final ink = AppColors.legible(tone, fill);
     return PressScale(
       child: InkWell(
         onTap: onTap,

@@ -1,36 +1,118 @@
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:lottie/lottie.dart';
 
 import '../animation/motion.dart';
-import '../config/env.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_theme.dart';
 import '../theme/typography.dart';
 import '../utils/extensions.dart';
-import 'urbano_logo.dart';
 
-/// Portada de arranque: pinta la identidad de Urbano sobre la app mientras esta
-/// termina de montar (el mapa y las ramas del shell) y se levanta sola.
+/// El mismo archivo que reproduce la splash NATIVA de Android
+/// (`android/app/src/main/assets/splash.json` es copia literal de este).
+const String _splashLottieAsset = 'assets/lottie/splash.json';
+
+/// La portada se dibuja con Lottie **solo en iOS**, y es una decisión forzada, no
+/// de gusto.
 ///
-/// No es un `Timer` ni una espera de red: la portada es una **línea de tiempo**
-/// de [_SplashCover.span] llevada por un `TweenAnimationBuilder`, así que bajo
-/// `flutter test` la avanza un `pump(duration)` cualquiera y `pumpAndSettle`
-/// converge en cuanto se levanta (nada queda montado ni con ticker abierto).
-/// Tampoco bloquea el diálogo nativo de ubicación: ese corre detrás, en la
-/// puerta de arranque, y la portada se quita igual a su ritmo.
+/// * Android: el JSON ya sonó antes de que Flutter existiera, en
+///   `SplashActivity` (Kotlin, `com.airbnb.android:lottie`). Volver a ponerlo aquí
+///   sería la segunda splash animada que el usuario ya rechazó: lo que sigue al
+///   handoff es la portada pintada de siempre, con su barra y su etapa real.
+/// * iOS: Apple **no permite animar** `LaunchScreen.storyboard` —el sistema lo
+///   instantánea antes de que la app corra y cualquier animación ahí se rechaza en
+///   la App Store—, así que la única manera de que el usuario vea movimiento es
+///   poner el Lottie en Flutter tan pronto como Flutter puede dibujar. La
+///   continuidad no la da el layout ni el timing: la da que el launch screen
+///   estático muestre EXACTAMENTE el frame 0 de este JSON sobre el mismo verde
+///   (`urbano_primary`), de modo que el cambio storyboard → Lottie no se lea como
+///   un corte.
 ///
-/// La coreografía es la marca, en este orden: los anillos de Santa Cruz se
-/// trazan desde la esquina inferior izquierda, una micro recorre su corredor
-/// y sale de pantalla, el logo llega andando (gesto propio de [UrbanoLogo]),
-/// el nombre sube desde abajo, la barra de carga se llena y la portada se
-/// desvanece con un empujón corto. Con «reducir animaciones» no hay portada: la
-/// app aparece directo, sin fundidos.
+/// Es `defaultTargetPlatform` y no `Platform.isIOS` a propósito: sin `dart:io` la
+/// rama sigue compilando en web, y bajo `flutter test` (Linux/CI) responde
+/// `android`, así que ningún test monta el Lottie —importante, porque su
+/// `repeat: true` es un `AnimationController` eterno y `pumpAndSettle` no
+/// convergería con él, el mismo motivo por el que [Ambient] se acota en tests.
+bool get _splashUsesLottie => defaultTargetPlatform == TargetPlatform.iOS;
+
+/// Etapa real del arranque, que es la que se lee bajo «Cargando».
+enum BootStage {
+  /// Detrás de la portada todavía no se montó la app.
+  warming('Preparando la app'),
+
+  /// La app ya corre; faltan los datos que el inicio va a mostrar.
+  fetching('Buscando rutas y horarios'),
+
+  /// Los datos respondieron mal o tardaron de más: se abre igual.
+  offline('Sin respuesta del servicio'),
+
+  /// Llegó todo: la portada está despidiéndose.
+  done('Todo listo');
+
+  const BootStage(this.label);
+
+  /// Texto de la etapa.
+  final String label;
+}
+
+/// Pantalla de carga de arranque: tapa la app mientras esta termina de montar
+/// (el mapa y las ramas del shell) y mientras llegan los datos del inicio, y se
+/// levanta sola cuando avisó que estaba lista.
+///
+/// Lo primero que se ve al abrir **es carga, no la marca**: girófono, etapa real
+/// y barra. La identidad sigue puesta, pero de fondo —el degradado de la marca,
+/// los anillos de Santa Cruz trazándose y el pie con la ciudad—, porque esa
+/// pantalla existe para decir «esto está tardando un poco», no para presentar
+/// Urbano. El logo y el nombre se ven dentro de la app (cabecera del inicio,
+/// «Acerca de»).
+///
+/// No es un `Timer` ni una espera de red arbitraria: la línea de tiempo es un
+/// `TweenAnimationBuilder` de **dos patas** (entrada hasta [_SplashCover.restT] y
+/// salida de ahí a 1) y la cortina solo se levanta cuando se cumplen LAS DOS:
+/// la entrada terminó **y** [SplashGate.ready] avisó. El orden importa:
+///
+///  * si el aviso llega en el frame 3, la portada no parpadea —cumple su piso y
+///    recién entonces sale;
+///  * si el aviso no llega nunca, el techo lo pone `bootCeiling` (el future de
+///    arranque se resuelve solo), así que un backend caído no deja al usuario
+///    encerrado detrás de una barra de carga.
+///
+/// El movimiento que dura lo que dure la espera (el giro del girófono, el barrido
+/// de la barra, la micro que cruza los anillos) sale de UN solo [Ambient], no de
+/// un controller por efecto.
+///
+/// Arranca en dos tiempos: el primer frame es SOLO portada y el hijo se monta en
+/// el siguiente. Si fuera al revés, el frame que despide el splash nativo pagaría
+/// todo el árbol (mapa incluido) y en pantalla quedaría el degradado verde
+/// estático hasta que la app termine de armarse.
+///
+/// Con «reducir animaciones» la portada **no desaparece**: se pinta una sola vez
+/// en su estado de reposo (anillos trazados, girófono y barra en su sitio) y se
+/// levanta en cuanto [ready] avisa, sin mover un píxel. La portada dice «estoy
+/// cargando», eso es información; lo que se quita con el ajuste del sistema es el
+/// movimiento. Omitirla entera dejaba al usuario solo con el campo verde del
+/// splash nativo, y en un Honor/Huawei con ahorro de energía encendido
+/// `MediaQuery.disableAnimations` es `true` sin que nadie lo pida: era el caso
+/// real.
 class SplashGate extends StatefulWidget {
-  const SplashGate({super.key, required this.child});
+  const SplashGate({super.key, required this.child, this.ready});
 
   final Widget child;
+
+  /// Señal de «la app ya tiene lo que hay que mostrar al abrir».
+  ///
+  /// Mientras no se resuelve, la portada se queda. El valor dice si el arranque
+  /// pudo traer algo de datos: `true` levanta la cortina con la etapa
+  /// [BootStage.done], `false` con [BootStage.offline] —porque una pantalla de
+  /// carga que miente es peor que una que avisa, pero ninguna de las dos deja al
+  /// usuario encerrado detrás.
+  ///
+  /// En `null` —el caso de los tests y de cualquier montaje que no tenga nada que
+  /// esperar— la portada cumple solo su coreografía y se levanta sola.
+  final Future<bool>? ready;
 
   @override
   State<SplashGate> createState() => _SplashGateState();
@@ -39,50 +121,184 @@ class SplashGate extends StatefulWidget {
 class _SplashGateState extends State<SplashGate> {
   bool _covering = true;
 
+  /// La app todavía no está en el árbol: primero pinta la portada, después se
+  /// monta el hijo.
+  bool _appStarted = false;
+  bool _startScheduled = false;
+
+  /// Las dos condiciones del levantado, por separado: `ready` puede llegar antes
+  /// de que la entrada termine, y la entrada puede terminar antes de `ready`.
+  bool _introDone = false;
+  bool _ready = true;
+  bool _failed = false;
+  bool _exiting = false;
+
   @override
-  Widget build(BuildContext context) => Stack(
-    fit: StackFit.expand,
-    children: [
-      widget.child,
-      // Sin «reducir animaciones» no hay portada ni fundido: el gesto completo
-      // es movimiento, no información.
-      // Fuera del árbol al terminar: sin opacidad 0 ni ticker esperando.
-      if (_covering && !Motion.reduced(context))
-        Positioned.fill(
-          child: _SplashCover(
-            onLifted: () => setState(() => _covering = false),
+  void initState() {
+    super.initState();
+    _ready = widget.ready == null;
+    // Una sola suscripción, y desde aquí: `provider.future` fabrica un future
+    // distinto en cada rebuild del composition root, así que escucharlo en
+    // `didUpdateWidget` re-armaría la cortina sobre el mismo dato. Vale el
+    // primer aviso.
+    widget.ready?.then(
+      (arrived) => _arrive(failed: !arrived),
+      onError: (Object _) => _arrive(failed: true),
+    );
+  }
+
+  void _arrive({required bool failed}) {
+    // El aviso puede llegar cuando la cortina ya se levantó (o cuando el árbol se
+    // tiró en un test): no hay ningún `setState` que hacer.
+    if (!mounted) return;
+    setState(() {
+      _ready = true;
+      _failed = failed;
+    });
+    _maybeLift();
+  }
+
+  /// Fin de una pata de la línea de tiempo: la entrada o la salida.
+  void _onLegEnd() {
+    if (_exiting) {
+      // Fuera del árbol al terminar: sin opacidad 0 ni ticker esperando, así que
+      // ningún `pumpAndSettle` posterior ve la portada.
+      setState(() => _covering = false);
+      return;
+    }
+    setState(() => _introDone = true);
+    _maybeLift();
+  }
+
+  /// La cortina sube con la entrada terminada **y** la app lista.
+  ///
+  /// El piso de tiempo lo pone la propia entrada (`_introSpan` de la portada): si
+  /// [SplashGate.ready] llega en el frame 3 la cortina no parpadea, cumple su
+  /// coreografía y recién entonces sale.
+  void _maybeLift() {
+    if (_exiting || !_introDone || !_ready) return;
+    setState(() => _exiting = true);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_startScheduled) {
+      _startScheduled = true;
+      // El primer frame de Flutter es el que despide el splash nativo. Si ahí
+      // se construye `widget.child`, ese frame paga el mapa (plataforma nativa)
+      // y las ramas del shell, y lo único que se ve durante esa pausa es el
+      // campo verde de `launch_background.xml`: la pantalla de carga nunca llega
+      // a pantalla. Se difiere el montaje un frame para que la portada quede
+      // pintada primero; el mapa se sigue construyendo detrás de ella, que es
+      // exactamente lo que esta puerta tapa. Se difiere SIEMPRE, también con
+      // «reducir animaciones», porque la portada estática cumple la misma
+      // función.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) setState(() => _appStarted = true);
+      });
+    }
+
+    final mediaQuery =
+        MediaQuery.maybeOf(context) ??
+        MediaQueryData.fromView(View.of(context));
+    final theme = Theme.of(context);
+    final reduced = Motion.reduced(context);
+    // La etapa no se inventa: sale de lo que el estado del arranque ya sabe.
+    final stage = _exiting
+        ? (_failed ? BootStage.offline : BootStage.done)
+        : (_appStarted ? BootStage.fetching : BootStage.warming);
+
+    return MediaQuery(
+      data: mediaQuery,
+      child: Directionality(
+        textDirection: TextDirection.ltr,
+        child: Theme(
+          data: theme,
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              if (_appStarted) widget.child,
+              // Fuera del árbol al terminar: sin opacidad 0 ni ticker esperando.
+              if (_covering)
+                Positioned.fill(
+                  child: _SplashCover(
+                    stage: stage,
+                    exiting: _exiting,
+                    reduced: reduced,
+                    onLegEnd: _onLegEnd,
+                  ),
+                ),
+            ],
           ),
         ),
-    ],
-  );
+      ),
+    );
+  }
 }
 
-/// La portada en sí: un solo `TweenAnimationBuilder` (t = 0..1 del total) del
-/// que salen TODAS las ventanas de la coreografía, para que no haya un
-/// controller por efecto.
+/// La pantalla de carga en sí: TODAS las ventanas salen de un solo
+/// `TweenAnimationBuilder` con dos patas —entrada (hasta [restT]) y salida (de
+/// [restT] a 1)—, y lo que se mueve mientras la app tarda lo mueve un único
+/// [Ambient] (el del girófono, el de la barra y el de la micro sobre los
+/// anillos), para que no haya un controller por efecto.
 class _SplashCover extends StatelessWidget {
-  const _SplashCover({required this.onLifted});
+  const _SplashCover({
+    required this.stage,
+    required this.exiting,
+    required this.reduced,
+    required this.onLegEnd,
+  });
 
-  /// Se llama al terminar el último frame de la salida.
-  final VoidCallback onLifted;
+  /// Etapa que se lee bajo «Cargando».
+  final BootStage stage;
 
-  /// Duración total: lo que tarda la micro en cruzar su anillo.
-  static const Duration span = Duration(milliseconds: 1500);
+  /// `true` en cuanto la entrada terminó y la app avisó: la pata que viene es la
+  /// salida, y su fin es el levantado de la cortina.
+  final bool exiting;
 
-  // Ventanas, en fracción del total.
-  static const double _ringsBegin = 0;
-  static const double _ringsEnd = 0.68;
-  static const double _busBegin = 0.06;
-  static const double _busEnd = 0.96;
-  static const double _typeBegin = 0.3;
-  static const double _typeEnd = 0.6;
-  static const double _pingBegin = 0.44;
-  static const double _pingEnd = 0.92;
-  static const double _barBegin = 0.34;
-  static const double _barEnd = 0.86;
-  static const double _footBegin = 0.5;
-  static const double _footEnd = 0.78;
-  static const double _exitBegin = 0.86;
+  /// «Reducir animaciones» del sistema: se ignora el valor animado y se pinta
+  /// [restT] congelado (la cortina se levanta igual, con su reloj).
+  final bool reduced;
+
+  /// Se llama al terminar el último frame de cada pata.
+  final VoidCallback onLegEnd;
+
+  /// Una vuelta del ambiente: lo que tarda el girófono en dar la vuelta —y la
+  /// micro en cruzar los anillos, porque comparten reloj.
+  static const Duration _lap = Duration(milliseconds: 1400);
+
+  /// Duración de la pata de salida.
+  static const Duration _outSpan = Motion.transition;
+
+  /// Piso de la portada: lo que tarda la entrada en pintarse. Nunca es tiempo de
+  /// espera añadido a la red —la red trabaja desde el frame 1, detrás de la
+  /// cortina—, es el mínimo para que la pantalla de carga no sea un parpadeo.
+  static const Duration _introSpan = Duration(milliseconds: 900);
+
+  /// La portada **entra ya pintada**: la línea de tiempo arranca en [_startT]
+  /// y no en 0.
+  ///
+  /// Antes de que Flutter pueda dibujar hay ~0.7 s de portada nativa (el SO la
+  /// mantiene hasta el primer frame) y su fondo es la misma laguna del degradado.
+  /// Si los primeros 300 ms de la coreografía fueran campo vacío —letra en
+  /// opacidad 0, barra sin rellenar, anillos sin trazar— el ojo no registra
+  /// ningún corte y sigue viendo «solo verde». Empezando en [_startT], el frame
+  /// 1 ya trae girófono, «Cargando», etapa y barra en curso: lo primero que se ve
+  /// es la carga.
+  static const double _startT = 0.14;
+
+  /// Meseta de la línea de tiempo: donde la entrada termina y empieza la espera.
+  /// De aquí a 1 no hay nada más que la salida, así que [stage] y el reposo
+  /// pintado son siempre coherentes.
+  static const double restT = 0.62;
+
+  // Ventanas, en fracción del total. Las de texto cierran muy pronto para que el
+  // frame 1 ya sea legible; lo que se toma su tiempo son los anillos y la barra.
+  static const double _blockBegin = 0;
+  static const double _blockEnd = 0.26;
+  static const double _barBegin = 0.02;
+  static const double _footBegin = 0.02;
+  static const double _footEnd = 0.14;
 
   /// Chrome del sistema sobre el degradado de marca: la portada es siempre
   /// superficie oscura, así que letra y íconos de la barra van en claro.
@@ -105,25 +321,53 @@ class _SplashCover extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final text = context.text;
     final screen = MediaQuery.sizeOf(context);
-    // El logo manda: 24 % del lado menor, acotado para que ni un reloj ni una
-    // tablet lo estiren.
-    final logoSize = (math.min(screen.width, screen.height) * 0.24).clamp(
-      76.0,
-      112.0,
+    // Girófono: la mitad del logo que había antes. Es la pieza que dice
+    // «cargando», pero no es el protagonista de la pantalla ni de la marca.
+    final dial = (math.min(screen.width, screen.height) * 0.15).clamp(
+      58.0,
+      84.0,
     );
+    // En iOS el giro lo trae el JSON, y ahí dentro el aro mide 104 de 360 (0,29
+    // del lienzo): para que el aro se vea del mismo tamaño que el pintado, el
+    // lienzo tiene que medir ~3,4 veces la medida antigua. Se queda en 0,40 del
+    // lado menor (≈2,6 del `dial`) para no comerse la pantalla, y ese 0,40 es el
+    // MISMO número que lleva la constraint de ancho del `LaunchScreen.storyboard`:
+    // el launch screen estático tiene que dibujar el frame 0 donde el Lottie lo va
+    // a reproducir. Si se cambia uno, se cambia el otro.
+    final lottieSide = math.min(screen.width, screen.height) * 0.40;
+    final withLottie = _splashUsesLottie;
 
     return TweenAnimationBuilder<double>(
-      tween: Tween<double>(begin: 0, end: 1),
-      // La puerta ya decide no montar la portada con «reducir animaciones», así
-      // que aquí la duración siempre es real: `Duration.zero` completaría la
-      // animación dentro de `initState` y `onEnd` caería como un `setState`
-      // durante el build del padre.
-      duration: span,
-      onEnd: onLifted,
-      builder: (context, t, _) {
-        final exit = _win(t, _exitBegin, 1.0, Curves.easeInCubic);
+      // Dos patas sobre el mismo ticker: cambiar `end` (de la meseta a 1) rearma
+      // el tween desde el valor actual, así la salida no salta.
+      //
+      // El `begin` NO se cambia nunca con «reducir animaciones»: si `begin == end`
+      // el `TweenAnimationBuilder` ni arranca, no dispara `onEnd` y la cortina se
+      // queda montada para siempre. En modo reducido lo que se congela es lo
+      // PINTADO (`t` se fija en [restT] abajo), no el reloj —y el reloj es
+      // justamente la única manera que tiene la portada de saber que terminó.
+      tween: Tween<double>(begin: _startT, end: exiting ? 1.0 : restT),
+      // Con «reducir animaciones» la portada no se mueve: solo corre el reloj que
+      // la levanta. `Duration.zero` completaría la animación dentro de
+      // `initState` y `onEnd` caería como un `setState` durante el build del
+      // padre, así que la duración siempre es real.
+      duration: exiting ? _outSpan : (reduced ? Motion.settle : _introSpan),
+      onEnd: onLegEnd,
+      builder: (context, value, _) {
+        // En modo reducido el valor animado se ignora: `t` no cambia jamás, así
+        // que ni el girófono, ni el barrido, ni los anillos se mueven.
+        final double t = reduced ? restT : value;
+        final double exit = _win(t, restT, 1.0, Curves.easeInCubic);
+        final double block = _win(t, _blockBegin, _blockEnd);
+        final double rings = _win(t, _blockBegin, restT);
+        final double foot = _win(t, _footBegin, _footEnd);
+        // Media barra mientras se espera (la espera es indeterminada: nadie sabe
+        // cuánto falta) y la otra media cuando la carga efectivamente terminó.
+        final double fill =
+            0.5 * _win(t, _barBegin, restT, Curves.linear) +
+            0.5 * _win(t, restT, 1.0);
+
         return AnnotatedRegion<SystemUiOverlayStyle>(
           value: _chrome,
           child: Opacity(
@@ -132,59 +376,60 @@ class _SplashCover extends StatelessWidget {
               scale: 1 + 0.06 * exit,
               child: DecoratedBox(
                 decoration: const BoxDecoration(gradient: urbanoGradient),
-                child: Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    CustomPaint(
-                      painter: _RingsPainter(
-                        draw: _win(t, _ringsBegin, _ringsEnd),
-                        // Crucero constante: con una curva salida-antes la
-                        // micro se salía del lienzo a mitad de la portada.
-                        travel: _win(t, _busBegin, _busEnd, Curves.linear),
-                      ),
-                    ),
-                    SafeArea(
-                      // Un poco más arriba del centro: el tercio inferior es de
-                      // los anillos y de la micro que los recorre.
-                      child: Align(
-                        alignment: const Alignment(0, -0.22),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            _Badge(
-                              size: logoSize,
-                              ping: _win(t, _pingBegin, _pingEnd),
-                            ),
-                            const SizedBox(height: AppSpace.xl),
-                            _Wordmark(
-                              rise: _win(t, _typeBegin, _typeEnd),
-                              style: text,
-                            ),
-                            const SizedBox(height: AppSpace.xl),
-                            _Loader(fill: _win(t, _barBegin, _barEnd)),
-                          ],
+                child: Ambient(
+                  period: _lap,
+                  // Un solo reloj para todo lo que espera: `spin` gira el
+                  // girófono, barre la barra y lleva la micro por su anillo.
+                  builder: (context, _, spin, _) => Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      // En iOS el JSON YA trae sus tres anillos: pintar encima los
+                      // de la ciudad sería doble animar el mismo motivo, y eso se
+                      // ve barato. El fondo pintado queda para Android.
+                      if (!withLottie)
+                        CustomPaint(
+                          painter: _RingsPainter(draw: rings, travel: spin),
                         ),
-                      ),
-                    ),
-                    Positioned(
-                      left: AppSpace.lg,
-                      right: AppSpace.lg,
-                      bottom:
-                          AppSpace.lg + MediaQuery.paddingOf(context).bottom,
-                      child: Opacity(
-                        opacity: _win(t, _footBegin, _footEnd),
-                        child: Text(
-                          'Santa Cruz de la Sierra · datos GTFS',
-                          textAlign: TextAlign.center,
-                          style: text.labelSmall?.copyWith(
-                            color: Colors.white.withValues(alpha: 0.62),
-                            fontWeight: AppTypography.semiBold,
-                            letterSpacing: 0.6,
+                      SafeArea(
+                        // Un poco más arriba del centro: el tercio inferior es de
+                        // los anillos y de la micro que los recorre.
+                        child: Align(
+                          alignment: const Alignment(0, -0.22),
+                          child: _LoadingBlock(
+                            stage: stage,
+                            rise: block,
+                            spin: spin,
+                            fill: fill,
+                            exit: exit,
+                            leader: withLottie
+                                ? _SplashLottie(
+                                    size: lottieSide,
+                                    animating: !reduced,
+                                  )
+                                : _Dial(size: dial, turn: spin),
                           ),
                         ),
                       ),
-                    ),
-                  ],
+                      Positioned(
+                        left: AppSpace.lg,
+                        right: AppSpace.lg,
+                        bottom:
+                            AppSpace.lg + MediaQuery.paddingOf(context).bottom,
+                        child: Opacity(
+                          opacity: foot,
+                          child: Text(
+                            'Santa Cruz de la Sierra · datos GTFS',
+                            textAlign: TextAlign.center,
+                            style: context.text.labelSmall?.copyWith(
+                              color: Colors.white.withValues(alpha: 0.62),
+                              fontWeight: AppTypography.semiBold,
+                              letterSpacing: 0.6,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -195,89 +440,214 @@ class _SplashCover extends StatelessWidget {
   }
 }
 
-/// Logo + sonar: un anillo que se expande una sola vez cuando la micro aterriza
-/// (es el gesto de "llegó", no un pulso eterno).
-class _Badge extends StatelessWidget {
-  const _Badge({required this.size, required this.ping});
+/// Bloque de carga: girófono, «Cargando», la etapa real y la barra.
+class _LoadingBlock extends StatelessWidget {
+  const _LoadingBlock({
+    required this.stage,
+    required this.rise,
+    required this.spin,
+    required this.fill,
+    required this.exit,
+    required this.leader,
+  });
 
-  final double size;
+  final BootStage stage;
 
-  /// 0..1 del anillo que sale.
-  final double ping;
+  /// 0..1 de la entrada del bloque (opacidad + subida corta).
+  final double rise;
+
+  /// Fase del ambiente en curso (`0..1` de la vuelta): sigue barriendo la barra
+  /// incluso en iOS, donde el giro lo pone el JSON.
+  final double spin;
+
+  /// 0..1 del relleno de la barra.
+  final double fill;
+
+  /// 0..1 de la salida: apaga el barrido para que la barra llena se lea limpia.
+  final double exit;
+
+  /// La pieza que dice «esto se está moviendo»: el girófono pintado en Android /
+  /// desktop / web, el Lottie en iOS. Es un `Widget` y no un `bool` porque el
+  /// tamaño y el reloj de cada uno se deciden fuera, en la portada.
+  final Widget leader;
 
   @override
-  Widget build(BuildContext context) => Stack(
-    clipBehavior: Clip.none,
-    alignment: Alignment.center,
-    children: [
-      Transform.scale(
-        scale: 0.78 + 1.5 * ping,
-        child: Opacity(
-          opacity: (1 - ping) * 0.55,
-          child: Container(
-            width: size,
-            height: size,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              border: Border.all(
-                color: Colors.white.withValues(alpha: 0.6),
-                width: 1.4,
-              ),
+  Widget build(BuildContext context) {
+    final text = context.text;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        leader,
+        const SizedBox(height: AppSpace.xl),
+        Transform.translate(
+          offset: Offset(0, (1 - rise) * AppSpace.md),
+          child: Opacity(
+            opacity: rise,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Cargando',
+                  style: text.titleMedium?.copyWith(
+                    color: Colors.white,
+                    fontWeight: AppTypography.semiBold,
+                    letterSpacing: 1.2,
+                  ),
+                ),
+                const SizedBox(height: AppSpace.sm),
+                Text(
+                  stage.label,
+                  // La etapa es la que cambia con el arranque real: su key fija
+                  // permite medirla en los tests sin adivinar por el estilo.
+                  key: const ValueKey('splash-stage'),
+                  style: text.titleSmall?.copyWith(
+                    color: Colors.white.withValues(alpha: 0.78),
+                  ),
+                ),
+              ],
             ),
           ),
         ),
-      ),
-      UrbanoLogo(size: size),
-    ],
-  );
+        const SizedBox(height: AppSpace.xl),
+        _Loader(fill: fill, sweep: spin, sweepFade: 1 - exit),
+      ],
+    );
+  }
 }
 
-/// Nombre y bajada, que suben desde abajo con su propio `Reveal` de ventana.
-class _Wordmark extends StatelessWidget {
-  const _Wordmark({required this.rise, required this.style});
+/// La portada de iOS: el mismo Lottie que en Android suena en Kotlin.
+///
+/// Por qué existe este widget y no un launch screen animado: Apple captura el
+/// storyboard ANTES de que la app tenga proceso, y una animación ahí (o un
+/// `UIImageView` que se mueva con código en `AppDelegate` antes del primer frame
+/// de Flutter) es motivo de rechazo en la App Store. La única posición legal es
+/// estática, así que el truco es que estática y animación sean LA MISMA IMAGEN: el
+/// launch screen lleva el frame 0 del JSON (`LaunchScreen.storyboard` con
+/// `SplashStartFrame`, color `urbano_primary`) y en cuanto Flutter puede dibujar
+/// este widget arranca ese mismo frame desde el frame 0. El ojo no ve un corte por
+/// continuidad de layout, sino porque no cambia nada: mismo verde, mismo aro,
+/// misma micro en el mismo ángulo.
+///
+/// Con `animating` en `false` («reducir animaciones») el widget pinta el frame 0 y
+/// se queda ahí: exactamente lo que el launch screen venía mostrando, así que el
+/// cambio sigue siendo invisible.
+class _SplashLottie extends StatelessWidget {
+  const _SplashLottie({required this.size, required this.animating});
 
-  /// 0..1 de la entrada.
-  final double rise;
-  final TextTheme style;
+  /// Lado del lienzo cuadrado (el JSON es 360x360).
+  final double size;
+
+  /// `false` bajo `MediaQuery.disableAnimations`: quieto en el frame 0.
+  final bool animating;
 
   @override
-  Widget build(BuildContext context) => Transform.translate(
-    offset: Offset(0, (1 - rise) * AppSpace.lg),
-    child: Opacity(
-      opacity: rise,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            Env.appName.toUpperCase(),
-            style: AppTypography.wordmark(
-              style.displaySmall?.copyWith(
-                color: Colors.white,
-                letterSpacing: 3.2,
-              ),
-            ),
-          ),
-          const SizedBox(height: AppSpace.sm),
-          Text(
-            Env.tagline,
-            style: style.labelLarge?.copyWith(
-              color: Colors.white.withValues(alpha: 0.88),
-              letterSpacing: 0.4,
-            ),
-          ),
-        ],
-      ),
-    ),
+  Widget build(BuildContext context) => Lottie.asset(
+    _splashLottieAsset,
+    width: size,
+    height: size,
+    fit: BoxFit.contain,
+    animate: animating,
+    // La espera real la manda `bootReadinessProvider`, que no sabe de duraciones:
+    // si el JSON diera una sola vuelta y se apagara, la portada volvería a un
+    // logo estático en medio de la carga, que es peor que no animar.
+    repeat: true,
+    // Key fija para que un test (o el simulador) pueda localizar la portada de
+    // iOS sin depender del tipo interno del paquete `lottie`.
+    key: const ValueKey('splash-lottie'),
   );
 }
 
-/// Barra de arranque: una cápsula que se llena de coral hasta el borde mismo de
-/// la portada (se completa justo cuando se levanta).
-class _Loader extends StatelessWidget {
-  const _Loader({required this.fill});
+/// Girófono de carga: un arco de coral dando vueltas sobre una pista tenue.
+///
+/// A propósito NO es un `CircularProgressIndicator`: ese trae su propio ticker
+/// eterno y `pumpAndSettle` no converge con él montado (y un spinner clavado en
+/// reposo no sirve). Aquí el giro lo presta el [Ambient] de la portada y el
+/// pintor es `const`, así que cada frame cuesta una rotación de matriz y nada de
+/// re-pintado.
+class _Dial extends StatelessWidget {
+  const _Dial({required this.size, required this.turn});
 
-  /// 0..1 del relleno.
+  final double size;
+
+  /// 0..1 de la vuelta en curso.
+  final double turn;
+
+  @override
+  Widget build(BuildContext context) => Transform.rotate(
+    angle: turn * 2 * math.pi,
+    child: CustomPaint(size: Size.square(size), painter: const _DialPainter()),
+  );
+}
+
+class _DialPainter extends CustomPainter {
+  const _DialPainter();
+
+  /// Barrido del arco principal (coral): un poco menos de media vuelta, para que
+  /// la punta y la cola se distingan.
+  static const double _headSweep = math.pi * 1.15;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final stroke = size.shortestSide * 0.085;
+    final ring = Rect.fromLTWH(
+      stroke,
+      stroke,
+      size.width - 2 * stroke,
+      size.height - 2 * stroke,
+    );
+
+    // Pista: el círculo completo, apenas insinuado.
+    canvas.drawArc(
+      ring,
+      0,
+      2 * math.pi,
+      false,
+      Paint()
+        ..color = Colors.white.withValues(alpha: 0.18)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = stroke,
+    );
+
+    final arc = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = stroke
+      ..strokeCap = StrokeCap.round;
+    canvas.drawArc(ring, 0, _headSweep, false, arc..color = AppColors.accent);
+    // Rastro aqua, más corto y tenue: el giro se lee incluso congelado (bajo
+    // «reducir animaciones» el girófono no gira, pero sigue diciendo «carga»).
+    canvas.drawArc(
+      ring,
+      _headSweep,
+      math.pi * 0.32,
+      false,
+      arc..color = AppColors.aqua.withValues(alpha: 0.6),
+    );
+  }
+
+  @override
+  bool shouldRepaint(_DialPainter oldDelegate) => false;
+}
+
+/// Barra de arranque: una cápsula que se llena al levantarse la cortina, con un
+/// tramo claro barriendo de izquierda a derecha mientras la espera dura.
+class _Loader extends StatelessWidget {
+  const _Loader({
+    required this.fill,
+    required this.sweep,
+    required this.sweepFade,
+  });
+
+  /// 0..1 del relleno de coral.
   final double fill;
+
+  /// Fase del ambiente: de dónde sale y a dónde entra el barrido.
+  final double sweep;
+
+  /// 0 = barrido apagado (la salida ya empezó: la barra se llena sola).
+  final double sweepFade;
+
+  /// Ancho del tramo que barre, en fracción de la barra.
+  static const double _glider = 0.34;
 
   @override
   Widget build(BuildContext context) => SizedBox(
@@ -288,18 +658,49 @@ class _Loader extends StatelessWidget {
         color: Colors.white.withValues(alpha: 0.2),
         borderRadius: BorderRadius.circular(AppRadius.pill),
       ),
-      child: Align(
-        alignment: Alignment.centerLeft,
-        child: FractionallySizedBox(
-          widthFactor: fill,
-          heightFactor: 1,
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              color: AppColors.accent,
-              borderRadius: BorderRadius.circular(AppRadius.pill),
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          Align(
+            alignment: Alignment.centerLeft,
+            child: FractionallySizedBox(
+              // La barra es la única prueba de progreso que leen los tests: su
+              // key la separa del barrido (otro `FractionallySizedBox`).
+              key: const ValueKey('splash-loader-fill'),
+              widthFactor: fill,
+              heightFactor: 1,
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  color: AppColors.accent,
+                  borderRadius: BorderRadius.circular(AppRadius.pill),
+                ),
+              ),
             ),
           ),
-        ),
+          if (sweepFade > 0)
+            Align(
+              alignment: Alignment(-1 + 2 * sweep, 0),
+              child: FractionallySizedBox(
+                widthFactor: _glider,
+                heightFactor: 1,
+                child: Opacity(
+                  opacity: sweepFade,
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [
+                          Colors.transparent,
+                          Colors.white70,
+                          Colors.transparent,
+                        ],
+                      ),
+                      borderRadius: BorderRadius.circular(AppRadius.pill),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+        ],
       ),
     ),
   );
@@ -309,9 +710,12 @@ class _Loader extends StatelessWidget {
 /// una unidad que recorre su corredor y sale de pantalla.
 ///
 /// Mismo lenguaje que la trama del header (los anillos pintados de la
-/// cabecera del inicio) pero a escala pantalla y **sin bucle**: la portada vive
-/// [_SplashCover.span], así que todo se resuelve en un solo paso y en reposo no
-/// queda nada flotando.
+/// cabecera del inicio) pero a escala pantalla. El trazado (`draw`) es de una
+/// sola vez —es la portada presentando el mapa de la ciudad—, mientras que la
+/// unidad (`travel`) rueda **en bucle** mientras la carga dura: el [Ambient] de
+/// la portada le presta su fase, así que no hay un segundo ticker ni un reloj
+/// paralelo. Como el corredor entra y sale por fuera del lienzo, al empezar y al
+/// terminar cada vuelta no queda ninguna micro flotando.
 class _RingsPainter extends CustomPainter {
   const _RingsPainter({required this.draw, required this.travel});
 
@@ -333,7 +737,7 @@ class _RingsPainter extends CustomPainter {
 
   /// El corredor por el que rueda la unidad: con radio 0.44 del lado mayor, el
   /// arco entra libre por el borde izquierdo y sale por la esquina inferior
-  /// derecha justo al final de la línea de tiempo (nada queda flotando).
+  /// derecha, así que en los extremos de la vuelta no hay nada dibujado.
   static const int _lane = 1;
 
   @override
@@ -411,8 +815,8 @@ class _RingsPainter extends CustomPainter {
     }
 
     // 3 · La unidad: arranca FUERA del lienzo (por arriba del borde izquierdo)
-    //    y sale por la esquina inferior derecha, así que en t = 0 no hay nada
-    //    dibujado y en reposo (travel = 1) no queda ninguna micro flotando.
+    //    y sale por la esquina inferior derecha, así que en los extremos de la
+    //    vuelta no hay nada dibujado y nunca queda una micro flotando.
     final laneRadius = _radii[_lane] * side;
     final angle = _fromAngle - 0.18 + (_sweepAngle + 0.36) * travel;
     final spot = center + Offset(math.cos(angle), math.sin(angle)) * laneRadius;

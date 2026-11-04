@@ -17,6 +17,11 @@ import '../home_providers.dart';
 /// Si el backend trae una ruta con `shape`, se dibuja su polilínea y la
 /// cámara se encuadra sobre ella (el mapa sigue siendo decorativo:
 /// `interactive: false`).
+///
+/// La tarjeta se enmarca en el **degradado de la marca** (3 px de orilla) para
+/// que el mapa no sea un rectángulo más del lienzo: es la ventana de Urbano a
+/// la ciudad. El botón de abajo es una píldora con su etiqueta, no un cuadrito
+/// con un ícono que había que adivinar.
 class FeaturedMapCard extends ConsumerStatefulWidget {
   const FeaturedMapCard({super.key});
 
@@ -66,130 +71,185 @@ class _FeaturedMapCardState extends ConsumerState<FeaturedMapCard> {
     // La entrada en cascada la pone el home; el pulsado, aquí.
     return PressScale(
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 24, 16, 0),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(AppRadius.lg),
-          child: Material(
-            color: colors.surface,
-            child: InkWell(
-              // `go`, no `push`: así la pestaña Viaje conmuta de verdad y la
-              // barra inferior la refleja (un `push` abriría esta pantalla
-              // ENCIMA del shell y la barra quedaba rezagada en Inicio).
-              onTap: () => context.go('/journey'),
-              child: SizedBox(
-                height: 190,
-                // El mapa de la tarjeta usa el tile elegido por el usuario; el
-                // scrub, el texto y el ícono siguen el tema de la app.
-                child: Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    UrbanoMap(
-                      controller: _controller,
-                      center: FeaturedMapCard._santaCruz,
-                      zoom: 11.5,
-                      interactive: false,
-                      attribution: false,
-                      polylines: shape == null
-                          ? const <MapPolyline>[]
-                          : [
-                              MapPolyline(
-                                points: shape.points,
-                                color: AppColors.fromHex(shape.colorHex),
-                                outline: true,
-                              ),
+        padding: const EdgeInsets.symmetric(horizontal: AppSpace.lg),
+        child: Container(
+          // Filo de marca: dos rectángulos concéntricos (el de afuera pinta el
+          // degradado y el de adentro recorta el mapa 3 px más chico).
+          padding: const EdgeInsets.all(3),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(AppRadius.lg + 3),
+            gradient: const LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                AppColors.aqua,
+                AppColors.primary,
+                AppColors.primaryDark,
+              ],
+              stops: [0, 0.55, 1],
+            ),
+            boxShadow: AppTheme.softShadow(
+              color: AppColors.primary,
+              opacity: 0.24,
+              blur: 26,
+              dy: 12,
+            ),
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(AppRadius.lg),
+            child: Material(
+              color: colors.surface,
+              child: InkWell(
+                // `go`, no `push`: así la pestaña Viaje conmuta de verdad y la
+                // barra inferior la refleja (un `push` abriría esta pantalla
+                // ENCIMA del shell y la barra quedaba rezagada en Inicio).
+                onTap: () => context.go('/journey'),
+                child: SizedBox(
+                  height: 190,
+                  // El mapa de la tarjeta usa el tile elegido por el usuario; el
+                  // scrub, el texto y el ícono siguen el tema de la app.
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      UrbanoMap(
+                        controller: _controller,
+                        center: FeaturedMapCard._santaCruz,
+                        zoom: 11.5,
+                        interactive: false,
+                        attribution: false,
+                        polylines: shape == null
+                            ? const <MapPolyline>[]
+                            : [
+                                MapPolyline(
+                                  points: shape.points,
+                                  color: AppColors.fromHex(shape.colorHex),
+                                  outline: true,
+                                ),
+                              ],
+                      ),
+                      DecoratedBox(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: [
+                              Colors.transparent,
+                              Colors.black.withValues(alpha: 0.74),
                             ],
-                    ),
-                    DecoratedBox(
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
-                          colors: [
-                            Colors.transparent,
-                            Colors.black.withValues(alpha: 0.72),
-                          ],
+                          ),
                         ),
                       ),
-                    ),
-                    Positioned(
-                      left: 16,
-                      right: 16,
-                      bottom: 14,
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        children: [
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'Explora Santa Cruz en el mapa',
-                                  style: text.titleSmall?.copyWith(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.w800,
+                      Positioned(
+                        left: AppSpace.lg,
+                        right: AppSpace.md,
+                        bottom: AppSpace.md,
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Explora Santa Cruz en el mapa',
+                                    maxLines: 2,
+                                    style: text.titleMedium?.copyWith(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.w900,
+                                      height: 1.15,
+                                      letterSpacing: -0.3,
+                                    ),
                                   ),
-                                ),
-                                const SizedBox(height: 2),
-                                Row(
-                                  children: [
-                                    // Punto vivo junto al recuento: dice «esto
-                                    // está leído del feed, ahora» sin agregar
-                                    // texto nuevo.
-                                    const _CoverageDot(),
-                                    const SizedBox(width: 12),
-                                    Flexible(
-                                      child: Text(
-                                        stats.when(
-                                          data: (s) => '${s.routes} rutas',
-                                          loading: () => 'Cargando cobertura…',
-                                          error: (_, _) =>
-                                              'Mapa interactivo de la ciudad',
-                                        ),
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: text.labelSmall?.copyWith(
-                                          color: Colors.white.withValues(
-                                            alpha: 0.85,
+                                  const SizedBox(height: AppSpace.xs + 2),
+                                  Row(
+                                    children: [
+                                      // Punto vivo junto al recuento: dice
+                                      // «esto está leído del feed, ahora» sin
+                                      // agregar texto nuevo.
+                                      const _CoverageDot(),
+                                      const SizedBox(width: AppSpace.md),
+                                      Flexible(
+                                        child: Text(
+                                          stats.when(
+                                            data: (s) => '${s.routes} rutas',
+                                            loading: () =>
+                                                'Cargando cobertura…',
+                                            error: (_, _) =>
+                                                'Mapa interactivo de la ciudad',
+                                          ),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: text.labelSmall?.copyWith(
+                                            color: Colors.white.withValues(
+                                              alpha: 0.85,
+                                            ),
                                           ),
                                         ),
                                       ),
-                                    ),
-                                  ],
-                                ),
-                              ],
-                            ),
-                          ),
-                          Container(
-                            width: 42,
-                            height: 42,
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(
-                                AppRadius.input,
+                                    ],
+                                  ),
+                                ],
                               ),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withValues(alpha: 0.25),
-                                  blurRadius: 12,
-                                  offset: const Offset(0, 4),
-                                ),
-                              ],
                             ),
-                            child: Icon(
-                              Icons.map_rounded,
-                              color: colors.primary,
-                              size: 22,
-                            ),
-                          ),
-                        ],
+                            const SizedBox(width: AppSpace.sm),
+                            const _PlanPill(),
+                          ],
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// Píldora de acción de la tarjeta: dice qué pasa si se toca.
+class _PlanPill extends StatelessWidget {
+  const _PlanPill();
+
+  @override
+  Widget build(BuildContext context) {
+    // Sobre el scrub oscuro del mapa el fondo más seguro es el blanco medido
+    // con [AppColors.onColor], no un `Colors.white` de memoria; la tinta verde
+    // se ajusta contra ESE blanco.
+    final bg = AppColors.onColor(Colors.black);
+    final ink = AppColors.legible(AppColors.primary, bg);
+    return Container(
+      padding: const EdgeInsets.fromLTRB(
+        AppSpace.md,
+        AppSpace.sm + 1,
+        AppSpace.md,
+        AppSpace.sm + 1,
+      ),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(AppRadius.pill),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.24),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.route_rounded, size: 16, color: ink),
+          const SizedBox(width: AppSpace.xs + 2),
+          Text(
+            'Planificar',
+            style: context.text.labelMedium?.copyWith(
+              color: ink,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ],
       ),
     );
   }
