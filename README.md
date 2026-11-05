@@ -7,7 +7,7 @@
 **Muévete por Santa Cruz.** 🚌
 
 Planificador de micros urbanos de Santa Cruz de la Sierra, Bolivia.
-Tu línea, tu mapa y tu viaje — con datos reales del feed GTFS.
+Tu línea, tu mapa, tu viaje y tu voz — con datos reales del feed GTFS.
 Flutter (Android · iOS · Web) + backend NestJS.
 
 [![CI](https://github.com/aagr21/urbano/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/aagr21/urbano/actions/workflows/ci.yml)&nbsp;
@@ -18,6 +18,16 @@ Flutter (Android · iOS · Web) + backend NestJS.
 [![GTFS](https://img.shields.io/badge/GTFS-Micros%20Santa%20Cruz-F59E0B)](docs/gtfs-dataset.md)
 
 </div>
+
+---
+
+## 📋 Índice
+
+- [Características](#-características)
+- [Arranque rápido](#-arranque-rápido)
+- [Verificación](#-verificación)
+- [Cómo está construido](#-cómo-está-construido-para-quien-desarrolla)
+- [Licencia](#-licencia)
 
 ---
 
@@ -36,6 +46,9 @@ Flutter (Android · iOS · Web) + backend NestJS.
   queda; la coordenada devuelta es siempre la que se ve.
 - **⚡ GPS con estados reales** — GPS apagado / permiso pendiente / bloqueado /
   listo, con flujo guiado a los ajustes del sistema.
+- **📣 La voz del pasajero** — quejas anónimas atadas a un micro: adjunta fotos,
+  elige el motivo (cuyo color es el mismo con el que se lista en el feed) y la
+  comunidad las sostiene con **apoyo** e hilos de comentarios.
 - **🎨 Identidad propia** — tokens estrictos de color/radios/espaciado, tema
   claro y oscuro de primera clase, y un kit de motion sobrio (`Reveal`,
   `PressScale`, `CountUp`, movimiento ambiente) sin amor por el circo.
@@ -43,6 +56,10 @@ Flutter (Android · iOS · Web) + backend NestJS.
 ---
 
 ## 🚀 Arranque rápido
+
+Necesitas **Flutter** (Dart SDK `^3.13.5`), **Node + npm** y **Docker** (para la
+base de datos PostGIS). El repo son dos sub-proyectos: la app Flutter en la raíz y
+el backend NestJS en `backend/`.
 
 ### 🔧 Backend (NestJS + Postgres/PostGIS)
 
@@ -140,5 +157,11 @@ Si el API está caído, esos tests se omiten con un mensaje.
 - **Contrato del API** → [docs/api-contract.md](docs/api-contract.md)
 - **Dataset GTFS** → [docs/gtfs-dataset.md](docs/gtfs-dataset.md)
 - **Backend** (arquitectura hexagonal, comandos) → [backend/README.md](backend/README.md)
+
+---
+
+## 📄 Licencia
+
+Distribuido bajo la licencia [MIT](LICENSE). © 2026 Arnol Guevara.
 
 ---
