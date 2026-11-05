@@ -7,6 +7,10 @@ import '../../../../core/utils/extensions.dart';
 /// Repliega el panel de origen/destino: es la forma explícita de cerrar, ya
 /// que la píldora inferior queda lejos del pulgar cuando el panel está
 /// desplegado.
+///
+/// Es la pastilla circular de siempre (relleno `surface` + borde), pero SIN
+/// sombra: el `BoxShadow` con desplazamiento y desenfoque se leía como un
+/// «borde cuadrado» detrás del círculo, que es justo lo que había que quitar.
 class JourneyPlannerCloseButton extends StatelessWidget {
   const JourneyPlannerCloseButton({super.key, required this.onTap});
 
@@ -25,13 +29,6 @@ class JourneyPlannerCloseButton extends StatelessWidget {
             color: colors.surface,
             shape: BoxShape.circle,
             border: Border.all(color: colors.outlineVariant),
-            boxShadow: const [
-              BoxShadow(
-                color: Color(0x1F000000),
-                blurRadius: 8,
-                offset: Offset(0, 3),
-              ),
-            ],
           ),
           child: const SizedBox(
             width: 34,

@@ -23,4 +23,12 @@ describe('decodePolylineToGeoJSON', () => {
   it('devuelve vacío con input vacío', () => {
     expect(decodePolylineToGeoJSON('')).toEqual([]);
   });
+
+  it('aplica la escala pedida (polyline6 = 1e6, la de Valhalla)', () => {
+    // Los enteros decodificados son [-6315000, -1778000]; a 1e5 dan
+    // [-63.15, -17.78], a 1e6 dan una décima parte.
+    expect(decodePolylineToGeoJSON('~sokBn~l`K', 1e6)).toEqual([
+      [-6.315, -1.778],
+    ]);
+  });
 });

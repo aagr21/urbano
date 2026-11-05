@@ -28,15 +28,13 @@ interface TripScheduleRow {
 /** Implementación TypeORM/PostGIS del puerto de datos del planeador. */
 @Injectable()
 export class TypeOrmJourneyData implements JourneyDataPort {
-  constructor(
-    @InjectDataSource() private readonly dataSource: DataSource,
-  ) {}
+  constructor(@InjectDataSource() private readonly dataSource: DataSource) {}
 
   async findStopsNear(
     lat: number,
     lon: number,
     radiusMeters: number,
-    limit: number,
+    limit: number
   ): Promise<CandidateStop[]> {
     const rows: Array<{
       stopId: string;
@@ -62,7 +60,7 @@ export class TypeOrmJourneyData implements JourneyDataPort {
              )
        ORDER BY "distanceMeters" ASC
        LIMIT $4`,
-      [lat, lon, radiusMeters, limit],
+      [lat, lon, radiusMeters, limit]
     );
     return rows.map((r) => ({
       stopId: r.stopId,
@@ -79,7 +77,7 @@ export class TypeOrmJourneyData implements JourneyDataPort {
       `SELECT DISTINCT st.trip_id AS "tripId"
        FROM stop_time st
        WHERE st.stop_id = ANY($1)`,
-      [stopIds],
+      [stopIds]
     );
     return rows.map((r) => r.tripId);
   }
@@ -106,7 +104,7 @@ export class TypeOrmJourneyData implements JourneyDataPort {
        JOIN stop_time st ON st.trip_id = t.trip_id
        WHERE t.trip_id = ANY($1)
        ORDER BY t.trip_id, st.stop_sequence ASC`,
-      [tripIds],
+      [tripIds]
     );
 
     const byTrip = new Map<string, TripSchedule>();
@@ -199,7 +197,7 @@ export class TypeOrmJourneyData implements JourneyDataPort {
         legs.map((l) => l.tripId),
         legs.map((l) => l.fromStopId),
         legs.map((l) => l.toStopId),
-      ],
+      ]
     );
 
     return rows.map((r) => ({
@@ -236,7 +234,7 @@ export class TypeOrmJourneyData implements JourneyDataPort {
               s.stop_lon AS lon
        FROM stop s
        WHERE s.stop_id = ANY($1)`,
-      [ids],
+      [ids]
     );
     return rows.map((r) => ({
       id: r.id,

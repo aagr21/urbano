@@ -91,6 +91,18 @@ class _JourneyPlannerScreenState extends ConsumerState<JourneyPlannerScreen> {
         _openMicrosSheet();
       });
     }, fireImmediately: true);
+    // «Viajar» desde el home (ver [pendingPlannerPanelProvider]): misma
+    // mecánica que el cajón de micros —bandera que se limpia en el frame
+    // siguiente—, pero aquí el gesto no abre una ruta: desplegar el panel de
+    // origen/destino que ya vive en la pantalla.
+    ref.listenManual(pendingPlannerPanelProvider, (_, next) {
+      if (!next) return;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        ref.read(pendingPlannerPanelProvider.notifier).state = false;
+        setState(() => _panelOpen = true);
+      });
+    }, fireImmediately: true);
   }
 
   @override

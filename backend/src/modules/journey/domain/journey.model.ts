@@ -101,8 +101,20 @@ export interface JourneyOption {
    * Parada de subida/bajada a la que se camina. `lat`/`lon` los adjunta
    * `JourneyService` (el planeador puro no resuelve coordenadas).
    */
-  walkToStop: { id: string; name: string; distanceMeters: number; lat?: number; lon?: number };
-  walkFromStop: { id: string; name: string; distanceMeters: number; lat?: number; lon?: number };
+  walkToStop: {
+    id: string;
+    name: string;
+    distanceMeters: number;
+    lat?: number;
+    lon?: number;
+  };
+  walkFromStop: {
+    id: string;
+    name: string;
+    distanceMeters: number;
+    lat?: number;
+    lon?: number;
+  };
   legs: JourneyLeg[];
 }
 

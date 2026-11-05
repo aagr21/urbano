@@ -17,8 +17,15 @@
          Flutter UI initializes, as well as behind your Flutter UI while its
          running.
 
-         This Theme is only used starting with V2 of Flutter's Android embedding. -->
+         This Theme is only used starting with V2 of Flutter's Android embedding.
+
+         Mismo `@color/urbano_canvas` que en claro: bajo este calificador -night
+         el color resuelve a negro (`canvasDark`), de modo que la ventana nunca
+         muestra el fondo por defecto de la plataforma durante el arranque. -->
     <style name="NormalTheme" parent="@android:style/Theme.Black.NoTitleBar">
-        <item name="android:windowBackground">?android:colorBackground</item>
+        <item name="android:windowBackground">@color/urbano_canvas</item>
+        <item name="android:statusBarColor">@color/urbano_canvas</item>
+        <item name="android:navigationBarColor">@color/urbano_canvas</item>
+        <item name="android:windowLightStatusBar" tools:targetApi="m">false</item>
     </style>
 </resources>

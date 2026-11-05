@@ -8,7 +8,6 @@ import '../../../../core/utils/extensions.dart';
 import '../../../../core/utils/location.dart';
 import '../../data/journey_models.dart';
 import '../../data/journey_repository.dart';
-import 'journey_map_complete_pill.dart';
 import 'journey_map_controls.dart';
 import 'journey_result_map.dart';
 
@@ -275,7 +274,6 @@ class LiveMapControls extends ConsumerWidget {
       children: [
         // La píldora explícita «Mapa completo»: descubrir el modo full-screen
         // era cazarse con el botoncito de la columna; el rótulo lo nombra.
-        if (!fullscreen) MapCompletePill(onTap: onToggleFullscreen),
         const SizedBox(width: 10),
         JourneyMapControls(
           onZoomIn: onZoomIn,

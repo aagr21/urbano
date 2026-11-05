@@ -39,7 +39,10 @@ export class JourneyQueryDto {
   @Type(() => Number)
   destLon: number;
 
-  @ApiPropertyOptional({ description: 'Hora de referencia HH:mm o HH:mm:ss (default: ahora America/La_Paz)' })
+  @ApiPropertyOptional({
+    description:
+      'Hora de referencia HH:mm o HH:mm:ss (default: ahora America/La_Paz)',
+  })
   @IsOptional()
   @Matches(TIME_REGEX, { message: 'time debe tener formato HH:mm o HH:mm:ss' })
   time?: string;

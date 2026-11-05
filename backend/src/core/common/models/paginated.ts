@@ -14,11 +14,13 @@ export class PaginatedResult<T> {
 
   constructor(
     readonly items: T[],
-    readonly meta: PageMeta,
+    readonly meta: PageMeta
   ) {}
 }
 
-export function isPaginatedResult(value: unknown): value is PaginatedResult<unknown> {
+export function isPaginatedResult(
+  value: unknown
+): value is PaginatedResult<unknown> {
   return (
     typeof value === 'object' &&
     value !== null &&
@@ -32,5 +34,9 @@ export function paginated<T>(items: T[], meta: PageMeta): PaginatedResult<T> {
 
 /** Lista sin paginación real (total = cantidad de items). */
 export function fullList<T>(items: T[]): PaginatedResult<T> {
-  return new PaginatedResult(items, { page: 1, limit: items.length, total: items.length });
+  return new PaginatedResult(items, {
+    page: 1,
+    limit: items.length,
+    total: items.length,
+  });
 }

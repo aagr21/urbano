@@ -1,12 +1,14 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/animation/motion.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/utils/extensions.dart';
+import '../../../journey/application/journey_providers.dart';
 
 /// Acceso destacado: Planificar viaje (mapa + planeador fusionados).
 ///
@@ -35,11 +37,11 @@ class QuickActions extends StatelessWidget {
   }
 }
 
-class _PlanActionCard extends StatelessWidget {
+class _PlanActionCard extends ConsumerWidget {
   const _PlanActionCard();
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.colors;
     final text = context.text;
     // Hoja del tema (clara en claro, grafito en oscuro) levantada con la sombra
@@ -58,7 +60,13 @@ class _PlanActionCard extends StatelessWidget {
       child: Material(
         type: MaterialType.transparency,
         child: InkWell(
-          onTap: () => context.go('/journey'),
+          // «Viajar» no solo cambia de pestaña: deja la bandera para que el
+          // planeador despliegue el panel de origen/destino al llegar (ver
+          // [pendingPlannerPanelProvider]).
+          onTap: () {
+            ref.read(pendingPlannerPanelProvider.notifier).state = true;
+            context.go('/journey');
+          },
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [

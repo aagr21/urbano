@@ -24,16 +24,14 @@ class CompassService {
       final m = magnetic;
       if (g == null || m == null) return;
 
-      // Compensa la inclinación para que pequeños cambios de postura no
-      // conviertan el ruido del magnetómetro en saltos de rumbo.
-      final roll = math.atan2(g.y, g.z);
-      final pitch = math.atan2(-g.x, math.sqrt(g.y * g.y + g.z * g.z));
-      final mx = m.x * math.cos(pitch) + m.z * math.sin(pitch);
-      final my =
-          m.x * math.sin(roll) * math.sin(pitch) +
-          m.y * math.cos(roll) -
-          m.z * math.sin(roll) * math.cos(pitch);
-      final rawHeading = _normalize(math.atan2(my, mx) * 180 / math.pi);
+      final rawHeading = tiltCompensatedHeading(
+        gx: g.x,
+        gy: g.y,
+        gz: g.z,
+        mx: m.x,
+        my: m.y,
+        mz: m.z,
+      );
 
       smoothedHeading = _smoothAngle(smoothedHeading, rawHeading, 0.12);
       final heading = _quantize(smoothedHeading!);
@@ -62,6 +60,38 @@ class CompassService {
       await controller.close();
     };
     return controller.stream;
+  }
+
+  /// Rumbo (grados, sentido horario desde el norte) al que apunta el **borde
+  /// superior** del teléfono, compensando la inclinación con la gravedad.
+  ///
+  /// El marco de ejes de Android es: `x` = lado derecho de la pantalla, `y` =
+  /// borde superior, `z` = sale de la pantalla hacia el usuario. El ángulo del
+  /// campo magnético medido desde el eje `+x` (`atan2(my, mx)`) va en sentido
+  /// ANTIhorario y parte del canto derecho, así que describe el norte medido
+  /// desde ese canto: sostiene el teléfono en vertical y camina apuntando con
+  /// el borde de arriba al norte, y ese `atan2` devuelve 90°, no 0°. De ahí el
+  /// desplazamiento constante que se veía al iniciar —la aguja giraba bien pero
+  /// quedaba 90° corrida—: el rumbo de avance es `atan2(my, mx) - 90`.
+  static double tiltCompensatedHeading({
+    required double gx,
+    required double gy,
+    required double gz,
+    required double mx,
+    required double my,
+    required double mz,
+  }) {
+    // Compensa la inclinación para que pequeños cambios de postura no conviertan
+    // el ruido del magnetómetro en saltos de rumbo.
+    final roll = math.atan2(gy, gz);
+    final pitch = math.atan2(-gx, math.sqrt(gy * gy + gz * gz));
+    final hx = mx * math.cos(pitch) + mz * math.sin(pitch);
+    final hy =
+        mx * math.sin(roll) * math.sin(pitch) +
+        my * math.cos(roll) -
+        mz * math.sin(roll) * math.cos(pitch);
+    final fromXAxis = math.atan2(hy, hx) * 180 / math.pi;
+    return _normalize(fromXAxis - 90);
   }
 
   static double _quantize(double heading) {

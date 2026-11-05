@@ -33,32 +33,46 @@ dependencies:
 
     # Utilidades / UI
     intl: ^0.20.3
-    google_fonts: ^6.2.1
     maplibre_gl: ^0.27.1
     image_picker: ^1.2.0
     sensors_plus: ^7.1.1
-    # Portada de arranque en iOS. En Android el mismo JSON lo reproduce la splash
-    # NATIVA (`com.airbnb.android:lottie` en el `build.gradle.kts`), así que este
-    # paquete solo entra por el lado de Apple, donde el launch screen no se puede
-    # animar. Es el paquete Dart, NO la librería de Kotlin: son dos cosas distintas.
-    lottie: ^3.8.2
 
 dev_dependencies:
     flutter_test:
         sdk: flutter
     flutter_lints: ^6.0.0
     icons_launcher: ^3.1.0
+    # Solo el guard test (`test/splash_lottie_asset_test.dart`) decodifica el JSON
+    # de la splash con el motor Dart. La app NO usa Lottie en runtime: en Android lo
+    # reproduce la splash NATIVA (`com.airbnb.android:lottie` en `build.gradle.kts`)
+    # y en iOS el launch screen es un PNG estático. Por eso vive acá, no en
+    # `dependencies`: así la librería Dart de Lottie no entra en el binario.
+    lottie: ^3.8.2
 
 flutter:
     uses-material-design: true
 
-    # Fuentes empaquetadas (Inter cuerpo / Plus Jakarta Sans títulos).
-    # google_fonts las localiza por nombre en assets/fonts, así que la app
-    # arranca offline sin parpadeo y los tests no intentan descargar nada.
-    assets:
-        - assets/fonts/
-        # Portada animada. El MISMO JSON que reproduce la splash nativa de Android
-        # (`android/app/src/main/assets/splash.json` es copia de este archivo);
-        # en iOS es la única animación posible, porque Apple no deja animar el
-        # launch screen.
-        - assets/lottie/
+    # Fuentes empaquetadas e inscritas como manifiesto `fonts:` (no como assets
+    # crudos): Inter para cuerpo/títulos y Plus Jakarta Sans solo para el
+    # wordmark. Al declararlas aquí, Flutter las incluye una sola vez como
+    # fuentes y la app arranca offline, sin parpadeo y sin descargas de red.
+    # `AppTypography` apunta a estas familias por `fontFamily`, sin `google_fonts`.
+    fonts:
+        - family: Inter
+          fonts:
+              - asset: assets/fonts/Inter-Regular.ttf
+                weight: 400
+              - asset: assets/fonts/Inter-Medium.ttf
+                weight: 500
+              - asset: assets/fonts/Inter-SemiBold.ttf
+                weight: 600
+              - asset: assets/fonts/Inter-Bold.ttf
+                weight: 700
+              - asset: assets/fonts/Inter-ExtraBold.ttf
+                weight: 800
+        - family: PlusJakartaSans
+          fonts:
+              - asset: assets/fonts/PlusJakartaSans-Bold.ttf
+                weight: 700
+              - asset: assets/fonts/PlusJakartaSans-ExtraBold.ttf
+                weight: 800

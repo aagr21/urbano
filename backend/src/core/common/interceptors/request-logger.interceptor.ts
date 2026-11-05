@@ -1,4 +1,10 @@
-import { CallHandler, ExecutionContext, Injectable, Logger, NestInterceptor } from '@nestjs/common';
+import {
+  CallHandler,
+  ExecutionContext,
+  Injectable,
+  Logger,
+  NestInterceptor,
+} from '@nestjs/common';
 import { Observable } from 'rxjs';
 import { finalize } from 'rxjs/operators';
 
@@ -12,16 +18,20 @@ export class RequestLoggerInterceptor implements NestInterceptor {
       return next.handle();
     }
     const started = Date.now();
-    const request = context.switchToHttp().getRequest<{ method: string; url: string }>();
-    const response = context.switchToHttp().getResponse<{ statusCode: number }>();
+    const request = context
+      .switchToHttp()
+      .getRequest<{ method: string; url: string }>();
+    const response = context
+      .switchToHttp()
+      .getResponse<{ statusCode: number }>();
 
     return next.handle().pipe(
       finalize(() => {
         const durationMs = Date.now() - started;
         this.logger.log(
-          `${request.method} ${request.url} ${response.statusCode} ${durationMs}ms`,
+          `${request.method} ${request.url} ${response.statusCode} ${durationMs}ms`
         );
-      }),
+      })
     );
   }
 }

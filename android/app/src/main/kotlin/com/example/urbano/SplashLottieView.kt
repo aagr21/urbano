@@ -3,9 +3,11 @@ package com.example.urbano
 import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Matrix
+import android.graphics.Typeface
 import android.graphics.drawable.Drawable
 import android.util.Log
 import android.view.View
+import com.airbnb.lottie.FontAssetDelegate
 import com.airbnb.lottie.LottieComposition
 import com.airbnb.lottie.LottieDrawable
 import kotlin.math.min
@@ -52,6 +54,22 @@ class SplashLottieView(context: Context) : View(context), Drawable.Callback {
         // Una sola pasada: con INFINITE `onAnimationEnd` no llega jamás y la
         // actividad quedaría colgada hasta su techo de guardias.
         it.repeatCount = 0
+        // El JSON hornea la palabra «Cargando» como capa de TEXTO (`ty:5`,
+        // `fFamily: "sans-serif"`). Sin este delegate, `FontAssetManager` resuelve
+        // la fuente buscando un asset `fonts/sans-serif.ttf` que NO se empaqueta y
+        // revienta en el PRIMER `onDraw` con `RuntimeException: Font asset not
+        // found` (medido en el REA NX9: mateaba la splash entera). Devolver la
+        // `Typeface` del sistema corta la búsqueda antes de tocar assets; es
+        // justamente la «sans-serif» que el JSON pide, así que el rótulo se ve
+        // igual, solo que en la fuente del SO y no en Inter — acceptable porque
+        // la portada real de `SplashGate` (Inter) pisa encima en cuanto Flutter
+        // monta.
+        it.setFontAssetDelegate(
+            object : FontAssetDelegate() {
+                override fun fetchFont(fontFamily: String?): Typeface =
+                    Typeface.SANS_SERIF
+            },
+        )
     }
     private val scaleMatrix = Matrix()
 

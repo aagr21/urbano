@@ -76,7 +76,7 @@ export class EnvironmentVariables {
 }
 
 export function validateEnvironment(
-  config: Record<string, unknown>,
+  config: Record<string, unknown>
 ): EnvironmentVariables {
   const validated = plainToInstance(EnvironmentVariables, config, {
     enableImplicitConversion: false,
@@ -86,7 +86,7 @@ export function validateEnvironment(
     throw new Error(
       `Configuración de entorno inválida:\n${errors
         .map((e) => Object.values(e.constraints ?? {}).join(', '))
-        .join('\n')}`,
+        .join('\n')}`
     );
   }
   return validated;

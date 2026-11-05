@@ -25,7 +25,10 @@ class HomeRouteLattice extends StatelessWidget {
   Widget build(BuildContext context) {
     return IgnorePointer(
       child: Ambient(
-        period: const Duration(milliseconds: 2200),
+        // Vuelta pausada: a 2,2 s la unidad cruzaba el header de un salto y
+        // tapaba el texto antes de que el ojo la siguiera. A ~5,4 s rueda como
+        // una unidad real por su corredor.
+        period: const Duration(milliseconds: 5400),
         builder: (context, t, phase, _) => CustomPaint(
           // Vueltas seguidas: la unidad rueda por su corredor mientras la
           // pantalla esté en pantalla.
@@ -127,6 +130,13 @@ class _RingLatticePainter extends CustomPainter {
     final unit =
         center + Offset(math.cos(travel), math.sin(travel)) * laneRadius;
 
+    // El texto del header vive en la mitad superior del lienzo: allí la unidad
+    // se desvanece casi a cero y pasa como una sombra, sin tapar letras. En la
+    // mitad inferior (el pie de la portada) recupera todo su brillo.
+    final aboveText = ((size.height / 2 - unit.dy) / (size.height * 0.28))
+        .clamp(0.0, 1.0);
+    final presence = 0.08 + 0.92 * aboveText;
+
     // Estela: las muestras previas se adelgazan hacia atrás, como un rastro de
     // velocidad en un diagrama de flujo.
     for (var k = 6; k >= 1; k--) {
@@ -137,7 +147,7 @@ class _RingLatticePainter extends CustomPainter {
       canvas.drawCircle(
         trail,
         2.6 - k * 0.3,
-        Paint()..color = tint.withValues(alpha: 0.3 * (1 - k / 7)),
+        Paint()..color = tint.withValues(alpha: 0.3 * (1 - k / 7) * presence),
       );
     }
 
@@ -151,24 +161,29 @@ class _RingLatticePainter extends CustomPainter {
     );
     // Cápsula translúcida con contorno luminoso y faro al frente: todo claro
     // sobre el degradado oscuro, y a 15 px una cápsula rayada se lee micro.
-    canvas.drawRRect(body, Paint()..color = tint.withValues(alpha: 0.2));
+    // Todo multiplicado por `presence`: sobre la zona de texto la unidad queda
+    // en casi transparente y no tapa las letras.
+    canvas.drawRRect(
+      body,
+      Paint()..color = tint.withValues(alpha: 0.2 * presence),
+    );
     canvas.drawRRect(
       body,
       Paint()
-        ..color = tint.withValues(alpha: 0.85)
+        ..color = tint.withValues(alpha: 0.85 * presence)
         ..style = PaintingStyle.stroke
         ..strokeWidth = 1.3,
     );
     canvas.drawCircle(
       const Offset(5.6, 0),
       1.1,
-      Paint()..color = tint.withValues(alpha: 0.95),
+      Paint()..color = tint.withValues(alpha: 0.95 * presence),
     );
     canvas.drawLine(
       const Offset(-4.5, 0),
       const Offset(-0.5, 0),
       Paint()
-        ..color = tint.withValues(alpha: 0.5)
+        ..color = tint.withValues(alpha: 0.5 * presence)
         ..strokeWidth = 1.2
         ..strokeCap = StrokeCap.round,
     );

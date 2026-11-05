@@ -22,7 +22,7 @@ export abstract class JourneyDataPort {
     lat: number,
     lon: number,
     radiusMeters: number,
-    limit: number,
+    limit: number
   ): Promise<CandidateStop[]>;
 
   /** Ids de viajes que sirven al menos una de las paradas indicadas. */

@@ -664,6 +664,10 @@ class MapLibreEngineState extends State<MapLibreEngine>
               doubleClickZoomEnabled: scene.interactive,
               rotateGesturesEnabled: scene.rotateGesturesEnabled,
               tiltGesturesEnabled: false,
+              // El compás/rotador nativo de MapLibre (la pieza negra que aparece
+              // al girar) se desactiva: ensucia el mapa y choca con los controles
+              // propios de la app.
+              compassEnabled: false,
               myLocationEnabled: scene.myLocationEnabled,
               myLocationTrackingMode: scene.followMyLocation
                   ? ml.MyLocationTrackingMode.tracking

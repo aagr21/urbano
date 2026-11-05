@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Tokens de marca en modo noche del SISTEMA. Solo se redefine lo que cambia
+     de valor según el brillo: el canvas de la ventana (`NormalTheme`). El campo
+     de la portada (`urbano_primary`, etc.) NO sigue al modo oscuro, así que vive
+     únicamente en values/colors.xml. -->
+<resources>
+    <!-- Canvas del tema (oscuro): el MISMO `AppColors.canvasDark` (negro OLED).
+         Reemplaza al #F2F2F7 de `values/` bajo el calificador -night. -->
+    <color name="urbano_canvas">#FF000000</color>
+</resources>

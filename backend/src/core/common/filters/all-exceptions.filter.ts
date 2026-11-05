@@ -42,10 +42,12 @@ export class AllExceptionsFilter implements ExceptionFilter {
     } else if (exception instanceof Error) {
       this.logger.error(
         `500 ${request.method} ${request.url}: ${exception.message}`,
-        exception.stack,
+        exception.stack
       );
     }
 
-    response.status(statusCode).json({ error: { statusCode, message, details } });
+    response
+      .status(statusCode)
+      .json({ error: { statusCode, message, details } });
   }
 }

@@ -8,4 +8,10 @@
     <color name="urbano_primary">#FF008C7B</color>
     <!-- Laguna profunda: final del degradado. -->
     <color name="urbano_primary_dark">#FF00584F</color>
+    <!-- Canvas del tema (claro): el MISMO `AppColors.canvasLight`, fondo de la
+         ventana de `NormalTheme`, para que el handoff splash-app nunca asome en
+         blanco puro de la plataforma. `values-night/` redefine este nombre a
+         canvasDark, así que un solo `@color/urbano_canvas` sigue al modo del
+         sistema sin duplicar el style. -->
+    <color name="urbano_canvas">#FFF2F2F7</color>
 </resources>

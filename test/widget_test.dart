@@ -10,6 +10,7 @@ import 'package:urbano/src/core/utils/location.dart';
 import 'package:urbano/src/features/home/data/stats.dart';
 import 'package:urbano/src/features/home/presentation/home_providers.dart';
 import 'package:urbano/src/features/home/presentation/home_screen.dart';
+import 'package:urbano/src/features/journey/application/journey_providers.dart';
 import 'package:urbano/src/features/journey/presentation/journey_planner_screen.dart';
 import 'package:urbano/src/features/routes/data/route_models.dart';
 import 'package:urbano/src/features/routes/data/route_repository.dart';
@@ -97,9 +98,12 @@ void main() {
       'Busca rutas…',
     );
 
-    // Servicio de hoy (frecuencia + ventana de salida del feed, sin la
-    // píldora de paradas ni stats de dashboard).
-    expect(find.text('154 líneas · diario'), findsOneWidget);
+    // Banner vivo del home: reemplazó al bloque estático de «el servicio hoy».
+    // No depende del backend (por eso ya no se leen las stats del feed aquí) y
+    // mantiene la portada en movimiento con un micro recorriendo su corredor.
+    expect(find.text('Santa Cruz en movimiento'), findsOneWidget);
+    expect(find.text('Tu próxima línea está a un toque'), findsOneWidget);
+    // Sin la tarjeta de servicio ya no se pintan las stats de dashboard.
     expect(find.text('31.461'), findsNothing);
 
     // Accesos rápidos (Mapa se fusionó con Viaje: la pestaña es el mapa).
@@ -272,6 +276,61 @@ void main() {
       expect(
         find.byKey(const ValueKey('micro-tile-101 ANGOSTURA')),
         findsOneWidget,
+      );
+    },
+  );
+
+  testWidgets(
+    '«Viajar» del home abre Viaje CON el panel de origen/destino desplegado',
+    (tester) async {
+      final container = ProviderContainer(
+        overrides: [
+          ..._overrides(),
+          locationServiceProvider.overrideWithValue(FakeLocationService()),
+        ],
+      );
+      addTearDown(container.dispose);
+      final router = container.read(appRouterProvider);
+      addTearDown(router.dispose);
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: MaterialApp.router(
+            theme: AppTheme.light(),
+            routerConfig: router,
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 600));
+
+      await tester.tap(find.text('Marca tu destino y listo'));
+
+      // Cambio de rama → la bandera se consume en el frame siguiente → el
+      // panel se despliega (misma mecánica que «Ver todas» con el cajón).
+      await tester.pump();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 120));
+      await tester.pump(const Duration(milliseconds: 400));
+
+      expect(router.routerDelegate.currentConfiguration.uri.path, '/journey');
+      expect(
+        tester.widget<NavigationBar>(find.byType(NavigationBar)).selectedIndex,
+        1,
+      );
+      // El panel de origen/destino llega ABIERTO: campos visibles sin tocar la
+      // píldora (regresión: antes había que abrir el panel a mano).
+      expect(find.byKey(const ValueKey('planner-panel-open')), findsOneWidget);
+      expect(
+        find.text('Marca un punto en el mapa o usa tu ubicación'),
+        findsOneWidget,
+      );
+
+      // La bandera se consumió: nada queda pendiente para la próxima visita.
+      expect(
+        container.read(pendingPlannerPanelProvider.notifier).state,
+        isFalse,
       );
     },
   );

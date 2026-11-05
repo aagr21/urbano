@@ -42,7 +42,7 @@ export {
 /** Distancia en línea recta entre dos puntos (haversine), en metros. */
 export function straightLineMeters(
   a: { lat: number; lon: number },
-  b: { lat: number; lon: number },
+  b: { lat: number; lon: number }
 ): number {
   const toRad = (deg: number) => (deg * Math.PI) / 180;
   const dLat = toRad(b.lat - a.lat);
@@ -76,10 +76,12 @@ export function nextRunDeparture(
   baseDepSec: number,
   headwaySec: number,
   kMax: number,
-  notBeforeSec: number,
+  notBeforeSec: number
 ): DepartureInstance | null {
   if (headwaySec <= 0) {
-    return baseDepSec >= notBeforeSec ? { k: 0, departureSec: baseDepSec } : null;
+    return baseDepSec >= notBeforeSec
+      ? { k: 0, departureSec: baseDepSec }
+      : null;
   }
   const k = Math.max(0, Math.ceil((notBeforeSec - baseDepSec) / headwaySec));
   if (k > kMax) return null;
@@ -88,7 +90,9 @@ export function nextRunDeparture(
 
 function kMaxOf(trip: TripSchedule): number {
   if (trip.headwaySeconds <= 0) return 0;
-  return Math.floor((trip.endTimeSec - trip.startTimeSec) / trip.headwaySeconds);
+  return Math.floor(
+    (trip.endTimeSec - trip.startTimeSec) / trip.headwaySeconds
+  );
 }
 
 interface IndexedStop {
@@ -143,7 +147,7 @@ function busLeg(
   departSec: number,
   arriveSec: number,
   fromSeq: number,
-  toSeq: number,
+  toSeq: number
 ): BusLeg {
   return {
     kind: 'bus',
@@ -192,7 +196,7 @@ export function journeyCost(option: JourneyOption): number {
 /** Ordena por costo generalizado; empates y desempates determinísticos. */
 export function compareJourneyOptions(
   a: JourneyOption,
-  b: JourneyOption,
+  b: JourneyOption
 ): number {
   const costA = journeyCost(a);
   const costB = journeyCost(b);
@@ -213,7 +217,7 @@ export function compareJourneyOptions(
  */
 export function rankAndCut(
   options: JourneyOption[],
-  maxResults: number,
+  maxResults: number
 ): JourneyOption[] {
   return [...options].sort(compareJourneyOptions).slice(0, maxResults);
 }
@@ -264,13 +268,21 @@ export function planJourneys(input: PlannerInput): JourneyOption[] {
       const o = a.index.get(stopId);
       if (!o) continue;
       const walkToMin = walkDurationMinutes(originStop.distanceMeters);
-      const depA = nextRunDeparture(o.dep, a.trip.headwaySeconds, a.kMax, timeSec + walkToMin * 60);
+      const depA = nextRunDeparture(
+        o.dep,
+        a.trip.headwaySeconds,
+        a.kMax,
+        timeSec + walkToMin * 60
+      );
       if (!depA) continue;
 
       for (const [destStopId, destStop] of destById) {
         const d = a.index.get(destStopId);
         if (!d || d.seq <= o.seq) continue;
-        if (straightLineMeters(originStop, destStop) < MIN_BOARDING_PAIR_DISTANCE_M) {
+        if (
+          straightLineMeters(originStop, destStop) <
+          MIN_BOARDING_PAIR_DISTANCE_M
+        ) {
           continue;
         }
         const walkFromMin = walkDurationMinutes(destStop.distanceMeters);
@@ -287,11 +299,23 @@ export function planJourneys(input: PlannerInput): JourneyOption[] {
           walkFromStop: stopRef(destStop),
           legs: [
             walkLeg(originStop.distanceMeters),
-            busLeg(a.trip, stopId, destStopId, depA.departureSec, arriveBusSec, o.seq, d.seq),
+            busLeg(
+              a.trip,
+              stopId,
+              destStopId,
+              depA.departureSec,
+              arriveBusSec,
+              o.seq,
+              d.seq
+            ),
             walkLeg(destStop.distanceMeters),
           ],
         };
-        keepBest(bestByKey, `direct:${a.trip.tripId}:${stopId}:${destStopId}`, option);
+        keepBest(
+          bestByKey,
+          `direct:${a.trip.tripId}:${stopId}:${destStopId}`,
+          option
+        );
       }
     }
   }
@@ -302,7 +326,12 @@ export function planJourneys(input: PlannerInput): JourneyOption[] {
       const o = a.index.get(stopId);
       if (!o) continue;
       const walkToMin = walkDurationMinutes(originStop.distanceMeters);
-      const depA = nextRunDeparture(o.dep, a.trip.headwaySeconds, a.kMax, timeSec + walkToMin * 60);
+      const depA = nextRunDeparture(
+        o.dep,
+        a.trip.headwaySeconds,
+        a.kMax,
+        timeSec + walkToMin * 60
+      );
       if (!depA) continue;
 
       // Para cada parada intermedia alcanzable por A, qué viajes B siguen desde ahí
@@ -315,13 +344,21 @@ export function planJourneys(input: PlannerInput): JourneyOption[] {
           if (b.trip.tripId === a.trip.tripId) continue;
           const xb = b.index.get(transfer.stopId);
           if (!xb) continue;
-          const depB = nextRunDeparture(xb.dep, b.trip.headwaySeconds, b.kMax, arrXSec);
+          const depB = nextRunDeparture(
+            xb.dep,
+            b.trip.headwaySeconds,
+            b.kMax,
+            arrXSec
+          );
           if (!depB) continue;
 
           for (const [destStopId, destStop] of destById) {
             const d = b.index.get(destStopId);
             if (!d || d.seq <= xb.seq) continue;
-            if (straightLineMeters(originStop, destStop) < MIN_BOARDING_PAIR_DISTANCE_M) {
+            if (
+              straightLineMeters(originStop, destStop) <
+              MIN_BOARDING_PAIR_DISTANCE_M
+            ) {
               continue;
             }
             const walkFromMin = walkDurationMinutes(destStop.distanceMeters);
@@ -338,7 +375,15 @@ export function planJourneys(input: PlannerInput): JourneyOption[] {
               walkFromStop: stopRef(destStop),
               legs: [
                 walkLeg(originStop.distanceMeters),
-                busLeg(a.trip, stopId, transfer.stopId, depA.departureSec, arrXSec, o.seq, x.seq),
+                busLeg(
+                  a.trip,
+                  stopId,
+                  transfer.stopId,
+                  depA.departureSec,
+                  arrXSec,
+                  o.seq,
+                  x.seq
+                ),
                 busLeg(
                   b.trip,
                   transfer.stopId,
@@ -346,7 +391,7 @@ export function planJourneys(input: PlannerInput): JourneyOption[] {
                   depB.departureSec,
                   arriveBusSec,
                   xb.seq,
-                  d.seq,
+                  d.seq
                 ),
                 walkLeg(destStop.distanceMeters),
               ],
@@ -354,7 +399,7 @@ export function planJourneys(input: PlannerInput): JourneyOption[] {
             keepBest(
               bestByKey,
               `transfer:${a.trip.tripId}:${b.trip.tripId}:${stopId}:${destStopId}`,
-              option,
+              option
             );
           }
         }
@@ -365,7 +410,11 @@ export function planJourneys(input: PlannerInput): JourneyOption[] {
   return rankAndCut([...bestByKey.values()], maxResults);
 }
 
-function push(map: Map<string, IndexedTrip[]>, key: string, value: IndexedTrip): void {
+function push(
+  map: Map<string, IndexedTrip[]>,
+  key: string,
+  value: IndexedTrip
+): void {
   const list = map.get(key);
   if (list) {
     list.push(value);
@@ -374,7 +423,11 @@ function push(map: Map<string, IndexedTrip[]>, key: string, value: IndexedTrip):
   }
 }
 
-function keepBest(map: Map<string, JourneyOption>, key: string, option: JourneyOption): void {
+function keepBest(
+  map: Map<string, JourneyOption>,
+  key: string,
+  option: JourneyOption
+): void {
   const existing = map.get(key);
   if (!existing || option.durationMinutes < existing.durationMinutes) {
     map.set(key, option);

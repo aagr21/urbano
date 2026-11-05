@@ -2,8 +2,14 @@
  * Decodifica una Google Encoded Polyline (la que usa OTP2 en
  * `legGeometry.points`) en pares `[lon, lat]` (GeoJSON).
  * https://developers.google.com/maps/documentation/utilities/polylinealgorithm
+ *
+ * `scale` es la precisión de la codificación: 1e5 (default, OTP/Google) o
+ * 1e6 (polyline6, la que devuelve Valhalla por defecto).
  */
-export function decodePolylineToGeoJSON(encoded: string): number[][] {
+export function decodePolylineToGeoJSON(
+  encoded: string,
+  scale = 1e5
+): number[][] {
   const coordinates: number[][] = [];
   let index = 0;
   // Acumuladores en ENTEROS (exactos); la escala se aplica al publicar para
@@ -31,7 +37,7 @@ export function decodePolylineToGeoJSON(encoded: string): number[][] {
     } while (b >= 0x1f);
     lon += result & 1 ? ~(result >> 1) : result >> 1;
 
-    coordinates.push([lon / 1e5, lat / 1e5]);
+    coordinates.push([lon / scale, lat / scale]);
   }
 
   return coordinates;

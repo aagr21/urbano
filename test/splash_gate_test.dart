@@ -96,11 +96,11 @@ void main() {
     await tester.pump();
 
     // La app ya está montada detrás y faltan sus datos: eso es lo que se lee.
-    expect(find.text('Buscando rutas y horarios'), findsOneWidget);
+    expect(find.text('Buscando rutas'), findsOneWidget);
 
     // Con la entrada terminada pero sin aviso, la etapa sigue en carga.
     await tester.pump(const Duration(milliseconds: 1000));
-    expect(find.text('Buscando rutas y horarios'), findsOneWidget);
+    expect(find.text('Buscando rutas'), findsOneWidget);
     completer.complete(true);
 
     // Dos `pump`: el callback del future corre en el `flushMicrotasks` que el

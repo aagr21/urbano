@@ -107,13 +107,17 @@ export function stripFeedId(gtfsId: string | null | undefined): string {
 }
 
 /** Normaliza el color de OTP a hex sin `#` (convención GTFS del contrato). */
-export function normalizeColor(color: string | null | undefined): string | null {
+export function normalizeColor(
+  color: string | null | undefined
+): string | null {
   if (!color) return null;
   return color.replace(/^#/, '') || null;
 }
 
 /** Epoch millis o ISO string → "HH:mm:ss" en America/La_Paz. */
-export function formatHmsInTz(time: number | string | null | undefined): string {
+export function formatHmsInTz(
+  time: number | string | null | undefined
+): string {
   if (time == null || time === '') return '00:00:00';
   const date = typeof time === 'number' ? new Date(time) : new Date(time);
   if (Number.isNaN(date.getTime())) return '00:00:00';
@@ -133,7 +137,10 @@ export function formatHmsInTz(time: number | string | null | undefined): string 
  * Fecha de hoy en America/La_Paz (YYYY-MM-DD) combinada con una hora en
  * segundos desde medianoche → ISO 8601 con offset (Bolivia: UTC-4 fijo).
  */
-export function laPazIsoFromTimeSec(timeSec: number, today = new Date()): string {
+export function laPazIsoFromTimeSec(
+  timeSec: number,
+  today = new Date()
+): string {
   const ymd = new Intl.DateTimeFormat('en-CA', {
     timeZone: TZ,
     year: 'numeric',
@@ -167,10 +174,17 @@ export class OtpJourneyRouter implements JourneyRouterPort {
       query: PLAN_QUERY,
       variables: {
         from: {
-          location: { coordinate: { latitude: query.originLat, longitude: query.originLon } },
+          location: {
+            coordinate: {
+              latitude: query.originLat,
+              longitude: query.originLon,
+            },
+          },
         },
         to: {
-          location: { coordinate: { latitude: query.destLat, longitude: query.destLon } },
+          location: {
+            coordinate: { latitude: query.destLat, longitude: query.destLon },
+          },
         },
         dateTime: { earliestDeparture: laPazIsoFromTimeSec(query.timeSec) },
         first: query.maxResults,
@@ -180,7 +194,10 @@ export class OtpJourneyRouter implements JourneyRouterPort {
     let json: OtpGraphQlResponse;
     try {
       const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), this.config.otpTimeoutMs);
+      const timer = setTimeout(
+        () => controller.abort(),
+        this.config.otpTimeoutMs
+      );
       try {
         const res = await fetch(`${base.replace(/\/$/, '')}/index/graphql`, {
           method: 'POST',
@@ -189,7 +206,9 @@ export class OtpJourneyRouter implements JourneyRouterPort {
           signal: controller.signal,
         });
         if (!res.ok) {
-          this.logger.warn(`OTP respondió HTTP ${res.status}; uso el planner interno`);
+          this.logger.warn(
+            `OTP respondió HTTP ${res.status}; uso el planner interno`
+          );
           return null;
         }
         json = (await res.json()) as OtpGraphQlResponse;
@@ -197,12 +216,16 @@ export class OtpJourneyRouter implements JourneyRouterPort {
         clearTimeout(timer);
       }
     } catch (err) {
-      this.logger.warn(`OTP no disponible (${(err as Error).message}); uso el planner interno`);
+      this.logger.warn(
+        `OTP no disponible (${(err as Error).message}); uso el planner interno`
+      );
       return null;
     }
 
     if (json.errors?.length) {
-      this.logger.warn(`OTP devolvió errores GraphQL: ${json.errors.map((e) => e.message).join('; ')}`);
+      this.logger.warn(
+        `OTP devolvió errores GraphQL: ${json.errors.map((e) => e.message).join('; ')}`
+      );
       return null;
     }
 
@@ -344,7 +367,10 @@ function sumWalkAfter(rawLegs: OtpLeg[]): number {
   return Math.round(total);
 }
 
-function minutesBetweenIso(startIso: string | null | undefined, endIso: string | null | undefined): number {
+function minutesBetweenIso(
+  startIso: string | null | undefined,
+  endIso: string | null | undefined
+): number {
   if (!startIso || !endIso) return 0;
   const start = Date.parse(startIso);
   const end = Date.parse(endIso);

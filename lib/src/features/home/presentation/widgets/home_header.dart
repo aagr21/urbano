@@ -110,10 +110,12 @@ class HomeHeader extends StatelessWidget {
               ),
               Padding(
                 // El inset del sistema lo paga la portada (a sangre): el campo
-                // verde llega hasta el borde del teléfono.
+                // verde llega hasta el borde del teléfono. Bajo el inset solo un
+                // respiro mínimo (`sm`): con `md` la cabecera despejaba demasiado
+                // y el logo llegaba tarde.
                 padding: EdgeInsets.fromLTRB(
                   AppSpace.lg,
-                  topInset + AppSpace.md,
+                  topInset + AppSpace.sm,
                   AppSpace.lg,
                   AppSpace.xxl,
                 ),

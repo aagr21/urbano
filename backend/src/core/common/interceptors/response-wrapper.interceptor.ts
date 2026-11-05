@@ -1,4 +1,9 @@
-import { CallHandler, ExecutionContext, Injectable, NestInterceptor } from '@nestjs/common';
+import {
+  CallHandler,
+  ExecutionContext,
+  Injectable,
+  NestInterceptor,
+} from '@nestjs/common';
 import { Observable } from 'rxjs';
 import { map } from 'rxjs/operators';
 import { isSkipWrapper } from '../decorators/skip-wrapper.decorator';
@@ -28,7 +33,7 @@ export class ResponseWrapperInterceptor implements NestInterceptor {
           return { data: result.items, meta: result.meta };
         }
         return { data: result, meta: null };
-      }),
+      })
     );
   }
 }

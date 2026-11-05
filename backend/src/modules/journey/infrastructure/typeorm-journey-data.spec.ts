@@ -27,7 +27,13 @@ const repo = (ds: FakeDataSource) => new TypeOrmJourneyData(ds as never);
 describe('TypeOrmJourneyData', () => {
   it('findStopsNear usa ST_DWithin con coordenadas LON primero y ordena por distancia', async () => {
     const ds = new FakeDataSource().next([
-      { stopId: 'S1', name: 'A', lat: -17.78, lon: -63.18, distanceMeters: '55.7' },
+      {
+        stopId: 'S1',
+        name: 'A',
+        lat: -17.78,
+        lon: -63.18,
+        distanceMeters: '55.7',
+      },
     ]);
 
     const stops = await repo(ds).findStopsNear(-17.78, -63.18, 500, 3);

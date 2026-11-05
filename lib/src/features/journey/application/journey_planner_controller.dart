@@ -179,14 +179,28 @@ class JourneyPlannerController extends Notifier<JourneyPlannerState> {
   /// de resultados (hubo cambio de extremo, lo anterior quedó viejo). El
   /// extremo NO tocado se conserva: elegir destino no borra el origen.
   /// Con el copyWith por sentinel, el lado no tocado va omitido.
+  ///
+  /// Si YA había un viaje planificado (`submitted`) y tras el cambio siguen
+  /// listos los dos extremos (y no caen uno encima del otro), se CONSERVA
+  /// `submitted`: modificar un punto vuelve a calcular el viaje en vez de
+  /// regresar al modo exploración y obligar a pulsar «Viajar» de nuevo. Es la
+  /// misma regla que ya aplica el arrastre del pin ([endpointDragged]).
+  /// Sin viaje vigente (aún se están eligiendo los extremos) o con los puntos
+  /// demasiado cerca, `submitted` queda `false` y la consulta muere, como antes.
   void setPlace(JourneyPlace place, {required bool isOrigin}) {
     _cancelDebouncers();
+    final prospective = JourneyPlannerState(
+      origin: isOrigin ? place : state.origin,
+      destination: isOrigin ? state.destination : place,
+    );
+    final keepSubmitted =
+        state.submitted && prospective.ready && !prospective.endpointsTooClose;
     state = state.copyWith(
       origin: isOrigin ? place : keepJourneyField,
       destination: isOrigin ? keepJourneyField : place,
       planOrigin: isOrigin ? place : keepJourneyField,
       planDestination: isOrigin ? keepJourneyField : place,
-      submitted: false,
+      submitted: keepSubmitted,
       replanPending: false,
       expandedIndex: null,
       selectedOptionIndex: 0,

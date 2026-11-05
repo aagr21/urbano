@@ -37,8 +37,27 @@ export class AppConfigService {
     return Number(this.configService.get<number>('OTP_TIMEOUT_MS', 8000));
   }
 
+  /**
+   * URL del ruteador peatonal externo (Valhalla: demo público o
+   * autoalojado). Vacío = sin geometría real de caminatas (el cliente dibuja
+   * línea recta). Se usa solo cuando OTP no trazó el tramo a pie.
+   */
+  get walkRouterUrl(): string {
+    return this.configService.get<string>('WALK_ROUTER_URL', '').trim();
+  }
+
+  /** Timeout (ms) por cada caminata ruteada con el ruteador peatonal. */
+  get walkRouterTimeoutMs(): number {
+    return Number(
+      this.configService.get<number>('WALK_ROUTER_TIMEOUT_MS', 5000)
+    );
+  }
+
   get database(): DatabaseConfig {
-    const syncRaw = this.configService.get<string | boolean>('DB_SYNCHRONIZE', 'true');
+    const syncRaw = this.configService.get<string | boolean>(
+      'DB_SYNCHRONIZE',
+      'true'
+    );
     return {
       host: this.configService.get<string>('DB_HOST', 'localhost'),
       port: Number(this.configService.get<number>('DB_PORT', 5432)),

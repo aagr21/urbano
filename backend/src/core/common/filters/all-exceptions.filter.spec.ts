@@ -1,4 +1,9 @@
-import { ArgumentsHost, BadRequestException, HttpException, HttpStatus } from '@nestjs/common';
+import {
+  ArgumentsHost,
+  BadRequestException,
+  HttpException,
+  HttpStatus,
+} from '@nestjs/common';
 import { AllExceptionsFilter } from './all-exceptions.filter';
 
 /** El filtro emite SIEMPRE el envoltorio de error del contrato. */
@@ -30,7 +35,10 @@ describe('AllExceptionsFilter (contrato de errores { error: { statusCode, messag
 
   it('un HttpException conservan su status y su mensaje', () => {
     const { status, body } = runWith(
-      new HttpException({ message: 'Route 999 not found' }, HttpStatus.NOT_FOUND),
+      new HttpException(
+        { message: 'Route 999 not found' },
+        HttpStatus.NOT_FOUND
+      )
     );
     expect(status).toBe(404);
     expect(body).toEqual({
@@ -40,7 +48,9 @@ describe('AllExceptionsFilter (contrato de errores { error: { statusCode, messag
 
   it('un BadRequest con messages array (validación) queda "Validation failed" + details', () => {
     const { status, body } = runWith(
-      new BadRequestException({ message: ['time debe ser HH:mm', 'origin requerido'] }),
+      new BadRequestException({
+        message: ['time debe ser HH:mm', 'origin requerido'],
+      })
     );
     expect(status).toBe(400);
     expect(body).toEqual({
@@ -64,7 +74,11 @@ describe('AllExceptionsFilter (contrato de errores { error: { statusCode, messag
     const { status, body } = runWith(new Error('boom de base'));
     expect(status).toBe(500);
     expect(body).toEqual({
-      error: { statusCode: 500, message: 'Internal server error', details: null },
+      error: {
+        statusCode: 500,
+        message: 'Internal server error',
+        details: null,
+      },
     });
   });
 });

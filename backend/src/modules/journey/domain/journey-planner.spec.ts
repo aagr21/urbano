@@ -48,7 +48,7 @@ describe('journey-planner (lógica pura)', () => {
       tripId: string,
       routeId: string,
       stops: Array<[string, number]>, // [stopId, arrivalSec]
-      overrides: Partial<TripSchedule> = {},
+      overrides: Partial<TripSchedule> = {}
     ): TripSchedule => ({
       tripId,
       routeId,
@@ -80,7 +80,7 @@ describe('journey-planner (lógica pura)', () => {
     const cand = (
       stopId: string,
       distanceMeters: number,
-      name = `Stop ${stopId}`,
+      name = `Stop ${stopId}`
     ): CandidateStop => ({
       stopId,
       name,
@@ -92,7 +92,12 @@ describe('journey-planner (lógica pura)', () => {
       const options = planJourneys({
         originStops: [],
         destStops: [cand('S4', 100)],
-        trips: [makeTrip('T1', 'R1', [['S1', t(6)], ['S4', t(6, 30)]])],
+        trips: [
+          makeTrip('T1', 'R1', [
+            ['S1', t(6)],
+            ['S4', t(6, 30)],
+          ]),
+        ],
         timeSec: t(6),
         maxResults: 3,
       });
@@ -191,10 +196,15 @@ describe('journey-planner (lógica pura)', () => {
         ['S1', t(6)],
         ['S2', t(6, 10)],
       ]);
-      const tripB = makeTrip('TB', 'RB', [
-        ['S2', t(6, 15)],
-        ['S4', t(6, 40)],
-      ], { directionId: 1 });
+      const tripB = makeTrip(
+        'TB',
+        'RB',
+        [
+          ['S2', t(6, 15)],
+          ['S4', t(6, 40)],
+        ],
+        { directionId: 1 }
+      );
       const options = planJourneys({
         originStops: [cand('S1', 0)],
         destStops: [cand('S4', 0)],
@@ -209,13 +219,24 @@ describe('journey-planner (lógica pura)', () => {
       expect(transfer!.arriveAt).toBe('06:40:00');
       expect(transfer!.durationMinutes).toBe(40);
       // legs: walk, busA, busB, walk
-      expect(transfer!.legs.map((l) => l.kind)).toEqual(['walk', 'bus', 'bus', 'walk']);
+      expect(transfer!.legs.map((l) => l.kind)).toEqual([
+        'walk',
+        'bus',
+        'bus',
+        'walk',
+      ]);
     });
 
     it('ordena por duración y limita a maxResults', () => {
       // Trip rápido (llega 06:20) y trip lento (llega 06:50), ambos directos
-      const fast = makeTrip('TF', 'RF', [['S1', t(6)], ['S4', t(6, 20)]]);
-      const slow = makeTrip('TS', 'RS', [['S1', t(6)], ['S4', t(6, 50)]]);
+      const fast = makeTrip('TF', 'RF', [
+        ['S1', t(6)],
+        ['S4', t(6, 20)],
+      ]);
+      const slow = makeTrip('TS', 'RS', [
+        ['S1', t(6)],
+        ['S4', t(6, 50)],
+      ]);
       const options = planJourneys({
         originStops: [cand('S1', 0)],
         destStops: [cand('S4', 0)],
@@ -249,7 +270,7 @@ describe('journey-planner (lógica pura)', () => {
           ['S2', t(6, 15)],
           ['S4', t(6, 30)],
         ],
-        { directionId: 1 },
+        { directionId: 1 }
       );
 
       const options = planJourneys({
@@ -272,7 +293,7 @@ describe('journey-planner (lógica pura)', () => {
     const makeOption = (
       type: 'direct' | 'transfer',
       durationMinutes: number,
-      departAt = '06:00:00',
+      departAt = '06:00:00'
     ): JourneyOption => ({
       type,
       departAt,
@@ -284,36 +305,45 @@ describe('journey-planner (lógica pura)', () => {
     });
 
     it('penaliza transbordos (directo 45 gana a transbordo 40)', () => {
-      const ranked = rankAndCut([
-        makeOption('transfer', 40),
-        makeOption('direct', 45),
-      ], 2);
+      const ranked = rankAndCut(
+        [makeOption('transfer', 40), makeOption('direct', 45)],
+        2
+      );
       expect(ranked[0].type).toBe('direct');
     });
 
     it('la duración desempata ANTES del tipo: transbordo 30 (costo 40) < directo 40', () => {
-      const ranked = rankAndCut([
-        makeOption('transfer', 30), // costo 40
-        makeOption('direct', 40), // costo 40, duración mayor
-      ], 2);
+      const ranked = rankAndCut(
+        [
+          makeOption('transfer', 30), // costo 40
+          makeOption('direct', 40), // costo 40, duración mayor
+        ],
+        2
+      );
       expect(ranked.map((o) => o.type)).toEqual(['transfer', 'direct']);
     });
 
     it('recorta a maxResults', () => {
-      const ranked = rankAndCut([
-        makeOption('direct', 10),
-        makeOption('direct', 20),
-        makeOption('direct', 30),
-      ], 2);
+      const ranked = rankAndCut(
+        [
+          makeOption('direct', 10),
+          makeOption('direct', 20),
+          makeOption('direct', 30),
+        ],
+        2
+      );
       expect(ranked).toHaveLength(2);
       expect(ranked.map((o) => o.durationMinutes)).toEqual([10, 20]);
     });
 
     it('orden determinístico en empate total: sale antes el que parte antes', () => {
-      const ranked = rankAndCut([
-        makeOption('direct', 40, '06:10:00'),
-        makeOption('direct', 40, '06:05:00'),
-      ], 2);
+      const ranked = rankAndCut(
+        [
+          makeOption('direct', 40, '06:10:00'),
+          makeOption('direct', 40, '06:05:00'),
+        ],
+        2
+      );
       expect(ranked[0].departAt).toBe('06:05:00');
     });
   });

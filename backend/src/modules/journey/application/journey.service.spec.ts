@@ -1,7 +1,16 @@
-import { JourneyService } from './journey.service';
+import {
+  JourneyDataPort,
+  LegDetail,
+  LegDetailQuery,
+} from '../domain/journey-data.port';
+import {
+  CandidateStop,
+  JourneyOption,
+  TripSchedule,
+} from '../domain/journey.model';
+import { WalkGeometryPort, WalkPoint } from '../domain/walk-geometry.port';
 import { JourneyQueryDto } from './journey.dto';
-import { JourneyDataPort, LegDetail, LegDetailQuery } from '../domain/journey-data.port';
-import { CandidateStop, JourneyOption, TripSchedule } from '../domain/journey.model';
+import { JourneyService } from './journey.service';
 
 /**
  * Servicio con el puerto mockeado: verifica el enriquecimiento de mapa
@@ -23,8 +32,20 @@ describe('JourneyService — motor externo (OTP2)', () => {
     departAt: '06:00:00',
     arriveAt: '06:40:00',
     durationMinutes: 40,
-    walkToStop: { id: 'S1', name: 'P1', distanceMeters: 180, lat: -17.78, lon: -63.15 },
-    walkFromStop: { id: 'S2', name: 'P2', distanceMeters: 240, lat: -17.8, lon: -63.17 },
+    walkToStop: {
+      id: 'S1',
+      name: 'P1',
+      distanceMeters: 180,
+      lat: -17.78,
+      lon: -63.15,
+    },
+    walkFromStop: {
+      id: 'S2',
+      name: 'P2',
+      distanceMeters: 240,
+      lat: -17.8,
+      lon: -63.17,
+    },
     legs: [
       {
         kind: 'walk',
@@ -60,7 +81,7 @@ describe('JourneyService — motor externo (OTP2)', () => {
     };
     const service = new JourneyService(
       port as unknown as JourneyDataPort,
-      (router as unknown) as never,
+      router as unknown as never
     );
     return { service, port };
   }
@@ -78,7 +99,7 @@ describe('JourneyService — motor externo (OTP2)', () => {
         destLon: -63.17,
         timeSec: 6 * 3600,
         maxResults: 3,
-      }),
+      })
     );
     // El pipeline PostGIS (planner legacy) no se usó
     expect(port.findStopsNear).not.toHaveBeenCalled();
@@ -110,7 +131,12 @@ describe('JourneyService — motor externo (OTP2)', () => {
     };
     const plan = jest
       .fn()
-      .mockResolvedValue([expensiveDirect, transfer, direct, expensiveTransfer]);
+      .mockResolvedValue([
+        expensiveDirect,
+        transfer,
+        direct,
+        expensiveTransfer,
+      ]);
     const { service } = makeServiceWithRouter({ plan });
 
     const { options } = await service.plan({ ...query, maxResults: 2 });
@@ -121,26 +147,73 @@ describe('JourneyService — motor externo (OTP2)', () => {
   it('si OTP devuelve null (no disponible), degrada al planner interno', async () => {
     const port = {
       findStopsNear: jest.fn(async (lat: number) =>
-        lat === query.originLat ? [{ stopId: 'S1', name: 'P1', lat: -17.78, lon: -63.15, distanceMeters: 80 }] : [{ stopId: 'S2', name: 'P2', lat: -17.8, lon: -63.17, distanceMeters: 80 }]),
+        lat === query.originLat
+          ? [
+              {
+                stopId: 'S1',
+                name: 'P1',
+                lat: -17.78,
+                lon: -63.15,
+                distanceMeters: 80,
+              },
+            ]
+          : [
+              {
+                stopId: 'S2',
+                name: 'P2',
+                lat: -17.8,
+                lon: -63.17,
+                distanceMeters: 80,
+              },
+            ]
+      ),
       findTripIdsServingStops: jest.fn(async () => ['T1']),
       loadTripSchedules: jest.fn(async () => [
         {
-          tripId: 'T1', routeId: 'R1', routeShortName: 'R1', routeColor: 'D35400', directionId: 0,
-          headsign: 'Ida', startTimeSec: 6 * 3600, endTimeSec: 8 * 3600, headwaySeconds: 300,
+          tripId: 'T1',
+          routeId: 'R1',
+          routeShortName: 'R1',
+          routeColor: 'D35400',
+          directionId: 0,
+          headsign: 'Ida',
+          startTimeSec: 6 * 3600,
+          endTimeSec: 8 * 3600,
+          headwaySeconds: 300,
           stops: [
-            { stopId: 'S1', sequence: 1, arrivalSec: 6 * 3600, departureSec: 6 * 3600 },
-            { stopId: 'S2', sequence: 2, arrivalSec: 6 * 3600 + 60, departureSec: 6 * 3600 + 60 },
+            {
+              stopId: 'S1',
+              sequence: 1,
+              arrivalSec: 6 * 3600,
+              departureSec: 6 * 3600,
+            },
+            {
+              stopId: 'S2',
+              sequence: 2,
+              arrivalSec: 6 * 3600 + 60,
+              departureSec: 6 * 3600 + 60,
+            },
           ],
         },
       ]),
       loadLegDetails: jest.fn(async (legs: LegDetailQuery[]) =>
-        legs.map((leg) => ({ ...leg, fromStop: undefined, toStop: undefined, coordinates: [[-63.15, -17.78], [-63.17, -17.8]] }))),
-      findStopRefs: jest.fn(async (ids: string[]) => ids.map((id) => ({ id, name: `Ref ${id}`, lat: -17.78, lon: -63.15 }))),
+        legs.map((leg) => ({
+          ...leg,
+          fromStop: undefined,
+          toStop: undefined,
+          coordinates: [
+            [-63.15, -17.78],
+            [-63.17, -17.8],
+          ],
+        }))
+      ),
+      findStopRefs: jest.fn(async (ids: string[]) =>
+        ids.map((id) => ({ id, name: `Ref ${id}`, lat: -17.78, lon: -63.15 }))
+      ),
     };
     const plan = jest.fn().mockResolvedValue(null); // OTP caído
     const service = new JourneyService(
       port as unknown as JourneyDataPort,
-      { plan } as never,
+      { plan } as never
     );
 
     const { options } = await service.plan(query);
@@ -156,26 +229,73 @@ describe('JourneyService — motor externo (OTP2)', () => {
   it('si OTP lanza, degrada al planner interno sin romper el endpoint', async () => {
     const port = {
       findStopsNear: jest.fn(async (lat: number) =>
-        lat === query.originLat ? [{ stopId: 'S1', name: 'P1', lat: -17.78, lon: -63.15, distanceMeters: 80 }] : [{ stopId: 'S2', name: 'P2', lat: -17.8, lon: -63.17, distanceMeters: 80 }]),
+        lat === query.originLat
+          ? [
+              {
+                stopId: 'S1',
+                name: 'P1',
+                lat: -17.78,
+                lon: -63.15,
+                distanceMeters: 80,
+              },
+            ]
+          : [
+              {
+                stopId: 'S2',
+                name: 'P2',
+                lat: -17.8,
+                lon: -63.17,
+                distanceMeters: 80,
+              },
+            ]
+      ),
       findTripIdsServingStops: jest.fn(async () => ['T1']),
       loadTripSchedules: jest.fn(async () => [
         {
-          tripId: 'T1', routeId: 'R1', routeShortName: 'R1', routeColor: 'D35400', directionId: 0,
-          headsign: 'Ida', startTimeSec: 6 * 3600, endTimeSec: 8 * 3600, headwaySeconds: 300,
+          tripId: 'T1',
+          routeId: 'R1',
+          routeShortName: 'R1',
+          routeColor: 'D35400',
+          directionId: 0,
+          headsign: 'Ida',
+          startTimeSec: 6 * 3600,
+          endTimeSec: 8 * 3600,
+          headwaySeconds: 300,
           stops: [
-            { stopId: 'S1', sequence: 1, arrivalSec: 6 * 3600, departureSec: 6 * 3600 },
-            { stopId: 'S2', sequence: 2, arrivalSec: 6 * 3600 + 60, departureSec: 6 * 3600 + 60 },
+            {
+              stopId: 'S1',
+              sequence: 1,
+              arrivalSec: 6 * 3600,
+              departureSec: 6 * 3600,
+            },
+            {
+              stopId: 'S2',
+              sequence: 2,
+              arrivalSec: 6 * 3600 + 60,
+              departureSec: 6 * 3600 + 60,
+            },
           ],
         },
       ]),
       loadLegDetails: jest.fn(async (legs: LegDetailQuery[]) =>
-        legs.map((leg) => ({ ...leg, fromStop: undefined, toStop: undefined, coordinates: [[-63.15, -17.78], [-63.17, -17.8]] }))),
-      findStopRefs: jest.fn(async (ids: string[]) => ids.map((id) => ({ id, name: `Ref ${id}`, lat: -17.78, lon: -63.15 }))),
+        legs.map((leg) => ({
+          ...leg,
+          fromStop: undefined,
+          toStop: undefined,
+          coordinates: [
+            [-63.15, -17.78],
+            [-63.17, -17.8],
+          ],
+        }))
+      ),
+      findStopRefs: jest.fn(async (ids: string[]) =>
+        ids.map((id) => ({ id, name: `Ref ${id}`, lat: -17.78, lon: -63.15 }))
+      ),
     };
     const plan = jest.fn().mockRejectedValue(new Error('boom'));
     const service = new JourneyService(
       port as unknown as JourneyDataPort,
-      { plan } as never,
+      { plan } as never
     );
 
     const { options } = await service.plan(query);
@@ -226,8 +346,18 @@ describe('JourneyService (enriquecimiento de mapa)', () => {
       headwaySeconds: 300,
       stops: [
         { stopId: 'S1', sequence: 1, arrivalSec: t(6), departureSec: t(6) },
-        { stopId: 'S2', sequence: 2, arrivalSec: t(6, 20), departureSec: t(6, 20) },
-        { stopId: 'S3', sequence: 3, arrivalSec: t(6, 30), departureSec: t(6, 30) },
+        {
+          stopId: 'S2',
+          sequence: 2,
+          arrivalSec: t(6, 20),
+          departureSec: t(6, 20),
+        },
+        {
+          stopId: 'S3',
+          sequence: 3,
+          arrivalSec: t(6, 30),
+          departureSec: t(6, 30),
+        },
       ],
     },
     {
@@ -241,8 +371,18 @@ describe('JourneyService (enriquecimiento de mapa)', () => {
       endTimeSec: t(8),
       headwaySeconds: 300,
       stops: [
-        { stopId: 'S2', sequence: 1, arrivalSec: t(6, 25), departureSec: t(6, 25) },
-        { stopId: 'S3', sequence: 2, arrivalSec: t(6, 50), departureSec: t(6, 50) },
+        {
+          stopId: 'S2',
+          sequence: 1,
+          arrivalSec: t(6, 25),
+          departureSec: t(6, 25),
+        },
+        {
+          stopId: 'S3',
+          sequence: 2,
+          arrivalSec: t(6, 50),
+          departureSec: t(6, 50),
+        },
       ],
     },
   ];
@@ -272,20 +412,36 @@ describe('JourneyService (enriquecimiento de mapa)', () => {
       async (legs: LegDetailQuery[]): Promise<LegDetail[]> =>
         legs.map((leg) => ({
           ...leg,
-          fromStop: { id: leg.fromStopId, name: `Nombre ${leg.fromStopId}`, lat: -17.78, lon: -63.15 },
-          toStop: { id: leg.toStopId, name: `Nombre ${leg.toStopId}`, lat: -17.8, lon: -63.17 },
+          fromStop: {
+            id: leg.fromStopId,
+            name: `Nombre ${leg.fromStopId}`,
+            lat: -17.78,
+            lon: -63.15,
+          },
+          toStop: {
+            id: leg.toStopId,
+            name: `Nombre ${leg.toStopId}`,
+            lat: -17.8,
+            lon: -63.17,
+          },
           coordinates:
-            options.coordinates === undefined ? SHAPED_COORDINATES : options.coordinates,
-        })),
+            options.coordinates === undefined
+              ? SHAPED_COORDINATES
+              : options.coordinates,
+        }))
     );
     const findStopRefs = jest.fn(
-      async (ids: string[]): Promise<Array<{ id: string; name: string; lat: number; lon: number }>> =>
-        ids.map((id) => ({ id, name: `Ref ${id}`, lat: -17.781, lon: -63.151 })),
+      async (
+        ids: string[]
+      ): Promise<
+        Array<{ id: string; name: string; lat: number; lon: number }>
+      > =>
+        ids.map((id) => ({ id, name: `Ref ${id}`, lat: -17.781, lon: -63.151 }))
     );
 
     const port = {
       findStopsNear: jest.fn(async (lat: number) =>
-        lat === query.originLat ? [originStop] : [destStopS2, destStopS3],
+        lat === query.originLat ? [originStop] : [destStopS2, destStopS3]
       ),
       findTripIdsServingStops: jest.fn(async () => ['T1', 'T2']),
       loadTripSchedules: jest.fn(async () => trips),
@@ -297,8 +453,9 @@ describe('JourneyService (enriquecimiento de mapa)', () => {
     return { service, port, loadLegDetails, findStopRefs };
   }
 
-  const busLegsOf = (options: Awaited<ReturnType<JourneyService['plan']>>['options']) =>
-    options.flatMap((o) => o.legs).filter((l) => l.kind === 'bus');
+  const busLegsOf = (
+    options: Awaited<ReturnType<JourneyService['plan']>>['options']
+  ) => options.flatMap((o) => o.legs).filter((l) => l.kind === 'bus');
 
   it('adjunta geometry (LineString no vacío) y fromStop/toStop con lat/lon a cada tramo de bus', async () => {
     const { service } = makeService();
@@ -341,20 +498,21 @@ describe('JourneyService (enriquecimiento de mapa)', () => {
     const busLegs = busLegsOf(options);
     expect(busLegs.length).toBe(4);
     const keys = busLegs.map((l) =>
-      l.kind === 'bus' ? `${l.tripId}:${l.fromStopId}:${l.toStopId}` : '',
+      l.kind === 'bus' ? `${l.tripId}:${l.fromStopId}:${l.toStopId}` : ''
     );
     expect(keys.filter((k) => k === 'T1:S1:S2')).toHaveLength(2);
 
     expect(loadLegDetails).toHaveBeenCalledTimes(1);
     const requested: LegDetailQuery[] = loadLegDetails.mock.calls[0][0];
     expect(requested).toHaveLength(3);
-    expect(requested.map((l) => `${l.tripId}:${l.fromStopId}:${l.toStopId}`)).toEqual(
-      expect.arrayContaining(['T1:S1:S2', 'T1:S1:S3', 'T2:S2:S3']),
-    );
+    expect(
+      requested.map((l) => `${l.tripId}:${l.fromStopId}:${l.toStopId}`)
+    ).toEqual(expect.arrayContaining(['T1:S1:S2', 'T1:S1:S3', 'T2:S2:S3']));
     // sin duplicados
-    expect(new Set(requested.map((l) => `${l.tripId}:${l.fromStopId}:${l.toStopId}`)).size).toBe(
-      requested.length,
-    );
+    expect(
+      new Set(requested.map((l) => `${l.tripId}:${l.fromStopId}:${l.toStopId}`))
+        .size
+    ).toBe(requested.length);
 
     expect(findStopRefs).toHaveBeenCalledTimes(1);
   });
@@ -397,8 +555,14 @@ describe('JourneyService (enriquecimiento de mapa)', () => {
       if (leg.kind !== 'bus') continue;
       expect(leg.geometry).toBeNull();
       // las paradas siguen enriquecidas aunque no haya shape
-      expect(leg.fromStop).toMatchObject({ lat: expect.any(Number), lon: expect.any(Number) });
-      expect(leg.toStop).toMatchObject({ lat: expect.any(Number), lon: expect.any(Number) });
+      expect(leg.fromStop).toMatchObject({
+        lat: expect.any(Number),
+        lon: expect.any(Number),
+      });
+      expect(leg.toStop).toMatchObject({
+        lat: expect.any(Number),
+        lon: expect.any(Number),
+      });
     }
   });
 
@@ -432,5 +596,147 @@ describe('JourneyService (enriquecimiento de mapa)', () => {
 
     expect(options).toEqual([]);
     expect(port.findStopsNear).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * El planner interno no traza las caminatas (solo distancias): sin esto el
+ * mapa cortaba en línea recta por encima de las casas. JourneyService pide la
+ * geometría por calles al ruteador peatonal para los tramos a pie derivados del
+ * origen/destino del usuario y las paradas de bus adyacentes.
+ */
+describe('JourneyService — geometría de caminatas (ruteador peatonal)', () => {
+  const query: JourneyQueryDto = {
+    originLat: -17.777,
+    originLon: -63.144,
+    destLat: -17.811,
+    destLon: -63.166,
+    time: '06:00',
+    maxResults: 3,
+  };
+  const S1 = { id: 'S1', name: 'Subida', lat: -17.78, lon: -63.15 };
+  const S2 = { id: 'S2', name: 'Bajada', lat: -17.8, lon: -63.17 };
+
+  function makePort() {
+    return {
+      findStopsNear: jest.fn(async (lat: number) =>
+        lat === query.originLat
+          ? [
+              {
+                stopId: 'S1',
+                name: S1.name,
+                lat: S1.lat,
+                lon: S1.lon,
+                distanceMeters: 120,
+              },
+            ]
+          : [
+              {
+                stopId: 'S2',
+                name: S2.name,
+                lat: S2.lat,
+                lon: S2.lon,
+                distanceMeters: 150,
+              },
+            ]
+      ),
+      findTripIdsServingStops: jest.fn(async () => ['T1']),
+      loadTripSchedules: jest.fn(async () => [
+        {
+          tripId: 'T1',
+          routeId: 'R1',
+          routeShortName: 'R1',
+          routeColor: 'D35400',
+          directionId: 0,
+          headsign: 'Ida',
+          startTimeSec: 6 * 3600,
+          endTimeSec: 8 * 3600,
+          headwaySeconds: 300,
+          stops: [
+            {
+              stopId: 'S1',
+              sequence: 1,
+              arrivalSec: 6 * 3600,
+              departureSec: 6 * 3600,
+            },
+            {
+              stopId: 'S2',
+              sequence: 2,
+              arrivalSec: 6 * 3600 + 600,
+              departureSec: 6 * 3600 + 600,
+            },
+          ],
+        },
+      ]),
+      loadLegDetails: jest.fn(async (legs: LegDetailQuery[]) =>
+        legs.map((leg) => ({
+          ...leg,
+          fromStop: { id: 'S1', name: S1.name, lat: S1.lat, lon: S1.lon },
+          toStop: { id: 'S2', name: S2.name, lat: S2.lat, lon: S2.lon },
+          coordinates: [
+            [-63.15, -17.78],
+            [-63.17, -17.8],
+          ],
+        }))
+      ),
+      findStopRefs: jest.fn(async (ids: string[]) =>
+        ids.map((id) => (id === 'S1' ? { ...S1 } : { ...S2 }))
+      ),
+    };
+  }
+
+  it('traza por calles el acceso (origen→parada) y el egreso (parada→destino)', async () => {
+    const port = makePort();
+    const route = jest.fn(async (a: WalkPoint, b: WalkPoint) => ({
+      type: 'LineString' as const,
+      coordinates: [
+        [a.lon, a.lat],
+        [b.lon, b.lat],
+      ] as number[][],
+    }));
+    const service = new JourneyService(
+      port as unknown as JourneyDataPort,
+      null,
+      { route } as unknown as WalkGeometryPort
+    );
+
+    const { options } = await service.plan(query);
+    expect(options.length).toBeGreaterThan(0);
+
+    const walkLegs = options[0].legs.filter((l) => l.kind === 'walk');
+    expect(walkLegs).toHaveLength(2);
+    for (const leg of walkLegs) {
+      expect((leg.geometry?.coordinates ?? []).length).toBeGreaterThanOrEqual(
+        2
+      );
+    }
+
+    const calls = route.mock.calls as [WalkPoint, WalkPoint][];
+    expect(calls).toHaveLength(2);
+    expect(calls).toContainEqual([
+      { lat: query.originLat, lon: query.originLon },
+      { lat: S1.lat, lon: S1.lon },
+    ]);
+    expect(calls).toContainEqual([
+      { lat: S2.lat, lon: S2.lon },
+      { lat: query.destLat, lon: query.destLon },
+    ]);
+  });
+
+  it('deja la caminata en recta si el ruteador devuelve null (degrada sin romper)', async () => {
+    const port = makePort();
+    const route = jest.fn(async () => null);
+    const service = new JourneyService(
+      port as unknown as JourneyDataPort,
+      null,
+      { route } as unknown as WalkGeometryPort
+    );
+
+    const { options } = await service.plan(query);
+    const walkLegs = options[0].legs.filter((l) => l.kind === 'walk');
+    expect(route).toHaveBeenCalled();
+    for (const leg of walkLegs) {
+      expect((leg.geometry?.coordinates ?? []).length).toBe(0);
+    }
   });
 });

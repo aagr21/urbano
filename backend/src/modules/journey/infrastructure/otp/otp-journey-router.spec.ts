@@ -40,11 +40,29 @@ function busLeg(overrides: Partial<OtpLeg> = {}): OtpLeg {
     startTime: 1792663380000, // 06:03:00-04:00
     endTime: 1792665540000, // 06:39:00-04:00
     distance: 9876,
-    intermediateStops: [{ stop: { gtfsId: 'FEED:S2' } }, { stop: { gtfsId: 'FEED:S3' } }],
+    intermediateStops: [
+      { stop: { gtfsId: 'FEED:S2' } },
+      { stop: { gtfsId: 'FEED:S3' } },
+    ],
     legGeometry: { points: '~sokBn~l`KzEnK' },
-    from: { name: 'Parada S1', lat: -17.78, lon: -63.15, stop: { gtfsId: 'FEED:S1' } },
-    to: { name: 'Parada S4', lat: -17.79, lon: -63.16, stop: { gtfsId: 'FEED:S4' } },
-    route: { gtfsId: 'FEED:R1', shortName: '1', longName: 'Micro 1', color: '#D35400' },
+    from: {
+      name: 'Parada S1',
+      lat: -17.78,
+      lon: -63.15,
+      stop: { gtfsId: 'FEED:S1' },
+    },
+    to: {
+      name: 'Parada S4',
+      lat: -17.79,
+      lon: -63.16,
+      stop: { gtfsId: 'FEED:S4' },
+    },
+    route: {
+      gtfsId: 'FEED:R1',
+      shortName: '1',
+      longName: 'Micro 1',
+      color: '#D35400',
+    },
     trip: { gtfsId: 'FEED:T1' },
     ...overrides,
   };
@@ -63,9 +81,17 @@ function okResponse(json: unknown): Response {
 }
 
 const directItinerary = itinerary(
-  [walkLeg(), busLeg(), walkLeg({ startTime: 1792665540000, endTime: 1792665900000, distance: 240 })],
+  [
+    walkLeg(),
+    busLeg(),
+    walkLeg({
+      startTime: 1792665540000,
+      endTime: 1792665900000,
+      distance: 240,
+    }),
+  ],
   '2026-10-22T06:00:00-04:00',
-  '2026-10-22T06:45:00-04:00',
+  '2026-10-22T06:45:00-04:00'
 );
 
 describe('helpers puros', () => {
@@ -88,7 +114,10 @@ describe('helpers puros', () => {
   });
 
   it('laPazIsoFromTimeSec compone fecha de hoy + hora con offset -04:00', () => {
-    const iso = laPazIsoFromTimeSec(6 * 3600 + 5 * 60, new Date('2026-01-02T12:00:00Z'));
+    const iso = laPazIsoFromTimeSec(
+      6 * 3600 + 5 * 60,
+      new Date('2026-01-02T12:00:00Z')
+    );
     expect(iso).toMatch(/T06:05:00(-05:00|-04:00)$/);
   });
 });
@@ -105,14 +134,21 @@ describe('mapItinerary', () => {
     // walkToStop es la parada de embarque del primer micro, con el total
     // real de metros caminados para llegar a ella (por la red viaria).
     expect(option.walkToStop).toEqual({
-      id: 'S1', name: 'Parada S1', distanceMeters: 180, lat: -17.78, lon: -63.15,
+      id: 'S1',
+      name: 'Parada S1',
+      distanceMeters: 180,
+      lat: -17.78,
+      lon: -63.15,
     });
     expect(option.walkFromStop?.id).toBe('S4');
     expect(option.walkFromStop?.distanceMeters).toBe(240);
 
     expect(option.legs.map((l) => l.kind)).toEqual(['walk', 'bus', 'walk']);
 
-    const bus = option.legs[1] as Extract<JourneyOption['legs'][number], { kind: 'bus' }>;
+    const bus = option.legs[1] as Extract<
+      JourneyOption['legs'][number],
+      { kind: 'bus' }
+    >;
     expect(bus.routeShortName).toBe('1');
     expect(bus.routeColor).toBe('D35400'); // sin #
     expect(bus.tripId).toBe('T1');
@@ -125,7 +161,10 @@ describe('mapItinerary', () => {
       [-63.15, -17.78],
       [-63.152, -17.7811],
     ]);
-    const firstWalk = option.legs[0] as Extract<JourneyOption['legs'][number], { kind: 'walk' }>;
+    const firstWalk = option.legs[0] as Extract<
+      JourneyOption['legs'][number],
+      { kind: 'walk' }
+    >;
     // Geometría de caminata por la red viaria (2 puntos del fixture)
     expect(firstWalk.geometry?.coordinates).toEqual([
       [-63.15, -17.78],
@@ -135,21 +174,38 @@ describe('mapItinerary', () => {
   });
 
   it('mapea un itinerario con transbordo (2 micros)', () => {
-    const option = mapItinerary(itinerary(
-      [
-        walkLeg(),
-        busLeg(),
-        busLeg({
-          from: { name: 'Parada S4', lat: -17.79, lon: -63.16, stop: { gtfsId: 'FEED:S4' } },
-          to: { name: 'Parada S5', lat: -17.8, lon: -63.17, stop: { gtfsId: 'FEED:S5' } },
-          route: { gtfsId: 'FEED:R2', shortName: '2', longName: 'Micro 2', color: '3498DB' },
-          trip: { gtfsId: 'FEED:T2' },
-        }),
-        walkLeg({ startTime: 1792666500000, distance: 100 }),
-      ],
-      '2026-10-22T06:00:00-04:00',
-      '2026-10-22T07:00:00-04:00',
-    )) as JourneyOption;
+    const option = mapItinerary(
+      itinerary(
+        [
+          walkLeg(),
+          busLeg(),
+          busLeg({
+            from: {
+              name: 'Parada S4',
+              lat: -17.79,
+              lon: -63.16,
+              stop: { gtfsId: 'FEED:S4' },
+            },
+            to: {
+              name: 'Parada S5',
+              lat: -17.8,
+              lon: -63.17,
+              stop: { gtfsId: 'FEED:S5' },
+            },
+            route: {
+              gtfsId: 'FEED:R2',
+              shortName: '2',
+              longName: 'Micro 2',
+              color: '3498DB',
+            },
+            trip: { gtfsId: 'FEED:T2' },
+          }),
+          walkLeg({ startTime: 1792666500000, distance: 100 }),
+        ],
+        '2026-10-22T06:00:00-04:00',
+        '2026-10-22T07:00:00-04:00'
+      )
+    ) as JourneyOption;
 
     expect(option.type).toBe('transfer');
     expect(option.walkFromStop?.id).toBe('S5');
@@ -157,19 +213,27 @@ describe('mapItinerary', () => {
   });
 
   it('descarta itinerarios 100% a pie (sin micro)', () => {
-    expect(mapItinerary(itinerary(
-      [walkLeg({ distance: 800 })],
-      '2026-10-22T06:00:00-04:00',
-      '2026-10-22T06:10:00-04:00',
-    ))).toBeNull();
+    expect(
+      mapItinerary(
+        itinerary(
+          [walkLeg({ distance: 800 })],
+          '2026-10-22T06:00:00-04:00',
+          '2026-10-22T06:10:00-04:00'
+        )
+      )
+    ).toBeNull();
   });
 
   it('descarta el itinerario si el micro no tiene parada con id', () => {
-    expect(mapItinerary(itinerary(
-      [busLeg({ from: { name: 'x', lat: 1, lon: 1 } })],
-      '2026-10-22T06:00:00-04:00',
-      '2026-10-22T06:10:00-04:00',
-    ))).toBeNull();
+    expect(
+      mapItinerary(
+        itinerary(
+          [busLeg({ from: { name: 'x', lat: 1, lon: 1 } })],
+          '2026-10-22T06:00:00-04:00',
+          '2026-10-22T06:10:00-04:00'
+        )
+      )
+    ).toBeNull();
   });
 });
 
@@ -194,7 +258,11 @@ describe('OtpJourneyRouter.plan', () => {
   }
 
   function otpResponse(itineraries: OtpItinerary[]): unknown {
-    return { data: { planConnection: { edges: itineraries.map((node) => ({ node })) } } };
+    return {
+      data: {
+        planConnection: { edges: itineraries.map((node) => ({ node })) },
+      },
+    };
   }
 
   it('consulta /index/graphql por POST y mapea los itinerarios', async () => {
@@ -204,16 +272,17 @@ describe('OtpJourneyRouter.plan', () => {
 
     expect(stub).toHaveBeenCalledWith(
       'http://otp.local:8081/otp/index/graphql',
-      expect.objectContaining({ method: 'POST' }),
+      expect.objectContaining({ method: 'POST' })
     );
     const body = JSON.parse(
-      ((stub.mock.calls[0] as unknown[])[1] as { body: string }).body,
+      ((stub.mock.calls[0] as unknown[])[1] as { body: string }).body
     );
     expect(body.variables.from).toEqual({
       location: { coordinate: { latitude: -17.78, longitude: -63.15 } },
     });
     expect(body.variables.to.location.coordinate).toEqual({
-      latitude: -17.79, longitude: -63.16,
+      latitude: -17.79,
+      longitude: -63.16,
     });
     expect(body.variables.first).toBe(3);
     expect(body.variables.dateTime.earliestDeparture).toMatch(/-0[45]:00$/);
@@ -229,7 +298,9 @@ describe('OtpJourneyRouter.plan', () => {
   });
 
   it('devuelve null si OTP falla (HTTP 503 / error de red / GraphQL errors)', async () => {
-    settingUpFetch(jest.fn().mockResolvedValue(new Response('no', { status: 503 })));
+    settingUpFetch(
+      jest.fn().mockResolvedValue(new Response('no', { status: 503 }))
+    );
     expect(await new OtpJourneyRouter(configWithOtp).plan(query)).toBeNull();
 
     settingUpFetch(jest.fn().mockRejectedValue(new Error('ECONNREFUSED')));
@@ -245,11 +316,13 @@ describe('OtpJourneyRouter.plan', () => {
   });
 
   it('NO recorta ni ordena: solo mapea (la política de resultados vive en domain)', async () => {
-    const itineraries = Array.from({ length: 5 }, (_, i) => itinerary(
-      [walkLeg(), busLeg({ trip: { gtfsId: `FEED:T${i}` } })],
-      '2026-10-22T06:00:00-04:00',
-      '2026-10-22T06:45:00-04:00',
-    ));
+    const itineraries = Array.from({ length: 5 }, (_, i) =>
+      itinerary(
+        [walkLeg(), busLeg({ trip: { gtfsId: `FEED:T${i}` } })],
+        '2026-10-22T06:00:00-04:00',
+        '2026-10-22T06:45:00-04:00'
+      )
+    );
     stubFetchReturning(otpResponse(itineraries));
     const options = await new OtpJourneyRouter(configWithOtp).plan(query);
     // El adapter devuelve todos los itinerarios mapeados; rankAndCut del

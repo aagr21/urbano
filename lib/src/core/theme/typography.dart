@@ -1,14 +1,20 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 /// Tipografía de Urbano.
 ///
 /// Todo corre en **Inter**, la cara más cercana a SF Pro que traemos
 /// empaquetada: se ve "de iPhone" sin cambiar de herramienta. La singularidad
 /// de marca queda en el wordmark (`wordmark`), que sí usa Plus Jakarta Sans.
-/// Las fuentes viven en `assets/fonts`, así que no hay descargas en runtime.
+/// Las dos familias se declaran en `pubspec.yaml` bajo `flutter.fonts`, así que
+/// la app las resuelve por `fontFamily` sin `google_fonts` ni descargas de red.
 class AppTypography {
   AppTypography._();
+
+  /// Familia Inter, empaquetada en pesos 400..800 (ver `pubspec.yaml`).
+  static const String _inter = 'Inter';
+
+  /// Plus Jakarta Sans, solo para el wordmark (700 y 800 empaquetados).
+  static const String _wordmarkFamily = 'PlusJakartaSans';
 
   static const FontWeight display = FontWeight.w800;
   static const FontWeight bold = FontWeight.w700;
@@ -16,12 +22,14 @@ class AppTypography {
 
   /// Aplica Inter (apretado, con jerarquía de pesos) sobre [base].
   static TextTheme apply(TextTheme base) {
+    // `copyWith` con `letterSpacing: null` conserva el del estilo base, igual que
+    // hacía `GoogleFonts.inter`; solo se fuerza cuando el rol lo pide.
     TextStyle heading(
       TextStyle? style, {
       FontWeight weight = bold,
       double? letterSpacing,
-    }) => GoogleFonts.inter(
-      textStyle: style,
+    }) => (style ?? const TextStyle()).copyWith(
+      fontFamily: _inter,
       fontWeight: weight,
       letterSpacing: letterSpacing,
     );
@@ -75,9 +83,10 @@ class AppTypography {
 
   /// El logotipo "Urbano": Plus Jakarta Sans ExtraBold (la única excepción
   /// tipográfica de la app, para que la marca tenga voz propia).
-  static TextStyle wordmark(TextStyle? style) => GoogleFonts.plusJakartaSans(
-    textStyle: style,
-    fontWeight: display,
-    letterSpacing: -0.35,
-  );
+  static TextStyle wordmark(TextStyle? style) =>
+      (style ?? const TextStyle()).copyWith(
+        fontFamily: _wordmarkFamily,
+        fontWeight: display,
+        letterSpacing: -0.35,
+      );
 }

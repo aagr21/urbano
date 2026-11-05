@@ -246,7 +246,10 @@ class AppTheme {
       ),
       navigationBarTheme: NavigationBarThemeData(
         height: 68,
-        backgroundColor: isDark ? scheme.surfaceContainerLow : Colors.white,
+        // Claro: `scheme.surface` (== `AppColors.surfaceLight` == #FFFFFF) es la
+        // misma hoja blanca que levantaba el literal `Colors.white`, pero deja de
+        // ser un color de plataforma: sale del token del tema.
+        backgroundColor: isDark ? scheme.surfaceContainerLow : scheme.surface,
         indicatorColor: scheme.primaryContainer,
         labelTextStyle: WidgetStatePropertyAll(
           textTheme.labelSmall?.copyWith(fontWeight: AppTypography.semiBold),
@@ -289,6 +292,13 @@ class AppTheme {
         elevation: 2,
       ),
       dividerTheme: DividerThemeData(color: scheme.outlineVariant, space: 1),
+      // Barra de scroll con el gris del tema: sin esto cae en el thumb gris
+      // default de Material, que no es de la marca.
+      scrollbarTheme: ScrollbarThemeData(
+        thumbColor: WidgetStatePropertyAll(scheme.outlineVariant),
+        thickness: const WidgetStatePropertyAll(6.0),
+        radius: const Radius.circular(AppRadius.pill),
+      ),
       progressIndicatorTheme: ProgressIndicatorThemeData(color: scheme.primary),
     );
   }

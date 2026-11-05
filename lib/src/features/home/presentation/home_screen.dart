@@ -10,10 +10,10 @@ import '../../../core/utils/extensions.dart';
 import '../../../core/widgets/section_header.dart';
 import 'widgets/featured_map_card.dart';
 import 'widgets/home_header.dart';
+import 'widgets/live_route_banner.dart';
 import 'widgets/micros_strip.dart';
 import 'widgets/quick_actions.dart';
 import 'widgets/search_results.dart';
-import 'widgets/service_card.dart';
 
 /// Pantalla principal: buscador + planificar + servicio de hoy + micros
 /// (por color) + mapa.
@@ -114,10 +114,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 offset: const Offset(0, -_ctaOverlap),
                 child: const Reveal(index: 1, slide: 12, child: QuickActions()),
               ),
-              // El hueco del layout ya gastó `_ctaOverlap` en la parte que la
-              // tarjeta monta: se le devuelve para que el aire real sean 24 px.
-              const SizedBox(height: AppSpace.sm),
-              const Reveal(index: 2, slide: 12, child: ServiceCard()),
+              // Sin SizedBox extra: la tarjeta va pegada al QuickActions,
+              // el usuario pidió menos espaciado arriba.
+              const Reveal(index: 2, slide: 12, child: LiveRouteBanner()),
               const Reveal(index: 3, slide: 10, child: _MicrosSection()),
               const SizedBox(height: AppSpace.xl),
               const Reveal(index: 4, slide: 16, child: FeaturedMapCard()),

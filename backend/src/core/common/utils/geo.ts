@@ -3,7 +3,7 @@ export function haversineMeters(
   lat1: number,
   lon1: number,
   lat2: number,
-  lon2: number,
+  lon2: number
 ): number {
   const R = 6_371_000;
   const toRad = (deg: number): number => (deg * Math.PI) / 180;

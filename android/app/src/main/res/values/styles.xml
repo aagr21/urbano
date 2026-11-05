@@ -70,8 +70,20 @@
          Flutter UI initializes, as well as behind your Flutter UI while its
          running.
 
-         This Theme is only used starting with V2 of Flutter's Android embedding. -->
+         This Theme is only used starting with V2 of Flutter's Android embedding.
+
+         windowBackground/statusBarColor/navigationBarColor = @color/urbano_canvas
+         (el canvas del tema, #F2F2F7 en claro), NO `?android:colorBackground`:
+         este es el fondo de la ventana de `MainActivity` que asoma entre el
+         handoff de la splash y el primer frame opaco de Flutter. Con el default
+         de la plataforma se colaba un flash BLANCO puro al abrir; con el canvas
+         coincide con el `scaffoldBackgroundColor` real de la app. `values-night/`
+         redefine `urbano_canvas` a negro, así que el mismo style sigue al brillo
+         del sistema. -->
     <style name="NormalTheme" parent="@android:style/Theme.Light.NoTitleBar">
-        <item name="android:windowBackground">?android:colorBackground</item>
+        <item name="android:windowBackground">@color/urbano_canvas</item>
+        <item name="android:statusBarColor">@color/urbano_canvas</item>
+        <item name="android:navigationBarColor">@color/urbano_canvas</item>
+        <item name="android:windowLightStatusBar" tools:targetApi="m">true</item>
     </style>
 </resources>

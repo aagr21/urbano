@@ -2,7 +2,10 @@
 
 /** "06:00:00" | "06:00" | "27:10:00" → segundos desde medianoche. */
 export function timeToSeconds(time: string): number {
-  const parts = time.trim().split(':').map((p) => Number.parseInt(p, 10));
+  const parts = time
+    .trim()
+    .split(':')
+    .map((p) => Number.parseInt(p, 10));
   if (parts.length < 2 || parts.some((p) => Number.isNaN(p))) {
     throw new Error(`Hora inválida: "${time}" (se esperaba HH:mm[:ss])`);
   }

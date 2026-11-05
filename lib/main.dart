@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 import 'src/app.dart';
 import 'src/core/boot/boot_readiness.dart';
@@ -13,9 +12,9 @@ import 'src/core/widgets/splash_gate.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  // Las fuentes van empaquetadas en assets/fonts (ver pubspec.yaml): nada de
-  // descargas en runtime. Esto también evita que los tests intenten fetch de red.
-  GoogleFonts.config.allowRuntimeFetching = false;
+  // Las fuentes van empaquetadas e inscritas como manifiesto `fonts:` en
+  // pubspec.yaml, resueltas por `fontFamily` sin `google_fonts`: nada de
+  // descargas en runtime y los tests nunca intentan fetch de red.
   installMapLibreDisposeFix();
 
   // Restaurar el modo de tema ANTES del primer frame. Si se dejara al controller

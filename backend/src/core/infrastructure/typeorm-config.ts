@@ -3,7 +3,9 @@ import { AppConfigService } from '../config/app-config.service';
 import { ALL_ENTITIES } from './entities';
 
 /** Opciones de TypeORM derivadas del entorno validado. */
-export function buildTypeOrmOptions(config: AppConfigService): TypeOrmModuleOptions {
+export function buildTypeOrmOptions(
+  config: AppConfigService
+): TypeOrmModuleOptions {
   const db = config.database;
   return {
     type: 'postgres',

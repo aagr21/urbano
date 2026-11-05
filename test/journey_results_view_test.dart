@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:latlong2/latlong.dart';
-
 import 'package:urbano/src/features/journey/data/journey_models.dart';
 import 'package:urbano/src/features/journey/presentation/journey_planner_controller.dart';
 import 'package:urbano/src/features/journey/presentation/journey_providers.dart';
@@ -165,15 +164,45 @@ void main() {
   });
 
   test(
-    'nuevo extremo/solución: setPlace limpia submitted y el caché muere',
+    'modificar un punto con viaje visible recalcula (conserva submitted)',
     () async {
       givenSubmitted();
       completers[query]!.complete([option('1')]);
       await container.pump();
       expect(container.read(journeyResultsProvider).hasResults, isTrue);
 
-      // setPlace pone submitted:false → consulta nula → caché fuera
-      // (equivalente al antiguo _discardCachedOptions()).
+      // Cambiar un extremo con el viaje YA planificado no debe regresar al
+      // modo exploración: conserva `submitted`, cambia la consulta y deja el
+      // caché viejo visible mientras llega la respuesta nueva (recalcula solo).
+      const newDestination = JourneyPlacePoint(lat: -17.80, lon: -63.20);
+      container
+          .read(journeyPlannerControllerProvider.notifier)
+          .setPlace(newDestination, isOrigin: false);
+      container.pump();
+
+      const replanQuery = JourneyQuery(
+        origin: placeOrigin,
+        destination: newDestination,
+      );
+      final v = container.read(journeyResultsProvider);
+      expect(v.query, replanQuery); // sigue planificado → nueva consulta
+      expect(v.options, isNotNull); // caché viejo aún visible
+      expect(v.replanning, isTrue); // fetch de la consulta nueva en vuelo
+
+      completers[replanQuery]!.complete([option('9')]);
+      await container.pump();
+      expect(
+        container.read(journeyResultsProvider).options!.single.departAt,
+        '08:00:009',
+      );
+    },
+  );
+
+  test(
+    'setPlace sin viaje planificado (aún se eligen extremos) no consulta',
+    () async {
+      // Primer extremo: destination == null → no ready → submitted false,
+      // la consulta muere (mode exploración) hasta pulsar «Viajar».
       container
           .read(journeyPlannerControllerProvider.notifier)
           .setPlace(placeOrigin, isOrigin: true);
@@ -184,6 +213,27 @@ void main() {
       expect(v.options, isNull);
       expect(v.hasResults, isFalse);
       expect(v.replanning, isFalse);
+    },
+  );
+
+  test(
+    'setPlace que junta los dos extremos (mismo punto) no recalcula',
+    () async {
+      givenSubmitted();
+      completers[query]!.complete([option('1')]);
+      await container.pump();
+      expect(container.read(journeyResultsProvider).hasResults, isTrue);
+
+      // Mover el origen encima del destino: endpointsTooClose → submitted
+      // muere en vez de pedir un viaje imposible.
+      container
+          .read(journeyPlannerControllerProvider.notifier)
+          .setPlace(placeDestination, isOrigin: true);
+      container.pump();
+
+      final v = container.read(journeyResultsProvider);
+      expect(v.query, isNull);
+      expect(v.hasResults, isFalse);
     },
   );
 

@@ -50,6 +50,15 @@ final mapFullscreenProvider = StateProvider<bool>((_) => false);
 /// esta bandera; el planeador la lee, la limpia y abre el cajón.
 final pendingMicrosPanelProvider = StateProvider<bool>((_) => false);
 
+/// Intento pendiente de abrir el **panel de origen/destino** desde otra pantalla.
+///
+/// Es el equivalente de [pendingMicrosPanelProvider] para la tarjeta «Viajar»
+/// del home: el usuario ya pidió viajar, así que llegar a `/journey` con el
+/// panel cerrado (la píldora «¿A dónde vas?») lo obligaba a tocar otra vez.
+/// El despliegue es acción del `State` del planeador, así que el home deja
+/// esta bandera, cambia de rama, y el planeador la lee, la limpia y abre.
+final pendingPlannerPanelProvider = StateProvider<bool>((_) => false);
+
 /// Estado de trabajo del **panel de micros**, que sobrevive a cerrarlo y
 /// volverlo a abrir mientras la app esté abierta.
 ///

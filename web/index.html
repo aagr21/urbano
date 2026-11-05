@@ -1,7 +1,7 @@
-<!DOCTYPE html>
+<!doctype html>
 <html>
-<head>
-  <!--
+    <head>
+        <!--
     If you are serving your web app in a path other than the root, change the
     href value below to reflect the base path you are serving from.
 
@@ -14,26 +14,47 @@
     This is a placeholder for base href that will be replaced by the value of
     the `--base-href` argument provided to `flutter build`.
   -->
-  <base href="$FLUTTER_BASE_HREF">
+        <base href="$FLUTTER_BASE_HREF" />
 
-  <meta charset="UTF-8">
-  <meta content="IE=Edge" http-equiv="X-UA-Compatible">
-  <meta name="description" content="A new Flutter project.">
+        <meta charset="UTF-8" />
+        <meta content="IE=Edge" http-equiv="X-UA-Compatible" />
+        <meta name="description" content="A new Flutter project." />
 
-  <!-- iOS meta tags & icons -->
-  <meta name="mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black">
-  <meta name="apple-mobile-web-app-title" content="urbano">
-  <link rel="apple-touch-icon" href="icons/Icon-192.png">
+        <!-- iOS meta tags & icons -->
+        <meta name="mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="black" />
+        <meta name="apple-mobile-web-app-title" content="urbano" />
+        <link rel="apple-touch-icon" href="icons/Icon-192.png" />
 
-  <!-- Favicon -->
-  <link rel="icon" type="image/png" href="favicon.png"/>
+        <!-- Favicon -->
+        <link rel="icon" type="image/png" href="favicon.png" />
 
-  <title>urbano</title>
-  <link rel="manifest" href="manifest.json">
-</head>
-<body>
-  <!--
+        <title>urbano</title>
+        <link rel="manifest" href="manifest.json" />
+        <!-- Fondo de arranque del documento: el navegador pinta su <body> blanco antes
+       de que Flutter dibuje el primer frame. Se fija en el canvas del tema
+       (`AppColors.canvasLight` #F2F2F7 en claro, `canvasDark` #000000 en noche del
+       sistema) para que no asome el blanco por defecto de la plataforma, igual que
+       `NormalTheme` en Android. SplashGate cubre todo con su portada verde en
+       cuanto Flutter puede dibujar. -->
+        <style>
+            html,
+            body {
+                margin: 0;
+                padding: 0;
+                height: 100%;
+                background-color: #f2f2f7;
+            }
+            @media (prefers-color-scheme: dark) {
+                html,
+                body {
+                    background-color: #000000;
+                }
+            }
+        </style>
+    </head>
+    <body>
+        <!--
     You can customize the "flutter_bootstrap.js" script.
     This is useful to provide a custom configuration to the Flutter loader
     or to give the user feedback during the initialization process.
@@ -41,6 +62,6 @@
     For more details:
     * https://docs.flutter.dev/platform-integration/web/initialization
   -->
-  <script src="flutter_bootstrap.js" async></script>
-</body>
+        <script src="flutter_bootstrap.js" async></script>
+    </body>
 </html>

@@ -1,9 +1,7 @@
 import 'dart:math' as math;
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:lottie/lottie.dart';
 
 import '../animation/motion.dart';
 import '../theme/app_colors.dart';
@@ -11,32 +9,12 @@ import '../theme/app_theme.dart';
 import '../theme/typography.dart';
 import '../utils/extensions.dart';
 
-/// El mismo archivo que reproduce la splash NATIVA de Android
-/// (`android/app/src/main/assets/splash.json` es copia literal de este).
-const String _splashLottieAsset = 'assets/lottie/splash.json';
-
-/// La portada se dibuja con Lottie **solo en iOS**, y es una decisión forzada, no
-/// de gusto.
-///
-/// * Android: el JSON ya sonó antes de que Flutter existiera, en
-///   `SplashActivity` (Kotlin, `com.airbnb.android:lottie`). Volver a ponerlo aquí
-///   sería la segunda splash animada que el usuario ya rechazó: lo que sigue al
-///   handoff es la portada pintada de siempre, con su barra y su etapa real.
-/// * iOS: Apple **no permite animar** `LaunchScreen.storyboard` —el sistema lo
-///   instantánea antes de que la app corra y cualquier animación ahí se rechaza en
-///   la App Store—, así que la única manera de que el usuario vea movimiento es
-///   poner el Lottie en Flutter tan pronto como Flutter puede dibujar. La
-///   continuidad no la da el layout ni el timing: la da que el launch screen
-///   estático muestre EXACTAMENTE el frame 0 de este JSON sobre el mismo verde
-///   (`urbano_primary`), de modo que el cambio storyboard → Lottie no se lea como
-///   un corte.
-///
-/// Es `defaultTargetPlatform` y no `Platform.isIOS` a propósito: sin `dart:io` la
-/// rama sigue compilando en web, y bajo `flutter test` (Linux/CI) responde
-/// `android`, así que ningún test monta el Lottie —importante, porque su
-/// `repeat: true` es un `AnimationController` eterno y `pumpAndSettle` no
-/// convergería con él, el mismo motivo por el que [Ambient] se acota en tests.
-bool get _splashUsesLottie => defaultTargetPlatform == TargetPlatform.iOS;
+/// `assets/lottie/splash.json` ya NO se reproduce dentro de Flutter: es la
+/// animación de la splash NATIVA de Android (`SplashActivity`, Kotlin) y la
+/// fuente del frame 0 estático del `LaunchScreen` de iOS. La portada que se ve
+/// aquí es la misma en todas las plataformas (pintada con `_RingsPainter`,
+/// `_Dial`, `_Loader`), así que el texto «Cargando» y la barra horneados en el
+/// JSON no se duplican en iOS: el JSON vive solo en la fase anterior a Flutter.
 
 /// Etapa real del arranque, que es la que se lee bajo «Cargando».
 enum BootStage {
@@ -44,7 +22,7 @@ enum BootStage {
   warming('Preparando la app'),
 
   /// La app ya corre; faltan los datos que el inicio va a mostrar.
-  fetching('Buscando rutas y horarios'),
+  fetching('Buscando rutas'),
 
   /// Los datos respondieron mal o tardaron de más: se abre igual.
   offline('Sin respuesta del servicio'),
@@ -328,15 +306,6 @@ class _SplashCover extends StatelessWidget {
       58.0,
       84.0,
     );
-    // En iOS el giro lo trae el JSON, y ahí dentro el aro mide 104 de 360 (0,29
-    // del lienzo): para que el aro se vea del mismo tamaño que el pintado, el
-    // lienzo tiene que medir ~3,4 veces la medida antigua. Se queda en 0,40 del
-    // lado menor (≈2,6 del `dial`) para no comerse la pantalla, y ese 0,40 es el
-    // MISMO número que lleva la constraint de ancho del `LaunchScreen.storyboard`:
-    // el launch screen estático tiene que dibujar el frame 0 donde el Lottie lo va
-    // a reproducir. Si se cambia uno, se cambia el otro.
-    final lottieSide = math.min(screen.width, screen.height) * 0.40;
-    final withLottie = _splashUsesLottie;
 
     return TweenAnimationBuilder<double>(
       // Dos patas sobre el mismo ticker: cambiar `end` (de la meseta a 1) rearma
@@ -383,13 +352,12 @@ class _SplashCover extends StatelessWidget {
                   builder: (context, _, spin, _) => Stack(
                     fit: StackFit.expand,
                     children: [
-                      // En iOS el JSON YA trae sus tres anillos: pintar encima los
-                      // de la ciudad sería doble animar el mismo motivo, y eso se
-                      // ve barato. El fondo pintado queda para Android.
-                      if (!withLottie)
-                        CustomPaint(
-                          painter: _RingsPainter(draw: rings, travel: spin),
-                        ),
+                      // Los anillos de la ciudad trazándose: el fondo de marca.
+                      // Se pintan en TODAS las plataformas; el JSON horneado solo
+                      // vive en la fase nativa anterior a Flutter.
+                      CustomPaint(
+                        painter: _RingsPainter(draw: rings, travel: spin),
+                      ),
                       SafeArea(
                         // Un poco más arriba del centro: el tercio inferior es de
                         // los anillos y de la micro que los recorre.
@@ -401,12 +369,7 @@ class _SplashCover extends StatelessWidget {
                             spin: spin,
                             fill: fill,
                             exit: exit,
-                            leader: withLottie
-                                ? _SplashLottie(
-                                    size: lottieSide,
-                                    animating: !reduced,
-                                  )
-                                : _Dial(size: dial, turn: spin),
+                            leader: _Dial(size: dial, turn: spin),
                           ),
                         ),
                       ),
@@ -456,8 +419,8 @@ class _LoadingBlock extends StatelessWidget {
   /// 0..1 de la entrada del bloque (opacidad + subida corta).
   final double rise;
 
-  /// Fase del ambiente en curso (`0..1` de la vuelta): sigue barriendo la barra
-  /// incluso en iOS, donde el giro lo pone el JSON.
+  /// Fase del ambiente en curso (`0..1` de la vuelta): gira el girófono y barre
+  /// la barra con un solo reloj.
   final double spin;
 
   /// 0..1 del relleno de la barra.
@@ -466,9 +429,9 @@ class _LoadingBlock extends StatelessWidget {
   /// 0..1 de la salida: apaga el barrido para que la barra llena se lea limpia.
   final double exit;
 
-  /// La pieza que dice «esto se está moviendo»: el girófono pintado en Android /
-  /// desktop / web, el Lottie en iOS. Es un `Widget` y no un `bool` porque el
-  /// tamaño y el reloj de cada uno se deciden fuera, en la portada.
+  /// La pieza que dice «esto se está moviendo»: el girófono pintado (`_Dial`),
+  /// igual en todas las plataformas. Es un `Widget` y no un `bool` para que el
+  /// tamaño y el reloj se decidan fuera, en la portada.
   final Widget leader;
 
   @override
@@ -478,7 +441,7 @@ class _LoadingBlock extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         leader,
-        const SizedBox(height: AppSpace.xl),
+        const SizedBox(height: AppSpace.xxl),
         Transform.translate(
           offset: Offset(0, (1 - rise) * AppSpace.md),
           child: Opacity(
@@ -508,53 +471,11 @@ class _LoadingBlock extends StatelessWidget {
             ),
           ),
         ),
-        const SizedBox(height: AppSpace.xl),
+        const SizedBox(height: AppSpace.xxl),
         _Loader(fill: fill, sweep: spin, sweepFade: 1 - exit),
       ],
     );
   }
-}
-
-/// La portada de iOS: el mismo Lottie que en Android suena en Kotlin.
-///
-/// Por qué existe este widget y no un launch screen animado: Apple captura el
-/// storyboard ANTES de que la app tenga proceso, y una animación ahí (o un
-/// `UIImageView` que se mueva con código en `AppDelegate` antes del primer frame
-/// de Flutter) es motivo de rechazo en la App Store. La única posición legal es
-/// estática, así que el truco es que estática y animación sean LA MISMA IMAGEN: el
-/// launch screen lleva el frame 0 del JSON (`LaunchScreen.storyboard` con
-/// `SplashStartFrame`, color `urbano_primary`) y en cuanto Flutter puede dibujar
-/// este widget arranca ese mismo frame desde el frame 0. El ojo no ve un corte por
-/// continuidad de layout, sino porque no cambia nada: mismo verde, mismo aro,
-/// misma micro en el mismo ángulo.
-///
-/// Con `animating` en `false` («reducir animaciones») el widget pinta el frame 0 y
-/// se queda ahí: exactamente lo que el launch screen venía mostrando, así que el
-/// cambio sigue siendo invisible.
-class _SplashLottie extends StatelessWidget {
-  const _SplashLottie({required this.size, required this.animating});
-
-  /// Lado del lienzo cuadrado (el JSON es 360x360).
-  final double size;
-
-  /// `false` bajo `MediaQuery.disableAnimations`: quieto en el frame 0.
-  final bool animating;
-
-  @override
-  Widget build(BuildContext context) => Lottie.asset(
-    _splashLottieAsset,
-    width: size,
-    height: size,
-    fit: BoxFit.contain,
-    animate: animating,
-    // La espera real la manda `bootReadinessProvider`, que no sabe de duraciones:
-    // si el JSON diera una sola vuelta y se apagara, la portada volvería a un
-    // logo estático en medio de la carga, que es peor que no animar.
-    repeat: true,
-    // Key fija para que un test (o el simulador) pueda localizar la portada de
-    // iOS sin depender del tipo interno del paquete `lottie`.
-    key: const ValueKey('splash-lottie'),
-  );
 }
 
 /// Girófono de carga: un arco de coral dando vueltas sobre una pista tenue.

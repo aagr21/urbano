@@ -23,7 +23,9 @@ describe('ResponseWrapperInterceptor (contrato { data, meta })', () => {
 
   const run = (payload: unknown, withSkip = false): Promise<unknown> =>
     new Promise((resolve) => {
-      const next: CallHandler = { handle: () => of(payload) as Observable<unknown> };
+      const next: CallHandler = {
+        handle: () => of(payload) as Observable<unknown>,
+      };
       interceptor.intercept(ctxOf(withSkip), next).subscribe(resolve);
     });
 
@@ -33,7 +35,9 @@ describe('ResponseWrapperInterceptor (contrato { data, meta })', () => {
   });
 
   it('un PaginatedResult sale como { data: items, meta: { page, limit, total } }', async () => {
-    const body = (await run(paginated([{ id: '41' }], { page: 2, limit: 20, total: 41 }))) as {
+    const body = (await run(
+      paginated([{ id: '41' }], { page: 2, limit: 20, total: 41 })
+    )) as {
       data: unknown[];
       meta: { page: number; limit: number; total: number };
     };
