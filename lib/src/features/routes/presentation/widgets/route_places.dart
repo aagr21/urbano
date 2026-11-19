@@ -103,16 +103,36 @@ class RoutePlaces extends ConsumerWidget {
       emptyMessage: 'El feed no declara puntos en este sentido.',
       onEmpty: () => const SizedBox.shrink(),
       loadingCount: 3,
-      // La maqueta imita la forma real del recorrido.
+      // La maqueta imita la forma real del recorrido. Los bloques son
+      // flexibles: con anchos fijos, tres tarjetas de 120 px desbordaban la
+      // fila en móviles angostos mientras el recorrido cargaba.
       loading: () => const Padding(
         padding: EdgeInsets.fromLTRB(16, 8, 16, 0),
         child: Row(
           children: [
-            LoadingShimmer(width: 120, height: 64, radius: AppRadius.tile),
-            SizedBox(width: 26),
-            LoadingShimmer(width: 120, height: 64, radius: AppRadius.tile),
-            SizedBox(width: 26),
-            LoadingShimmer(width: 120, height: 64, radius: AppRadius.tile),
+            Expanded(
+              child: LoadingShimmer(
+                width: double.infinity,
+                height: 64,
+                radius: AppRadius.tile,
+              ),
+            ),
+            SizedBox(width: AppSpace.sm),
+            Expanded(
+              child: LoadingShimmer(
+                width: double.infinity,
+                height: 64,
+                radius: AppRadius.tile,
+              ),
+            ),
+            SizedBox(width: AppSpace.sm),
+            Expanded(
+              child: LoadingShimmer(
+                width: double.infinity,
+                height: 64,
+                radius: AppRadius.tile,
+              ),
+            ),
           ],
         ),
       ),

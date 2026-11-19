@@ -1,14 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:urbano/src/core/location/location_service.dart';
 import 'package:urbano/src/core/network/api_client.dart';
-import 'package:urbano/src/core/router/app_router.dart';
 import 'package:urbano/src/core/theme/app_theme.dart';
 import 'package:urbano/src/core/utils/location.dart';
 import 'package:urbano/src/features/home/data/stats.dart';
 import 'package:urbano/src/features/home/presentation/home_providers.dart';
+import 'package:urbano/src/features/home/presentation/widgets/search_results.dart';
 import 'package:urbano/src/features/routes/data/route_models.dart';
 import 'package:urbano/src/features/routes/data/route_repository.dart';
 import 'package:urbano/src/features/routes/presentation/route_detail_screen.dart';
@@ -137,7 +138,25 @@ void main() {
         ],
       );
       addTearDown(container.dispose);
-      final router = container.read(appRouterProvider);
+      // El buscador se retiró de la portada, pero `SearchResults` sigue siendo
+      // el dueño de la fila con `RouteListTile`: se monta directo para no
+      // perder la regresión del tap que abre el detalle.
+      final router = GoRouter(
+        routes: [
+          GoRoute(
+            path: '/',
+            builder: (context, state) =>
+                const Scaffold(body: SearchResults(query: 'angostura')),
+          ),
+          GoRoute(
+            path: '/routes/:id',
+            builder: (context, state) => RouteDetailScreen(
+              routeId: state.pathParameters['id']!,
+              heroPrefix: 'search',
+            ),
+          ),
+        ],
+      );
       addTearDown(router.dispose);
 
       await tester.pumpWidget(
@@ -152,10 +171,6 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 600));
 
-      await tester.enterText(find.byType(TextField), 'angostura');
-      await tester.pump(const Duration(milliseconds: 400));
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 400));
       expect(find.text('Micro 101 ANGOSTURA'), findsOneWidget);
 
       // Tap sobre la tarjeta del resultado: la navegación real del router va

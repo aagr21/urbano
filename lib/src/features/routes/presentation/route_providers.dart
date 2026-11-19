@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/network/api_client.dart';
+import '../data/osm_street_repository.dart';
 import '../data/route_models.dart';
 import '../data/route_repository.dart';
 
@@ -38,13 +39,12 @@ class RoutesQuery {
   int get hashCode => Object.hash(q, page, limit, sort);
 }
 
-/// Página del catálogo que ve el inicio.
+/// Página del catálogo que precalienta el arranque.
 ///
-/// La comparten la tirilla «Tus micros», el mini mapa destacado **y la pantalla
-/// de carga** (`bootReadinessProvider` en `core/boot`): como
-/// `routesListProvider` está indexado por la propia consulta, todos suscriben al
-/// mismo provider y el arranque dispara **un solo** `/routes`, no uno por
-/// pantalla.
+/// La comparten el panel de micros de Viaje **y la pantalla de carga**
+/// (`bootReadinessProvider` en `core/boot`): como `routesListProvider` está
+/// indexado por la propia consulta, ambos suscriben al mismo provider y el
+/// arranque dispara **un solo** `/routes`, no uno por pantalla.
 const RoutesQuery homeCatalogQuery = RoutesQuery(limit: 6);
 
 /// Identidad de detalle: ruta + dirección.
@@ -121,6 +121,19 @@ final routeStopsProvider = FutureProvider.autoDispose
       return ref
           .watch(routeRepositoryProvider)
           .stops(key.routeId, directionId: key.directionId);
+    });
+
+/// Calles y avenidas del recorrido, resueltas con OpenStreetMap (Overpass).
+///
+/// Parte del trazado que ya trae el detalle, así que no pide dos veces la
+/// geometría. Bajo `flutter test` el repositorio devuelve vacío sin tocar la
+/// red y la sección «Por dónde pasa» simplemente no se monta.
+final routeStreetsProvider = FutureProvider.autoDispose
+    .family<List<String>, RouteKey>((ref, key) async {
+      final detail = await ref.watch(routeDetailProvider(key).future);
+      final points = detail.shape?.points ?? const [];
+      if (points.length < 2) return const [];
+      return ref.watch(osmStreetRepositoryProvider).streetsAlong(points);
     });
 
 /// Próximas salidas (sin hora ⇒ hora actual America/La_Paz en el backend).
