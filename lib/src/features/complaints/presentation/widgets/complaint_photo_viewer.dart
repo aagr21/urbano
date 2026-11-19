@@ -194,7 +194,7 @@ class _ComplaintPhotoViewerScreenState
                   bottom: AppSpace.lg,
                   child: Center(
                     child: Text(
-                      'Foto de la queja',
+                      'Foto de la denuncia',
                       style: text.bodySmall?.copyWith(
                         color: colors.onInverseSurface,
                       ),

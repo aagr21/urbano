@@ -8,6 +8,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/extensions.dart';
 import '../../../core/widgets/empty_state.dart';
+import '../../../core/widgets/urbano_back_button.dart';
 import '../../home/presentation/widgets/home_route_lattice.dart';
 import '../../routes/data/route_models.dart';
 import '../../routes/presentation/widgets/route_list_tile.dart';
@@ -161,7 +162,7 @@ class _CreateComplaintScreenState extends ConsumerState<CreateComplaintScreen> {
           );
       if (mounted) Navigator.of(context).pop(true);
     } catch (error) {
-      if (mounted) _showMessage('No se pudo enviar la queja: $error');
+      if (mounted) _showMessage('No se pudo enviar la denuncia: $error');
     } finally {
       if (mounted) setState(() => _sending = false);
     }
@@ -172,15 +173,18 @@ class _CreateComplaintScreenState extends ConsumerState<CreateComplaintScreen> {
     // Tinta medida contra el degradado de marca (nunca un blanco escrito a mano).
     final onGradient = AppColors.onColor(AppColors.primaryDark);
     return Scaffold(
-      appBar: AppBar(title: const Text('Nueva queja')),
+      appBar: AppBar(
+        leading: const UrbanoBackButton(),
+        title: const Text('Nueva denuncia'),
+      ),
       body: Form(
         key: _formKey,
         child: ListView(
-          padding: const EdgeInsets.fromLTRB(
+          padding: EdgeInsets.fromLTRB(
             AppSpace.lg,
             AppSpace.sm,
             AppSpace.lg,
-            AppSpace.xl,
+            AppSpace.xl + MediaQuery.viewPaddingOf(context).bottom,
           ),
           children: [
             Container(
@@ -450,7 +454,7 @@ class _CreateComplaintScreenState extends ConsumerState<CreateComplaintScreen> {
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
                 : const Icon(Icons.send_rounded),
-            label: Text(_sending ? 'Enviando…' : 'Enviar queja'),
+            label: Text(_sending ? 'Enviando…' : 'Enviar denuncia'),
           ),
         ),
       ),

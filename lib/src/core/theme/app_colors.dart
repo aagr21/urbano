@@ -71,40 +71,57 @@ class AppColors {
   static const Color outlineLight = Color(0xFFC7C7CC);
   static const Color outlineVariantLight = Color(0xFFE5E5EA);
 
-  // ── Modo oscuro: grafito de iOS, no azul ────────────────────────────────
+  // ── Modo oscuro: gris grafito, nunca negro y nunca azul ─────────────────
+  //
+  // El pedido del usuario fue explícito: el negro (#000 y sus cercanías) se
+  // veía «muy oscuro»; el fondo oscuro debe leerse GRIS oscuro. Toda la
+  // escalera se levanta junta conservando pasos de ~5-6 puntos, así las
+  // superficies siguen jerarquizadas sobre el lienzo.
 
-  /// Fondo oscuro de app (negro, como el OLED de un iPhone).
-  static const Color canvasDark = Color(0xFF000000);
+  /// Fondo oscuro de app: grafito grisáceo, no negro.
+  static const Color canvasDark = Color(0xFF1A1A1E);
 
   /// Superficie base en oscuro (tarjetas, hojas, diálogos).
-  static const Color surfaceDark = Color(0xFF1C1C1E);
+  static const Color surfaceDark = Color(0xFF27272C);
 
   /// Niveles de `surfaceContainer*` en oscuro, de más bajo a más alto.
-  static const Color surfaceContainerLowDark = Color(0xFF161618);
-  static const Color surfaceContainerDark = Color(0xFF1C1C1E);
-  static const Color surfaceContainerHighDark = Color(0xFF242426);
-  static const Color surfaceContainerHighestDark = Color(0xFF2C2C2E);
+  static const Color surfaceContainerLowDark = Color(0xFF212126);
+  static const Color surfaceContainerDark = Color(0xFF27272C);
+  static const Color surfaceContainerHighDark = Color(0xFF2E2E34);
+  static const Color surfaceContainerHighestDark = Color(0xFF36363C);
 
   /// Texto principal en oscuro.
   static const Color inkDark = Color(0xFFF5F5F7);
 
-  /// Texto secundario en oscuro.
-  static const Color inkDarkSoft = Color(0xFF98989D);
+  /// Texto secundario en oscuro (levanta con la escalera: ~5:1 sobre
+  /// `surfaceDark` y ~6:1 sobre `canvasDark`).
+  static const Color inkDarkSoft = Color(0xFFB4B4BC);
 
-  /// Contornos en oscuro (grises de Apple, poco ruido).
-  static const Color outlineDark = Color(0xFF48484A);
-  static const Color outlineVariantDark = Color(0xFF38383A);
+  /// Contornos en oscuro: **blanco en alfa**, no gris. La regla de la casa es
+  /// que el blanco del modo oscuro entre por la tipografía, los íconos y los
+  /// bordes; pintar superficie blanca entera convierte la app en otra cosa.
+  /// El alfa deja que el filete se lea sobre cualquier escalón del grafito.
+  static const Color outlineDark = Color(0x66FFFFFF);
+  static const Color outlineVariantDark = Color(0x2EFFFFFF);
 
-  /// Primario en oscuro (verde agua luminoso para contrastar sobre
-  /// superficies oscuras) y su contenedor.
-  static const Color primarySoftDark = Color(0xFF4FE3D0);
+  /// Filete fino de tarjeta en oscuro (el mismo blanco, más discreto).
+  static const Color lineDark = Color(0x29FFFFFF);
+
+  /// Filete de foco/identidad en oscuro: un paso más que [lineDark] para
+  /// separar la tarjeta del lienzo sin dibujar un borde duro.
+  static const Color lineStrongDark = Color(0x47FFFFFF);
+
+  /// Primario en oscuro: verde agua **apagado**, no neón. Sigue siendo el
+  /// acento vivo de la app sobre el grafito (≥6.5:1 contra `surfaceDark`),
+  /// pero con la saturación baja para que no deslumbre en una pantalla OLED.
+  static const Color primarySoftDark = Color(0xFF55BFAE);
   static const Color onPrimaryDark = Color(0xFF00352F);
   static const Color primaryContainerDark = Color(0xFF00635A);
   static const Color onPrimaryContainerDark = Color(0xFFC2F5EC);
 
-  /// Acentos vivos en oscuro.
+  /// Acentos vivos en oscuro (mismo apagado que el primario).
   static const Color accentSoftDark = Color(0xFFFF9166);
-  static const Color aquaSoftDark = Color(0xFF3BE0CE);
+  static const Color aquaSoftDark = Color(0xFF6FCBBE);
 
   /// Error.
   static const Color danger = Color(0xFFE5484D);

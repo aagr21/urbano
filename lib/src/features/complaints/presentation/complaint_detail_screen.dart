@@ -8,6 +8,7 @@ import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/extensions.dart';
 import '../../../core/widgets/error_view.dart';
 import '../../../core/widgets/loading_shimmer.dart';
+import '../../../core/widgets/urbano_back_button.dart';
 import '../../routes/data/route_models.dart';
 import '../application/complaints_feed_controller.dart';
 import '../application/passenger_controller.dart';
@@ -120,6 +121,7 @@ class _ComplaintDetailScreenState extends ConsumerState<ComplaintDetailScreen> {
 
     return Scaffold(
       appBar: AppBar(
+        leading: const UrbanoBackButton(),
         toolbarHeight: 64,
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,

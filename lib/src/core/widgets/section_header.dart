@@ -35,6 +35,10 @@ class SectionHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final text = context.text;
     final colors = context.colors;
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    // El segundo tinte del riel es el aqua de marca en claro; en oscuro baja
+    // al secundario del tema para no pintar una línea neón sobre el grafito.
+    final railAccent = dark ? colors.secondary : AppColors.aqua;
     return Padding(
       padding: padding,
       child: Row(
@@ -47,10 +51,10 @@ class SectionHeader extends StatelessWidget {
             margin: const EdgeInsets.only(right: AppSpace.md),
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(AppRadius.pill),
-              gradient: const LinearGradient(
+              gradient: LinearGradient(
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
-                colors: [AppColors.primary, AppColors.aqua],
+                colors: [colors.primary, railAccent],
               ),
             ),
           ),

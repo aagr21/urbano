@@ -2,6 +2,8 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 
+import '../theme/app_colors.dart';
+
 /// Tarjeta translúcida con blur (overlays de mapa, header, etc.).
 class GlassCard extends StatelessWidget {
   const GlassCard({
@@ -30,7 +32,14 @@ class GlassCard extends StatelessWidget {
     final surface =
         color ??
         (isDark
-            ? Colors.white.withValues(alpha: 0.08)
+            // Vidrio OSCURO real: el velo blanco al 8% que había aquí
+            // aclaraba el fondo del mapa y dejaba la tinta clara de los
+            // overlays (p. ej. «¿A dónde vas?» y origen/destino) casi
+            // ilegible sobre capas luminosas. `surfaceDark` casi opaco
+            // conserva el desenfoque y la transparencia mínima, pero el
+            // texto siempre mide su contraste sobre grafito (≥4.5:1 con
+            // `onSurfaceVariant` incluso con capa de mapa clara detrás).
+            ? AppColors.surfaceDark.withValues(alpha: 0.92)
             : Colors.white.withValues(alpha: 0.82));
 
     Widget card = ClipRRect(

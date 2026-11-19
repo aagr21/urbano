@@ -8,7 +8,8 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/extensions.dart';
 import '../../../core/widgets/async_value_view.dart';
-import '../../../core/widgets/loading_shimmer.dart';
+import '../../../core/widgets/loading_shimmer.dart' show LoadingShimmer;
+import '../../../core/widgets/urbano_back_button.dart';
 import '../../home/presentation/widgets/home_route_lattice.dart';
 import '../../routes/data/route_models.dart';
 import '../application/complaints_feed_controller.dart';
@@ -60,6 +61,10 @@ class ComplaintsScreen extends ConsumerWidget {
     final notifier = ref.read(complaintsFeedProvider.notifier);
     final filter = ref.watch(complaintCategoryFilterProvider);
     final total = visible.valueOrNull?.length ?? 0;
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    // El riel de marca usa el aqua vivo en claro y el secundario apagado del
+    // tema en oscuro (el neón sobre grafito era lo que se veía feo).
+    final railAccent = dark ? context.colors.secondary : AppColors.aqua;
 
     return Scaffold(
       // Sin AppBar: la sección abre con su propia portada de marca a sangre. La
@@ -78,6 +83,10 @@ class ComplaintsScreen extends ConsumerWidget {
               identity: identity,
               onCreate: () => _openForm(context, ref, routes),
               onIdentity: () => showPassengerNameSheet(context),
+              // Retroceso: la queja es una pantalla empujada, no una rama de
+              // primer nivel. Vive en la fila del título para no sumar alto
+              // ni taparlo: la primera tarjeta tiene que seguir entrando.
+              leading: const UrbanoBackButton(color: Colors.white),
             ),
           ),
           // Las pastillas se miden contra el fondo REALMENTE pintado de la
@@ -105,10 +114,10 @@ class ComplaintsScreen extends ConsumerWidget {
                   margin: const EdgeInsets.only(right: AppSpace.sm),
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(AppRadius.pill),
-                    gradient: const LinearGradient(
+                    gradient: LinearGradient(
                       begin: Alignment.topCenter,
                       end: Alignment.bottomCenter,
-                      colors: [AppColors.primary, AppColors.aqua],
+                      colors: [context.colors.primary, railAccent],
                     ),
                   ),
                 ),
@@ -181,11 +190,13 @@ class ComplaintsScreen extends ConsumerWidget {
                     ? 'Todavía no hay reportes'
                     : 'Nada reportado de este motivo',
                 emptyMessage: 'Sé el primero en ayudar a mejorar el servicio.',
-                padding: const EdgeInsets.fromLTRB(
+                padding: EdgeInsets.fromLTRB(
                   AppSpace.lg,
                   AppSpace.xs,
                   AppSpace.lg,
-                  AppSpace.xxl,
+                  // La pantalla va edge-to-edge: la última tarjeta tiene que
+                  // poder subir por encima del gesto/barra del sistema.
+                  AppSpace.xxl + MediaQuery.viewPaddingOf(context).bottom,
                 ),
                 itemBuilder: (context, complaint, index) => ComplaintPostCard(
                   complaint: complaint,
@@ -292,6 +303,7 @@ class _CoverHeader extends StatelessWidget {
     required this.identity,
     required this.onCreate,
     required this.onIdentity,
+    this.leading,
   });
 
   final ({int reports, int supports, int comments}) stats;
@@ -299,6 +311,10 @@ class _CoverHeader extends StatelessWidget {
   final PassengerIdentity? identity;
   final VoidCallback onCreate;
   final VoidCallback onIdentity;
+
+  /// Flecha de retroceso que comparte la fila del título: entra en el alto que
+  /// ya ocupaba la columna del título, sin robarle píxeles a la primera queja.
+  final Widget? leading;
 
   @override
   Widget build(BuildContext context) {
@@ -373,6 +389,10 @@ class _CoverHeader extends StatelessWidget {
                   children: [
                     Row(
                       children: [
+                        if (leading != null) ...[
+                          leading!,
+                          const SizedBox(width: AppSpace.xs),
+                        ],
                         Expanded(
                           child: Column(
                             mainAxisSize: MainAxisSize.min,

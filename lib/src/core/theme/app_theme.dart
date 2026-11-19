@@ -90,7 +90,7 @@ class AppTheme {
     );
     // Ambos modos se controlan explícitamente sobre la semilla: en claro,
     // grises neutros de Apple con los tres acentos de marca; en oscuro,
-    // grafito sobre negro con un primario luminoso para que siga vivo.
+    // grafito con un primario apagado (el aqua neón se leía como luz).
     final scheme = isDark
         ? seedScheme.copyWith(
             primary: AppColors.primarySoftDark,

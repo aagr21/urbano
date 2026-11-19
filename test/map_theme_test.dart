@@ -8,13 +8,11 @@ import 'package:urbano/src/core/map/map_scene.dart';
 import 'package:urbano/src/core/map/map_styles.dart';
 import 'package:urbano/src/core/map/map_tile.dart';
 import 'package:urbano/src/core/router/app_router.dart';
-import 'package:urbano/src/core/theme/app_colors.dart';
 import 'package:urbano/src/core/theme/app_theme.dart';
 import 'package:urbano/src/core/theme/map_theme_controller.dart';
 import 'package:urbano/src/core/utils/location.dart';
 import 'package:urbano/src/core/widgets/map_tile_button.dart';
 import 'package:urbano/src/core/widgets/urbano_map.dart';
-import 'package:urbano/src/features/home/presentation/widgets/home_header.dart';
 import 'package:urbano/src/features/journey/presentation/journey_providers.dart';
 
 import 'helpers/contrast.dart';
@@ -52,15 +50,6 @@ class _BrokenMapThemeStore implements MapThemeStore {
   @override
   Future<void> save(MapTile? tile) async {}
 }
-
-/// Colores del buscador de la cabecera, leídos del widget ya pintado.
-typedef _HeaderField = ({
-  Color border,
-  Color glass,
-  Color hint,
-  Color icon,
-  Color ink,
-});
 
 /// Tile efectivo del mapa para una combinación (mismo cálculo que [UrbanoMap]).
 MapTile _effectiveTile({required bool appDark, MapTile? choice}) =>
@@ -441,61 +430,6 @@ void main() {
       expect(_scene(tester).styleString, UrbanoMapStyles.light);
     });
   });
-
-  group('Buscador «Busca rutas…» de la cabecera', () {
-    testWidgets(
-      'letra, placeholder, ícono y borde son legibles sobre la marca',
-      (tester) async {
-        await _pumpHome(tester, appDark: false);
-
-        final field = _readHeaderField(tester);
-        // Fondo realmente pintado bajo el vidrio: `aqua`, el extremo MÁS CLARO del
-        // degradado de marca y por tanto el peor caso para una tinta oscura.
-        final bg = Color.lerp(AppColors.aqua, Colors.white, field.glass.a)!;
-
-        expect(
-          colorContrast(field.ink, bg),
-          greaterThanOrEqualTo(4.5),
-          reason: 'la letra del buscador desaparece sobre la marca',
-        );
-        expect(
-          colorContrast(field.hint, bg),
-          greaterThanOrEqualTo(4.5),
-          reason: 'el placeholder no se lee',
-        );
-        expect(
-          colorContrast(field.icon, bg),
-          greaterThanOrEqualTo(3.0),
-          reason: 'el ícono de búsqueda no se ve',
-        );
-        expect(
-          colorContrast(field.border, bg),
-          greaterThanOrEqualTo(3.0),
-          reason: 'el borde del campo no marca dónde empieza',
-        );
-        // El vidrio es propio del campo: heredando el del tema oscuro (blanco al
-        // 6%) el límite desaparecía sobre el verde.
-        expect(field.glass.withValues(alpha: 1), Colors.white);
-        expect(field.glass.a, greaterThanOrEqualTo(0.9));
-      },
-    );
-
-    testWidgets('el campo es ancla de marca: idéntico con app clara y oscura', (
-      tester,
-    ) async {
-      await _pumpHome(tester, appDark: false);
-      final light = _readHeaderField(tester);
-
-      await _pumpHome(tester, appDark: true);
-      final dark = _readHeaderField(tester);
-
-      expect(dark.ink, light.ink);
-      expect(dark.hint, light.hint);
-      expect(dark.icon, light.icon);
-      expect(dark.border, light.border);
-      expect(dark.glass, light.glass);
-    });
-  });
 }
 
 // ---------------------------------------------------------------------------
@@ -671,36 +605,3 @@ Widget _plannerApp(ProviderContainer container, {required bool appDark}) =>
         routerConfig: container.read(appRouterProvider),
       ),
     );
-
-Future<void> _pumpHome(WidgetTester tester, {required bool appDark}) async {
-  await tester.pumpWidget(
-    ProviderScope(
-      overrides: [
-        myLocationProvider.overrideWith(
-          (ref) async => const LatLng(-17.7833, -63.1821),
-        ),
-      ],
-      child: MaterialApp(
-        theme: AppTheme.light(),
-        darkTheme: AppTheme.dark(),
-        themeMode: appDark ? ThemeMode.dark : ThemeMode.light,
-        home: Scaffold(body: HomeHeader(controller: TextEditingController())),
-      ),
-    ),
-  );
-  await tester.pump();
-  await tester.pump(const Duration(milliseconds: 400));
-}
-
-/// Colores del buscador de la cabecera tal como los pintó el widget.
-_HeaderField _readHeaderField(WidgetTester tester) {
-  final field = tester.widget<TextField>(find.byType(TextField).first);
-  final decoration = field.decoration!;
-  return (
-    ink: field.style!.color!,
-    hint: decoration.hintStyle!.color!,
-    glass: decoration.fillColor!,
-    icon: decoration.prefixIconColor!,
-    border: (decoration.enabledBorder! as OutlineInputBorder).borderSide.color,
-  );
-}

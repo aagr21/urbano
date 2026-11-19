@@ -177,6 +177,6 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byType(ComplaintPhotoViewerScreen), findsOneWidget);
     // Sin contador: no hay nada que deslizar, pero sí el pie de la foto.
-    expect(find.text('Foto de la queja'), findsOneWidget);
+    expect(find.text('Foto de la denuncia'), findsOneWidget);
   });
 }
