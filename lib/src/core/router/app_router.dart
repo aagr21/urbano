@@ -6,9 +6,10 @@ import '../../features/complaints/presentation/complaints_screen.dart';
 import '../../features/home/presentation/home_screen.dart';
 import '../../features/info/presentation/info_screen.dart';
 import '../../features/journey/presentation/journey_planner_screen.dart';
-import '../../features/journey/presentation/journey_providers.dart';
 import '../../features/journey/presentation/map_picker_screen.dart';
+import '../../features/routes/presentation/micros_screen.dart';
 import '../../features/routes/presentation/route_detail_screen.dart';
+import '../../features/routes/presentation/route_direction_map_screen.dart';
 import '../animation/motion.dart';
 import '../widgets/empty_state.dart';
 
@@ -18,10 +19,9 @@ final appRouterProvider = Provider<GoRouter>((_) => _router);
 GoRouter get _router => GoRouter(
   initialLocation: '/',
   // La pestaña "Mapa" se fusionó con "Viaje": `/map` redirige por
-  // seguridad a la pantalla-mapa única. La pestaña "Rutas" se retiró:
-  // el listado de micros con direcciones ida/vuelta vive en el panel
-  // izquierdo de `/journey`; `/routes/:id` (detalle) se conserva para
-  // los accesos del home.
+  // seguridad a la pantalla-mapa única. El catálogo completo de líneas vive
+  // ahora en `/micros` (pantalla propia, no en el panel de Viaje) y el detalle
+  // en `/routes/:id`; el mapa de un sentido se abre en `/routes/:id/map`.
   redirect: (context, state) =>
       state.matchedLocation == '/map' ? '/journey' : null,
   routes: [
@@ -56,6 +56,25 @@ GoRouter get _router => GoRouter(
           ],
         ),
       ],
+    ),
+    GoRoute(
+      path: '/micros',
+      name: 'micros',
+      builder: (context, state) => const MicrosScreen(),
+    ),
+    // Antes que `/routes/:id`: el mapa de un sentido es una pantalla propia
+    // (ida/vuelta) que se empuja desde el detalle.
+    GoRoute(
+      path: '/routes/:id/map',
+      name: 'route-map',
+      builder: (context, state) {
+        final direction =
+            int.tryParse(state.uri.queryParameters['direction'] ?? '') ?? 0;
+        return RouteDirectionMapScreen(
+          routeId: state.pathParameters['id'] ?? '',
+          directionId: direction,
+        );
+      },
     ),
     GoRoute(
       path: '/routes/:id',
@@ -98,52 +117,32 @@ GoRouter get _router => GoRouter(
   ),
 );
 
-/// Navegador con barra inferior de 3 secciones (Inicio · Viaje · Quejas).
-/// La pestaña "Cerca" (paradas cercanas) se retiró junto con las paradas, y
-/// la pestaña "Rutas" se fusionó en el panel de micros de `/journey`.
+/// Navegador del shell (Inicio · Viaje · Denuncias) **sin barra inferior**.
+///
+/// El rediseño de la portada se parece al de una app de viajes: logo, ubicación
+/// y accesos arriba, y la navegación entre secciones en el menú de la cabecera
+/// (`showUrbanoMenu`). Las tres ramas siguen montadas como antes
+/// (`StatefulShellRoute.indexedStack`), así el mapa del planner nunca se
+/// reconstruye al cambiar de sección.
 class UrbanoShell extends ConsumerWidget {
   const UrbanoShell({super.key, required this.shell});
 
   final StatefulNavigationShell shell;
 
-  /// Índice de la pestaña Viaje dentro del shell.
-  static const _journeyTabIndex = 1;
-
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // En pantalla completa del mapa (solo en la pestaña Viaje) se esconde la
-    // barra inferior: el provider vive compartido con la pantalla del planner.
-    final fullscreen =
-        shell.currentIndex == _journeyTabIndex &&
-        ref.watch(mapFullscreenProvider);
-    return Scaffold(
-      body: _TabSwitch(index: shell.currentIndex, child: shell),
-      bottomNavigationBar: fullscreen
-          ? null
-          : NavigationBar(
-              selectedIndex: shell.currentIndex,
-              onDestinationSelected: (index) => shell.goBranch(
-                index,
-                initialLocation: index == shell.currentIndex,
-              ),
-              destinations: const [
-                NavigationDestination(
-                  icon: Icon(Icons.explore_outlined),
-                  selectedIcon: Icon(Icons.explore_rounded),
-                  label: 'Inicio',
-                ),
-                NavigationDestination(
-                  icon: Icon(Icons.swap_horiz_rounded),
-                  selectedIcon: Icon(Icons.swap_horiz_rounded),
-                  label: 'Viaje',
-                ),
-                NavigationDestination(
-                  icon: Icon(Icons.feedback_outlined),
-                  selectedIcon: Icon(Icons.feedback_rounded),
-                  label: 'Quejas',
-                ),
-              ],
-            ),
+    // Atrás del sistema en las ramas de Viaje/Denuncias: vuelve a Inicio en
+    // vez de cerrar la app. Inicio conserva el comportamiento nativo (salir),
+    // porque es la raíz y no tiene a dónde retroceder.
+    return PopScope(
+      canPop: shell.currentIndex == 0,
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop || shell.currentIndex == 0) return;
+        context.go('/');
+      },
+      child: Scaffold(
+        body: _TabSwitch(index: shell.currentIndex, child: shell),
+      ),
     );
   }
 }
@@ -211,20 +210,17 @@ class _TabSwitchState extends State<_TabSwitch>
 class UrbanoRoutes {
   UrbanoRoutes._();
 
-  /// Lleva al usuario al **panel de micros de Viaje**, el listado completo de
-  /// líneas (la antigua ruta `/routes` desapareció al fusionar la pestaña
-  /// «Rutas» en `/journey`: apuntar ahí caía en el `errorBuilder`).
-  ///
-  /// Se cambia de rama primero y el panel se abre después: la bandera se
-  /// consume en el `build` del planeador, de modo que el cajón nunca se
-  /// superpone al home.
-  static void openAllMicros(BuildContext context, WidgetRef ref) {
-    ref.read(pendingMicrosPanelProvider.notifier).state = true;
-    context.go('/journey');
+  /// Abre el **catálogo completo de micros** en su propia pantalla.
+  static void openMicrosCatalog(BuildContext context) {
+    context.push('/micros');
   }
 
   static String routeDetail(String routeId, {String? from}) {
     final path = '/routes/${Uri.encodeComponent(routeId)}';
     return from == null ? path : '$path?from=${Uri.encodeComponent(from)}';
   }
+
+  /// Mapa de un sentido concreto del recorrido (`0` = ida, `1` = vuelta).
+  static String routeMap(String routeId, {required int directionId}) =>
+      '/routes/${Uri.encodeComponent(routeId)}/map?direction=$directionId';
 }

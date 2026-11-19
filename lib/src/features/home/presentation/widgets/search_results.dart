@@ -36,7 +36,7 @@ class SearchResults extends ConsumerWidget {
                 'Rutas',
                 subtitle: '${data.routes.meta.total} coincidencias',
                 actionLabel: 'Ver todas',
-                onAction: () => UrbanoRoutes.openAllMicros(context, ref),
+                onAction: () => UrbanoRoutes.openMicrosCatalog(context),
               ),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),

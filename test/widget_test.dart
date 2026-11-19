@@ -10,14 +10,19 @@ import 'package:urbano/src/core/utils/location.dart';
 import 'package:urbano/src/features/home/data/stats.dart';
 import 'package:urbano/src/features/home/presentation/home_providers.dart';
 import 'package:urbano/src/features/home/presentation/home_screen.dart';
-import 'package:urbano/src/features/journey/application/journey_providers.dart';
+import 'package:urbano/src/features/home/presentation/widgets/home_header.dart';
+import 'package:urbano/src/features/journey/application/journey_planner_controller.dart';
+import 'package:urbano/src/features/journey/application/trip_history_controller.dart';
+import 'package:urbano/src/features/journey/data/trip_history.dart';
 import 'package:urbano/src/features/journey/presentation/journey_planner_screen.dart';
 import 'package:urbano/src/features/routes/data/route_models.dart';
 import 'package:urbano/src/features/routes/data/route_repository.dart';
+import 'package:urbano/src/features/routes/presentation/micros_screen.dart';
 import 'package:urbano/src/features/routes/presentation/route_providers.dart';
 
 import 'helpers/fake_location_service.dart';
 import 'helpers/fake_route_repository.dart';
+import 'helpers/memory_trip_history_store.dart';
 
 RouteSummary _route() => const RouteSummary(
   id: '101 ANGOSTURA',
@@ -32,7 +37,7 @@ RouteSummary _route() => const RouteSummary(
   tripCount: 2,
 );
 
-List<Override> _overrides() => [
+List<Override> _overrides({TripHistoryStore? history}) => [
   statsProvider.overrideWith(
     (ref) async => const Stats(
       routes: 154,
@@ -66,7 +71,38 @@ List<Override> _overrides() => [
   ),
   // El mini mapa del home no debe pedir geometrías en los tests.
   featuredRouteShapeProvider.overrideWith((ref) async => null),
+  // Historial de viajes sin plugins: el home lo lee al montarse.
+  tripHistoryControllerProvider.overrideWith(
+    () => TripHistoryController(history ?? MemoryTripHistoryStore()),
+  ),
 ];
+
+/// Abre el menú principal desde el botón de la rama que se está viendo.
+///
+/// El shell mantiene las tres ramas montadas, así que el árbol puede tener
+/// hasta tres botones de menú a la vez: `.hitTestable()` deja solo el de la
+/// rama visible (el resto está bajo el `IndexedStack`).
+Future<void> _openMenu(WidgetTester tester) async {
+  for (final key in const [
+    'home-menu-button',
+    'journey-menu-button',
+    'complaints-menu-button',
+  ]) {
+    final finder = find.byKey(ValueKey(key)).hitTestable();
+    if (finder.evaluate().isEmpty) continue;
+    await tester.tap(finder);
+    await tester.pumpAndSettle();
+    return;
+  }
+  fail('No hay ningún botón de menú visible');
+}
+
+/// Cambia de sección por el menú (la barra inferior ya no existe).
+Future<void> _goTo(WidgetTester tester, String section) async {
+  await _openMenu(tester);
+  await tester.tap(find.byKey(ValueKey('menu-item-$section')));
+  await tester.pumpAndSettle();
+}
 
 /// Repo de rutas sin red: el panel de micros pagina `/routes` al abrirse.
 Widget _app() => ProviderScope(
@@ -79,7 +115,7 @@ Widget _app() => ProviderScope(
 );
 
 void main() {
-  testWidgets('Home muestra identidad, stats y accesos con providers mock', (
+  testWidgets('Home muestra identidad y accesos con providers mock', (
     tester,
   ) async {
     await tester.pumpWidget(_app());
@@ -91,74 +127,128 @@ void main() {
     expect(find.text('Urbano'), findsOneWidget);
     expect(find.text('Muévete por Santa Cruz'), findsOneWidget);
 
-    // Buscador (solo rutas: las paradas se retiraron de la app).
-    expect(find.byType(TextField), findsOneWidget);
+    // La cabecera abre con la banda oficial: escudo del municipio + la
+    // píldora que firma la app como transporte del Gobierno Autónomo.
+    expect(find.byKey(const ValueKey('home-official-band')), findsOneWidget);
+    expect(find.text('Transporte Oficial'), findsOneWidget);
     expect(
-      tester.widget<TextField>(find.byType(TextField)).decoration?.hintText,
-      'Busca rutas…',
+      find.image(const AssetImage('assets/images/gobierno-santa-cruz.png')),
+      findsOneWidget,
     );
 
-    // Banner vivo del home: reemplazó al bloque estático de «el servicio hoy».
-    // No depende del backend (por eso ya no se leen las stats del feed aquí) y
-    // mantiene la portada en movimiento con un micro recorriendo su corredor.
-    expect(find.text('Santa Cruz en movimiento'), findsOneWidget);
-    expect(find.text('Tu próxima línea está a un toque'), findsOneWidget);
-    // Sin la tarjeta de servicio ya no se pintan las stats de dashboard.
+    // El buscador se retiró con la poda de la portada: ya no hay campo de
+    // texto en Inicio (el catálogo se abre desde el acceso Micros).
+    expect(find.byType(TextField), findsNothing);
+    expect(find.text('Busca rutas…'), findsNothing);
+
+    // Portada con los cuatro accesos de la referencia.
+    expect(find.byKey(const ValueKey('home-tile-micros')), findsOneWidget);
+    expect(find.byKey(const ValueKey('home-tile-journey')), findsOneWidget);
+    expect(find.byKey(const ValueKey('home-tile-places')), findsOneWidget);
+    expect(find.byKey(const ValueKey('home-tile-complaints')), findsOneWidget);
+    expect(find.text('Micros'), findsOneWidget);
+    expect(find.text('Viajes'), findsOneWidget);
+    expect(find.text('Lugares'), findsOneWidget);
+    expect(find.text('Denuncias'), findsOneWidget);
+
+    // Barra de destino: el gesto principal del home. Con la retícula compacta
+    // entra en el viewport de test (600 lógicos) sin bajar la lista.
+    expect(find.text('¿A dónde vas?'), findsOneWidget);
+    expect(find.text('Marca tu destino y listo'), findsOneWidget);
+
+    // Sin historial, «Tus viajes recientes» no ocupa espacio.
+    expect(find.text('Tus viajes recientes'), findsNothing);
+
+    // La cola que antes bajaba del pliegue (banner vivo, tirilla de micros y
+    // mini mapa) ya no forma parte de la portada.
+    expect(find.text('Santa Cruz en movimiento'), findsNothing);
+    expect(find.text('Tus micros'), findsNothing);
+    expect(find.text('Explora Santa Cruz en el mapa'), findsNothing);
     expect(find.text('31.461'), findsNothing);
-
-    // Accesos rápidos (Mapa se fusionó con Viaje: la pestaña es el mapa).
     expect(find.text('Cerca de mí'), findsNothing);
-    expect(find.text('Viajar'), findsOneWidget);
 
-    // Tirilla de micros por color con el título nueva marca.
-    expect(find.text('Tus micros'), findsOneWidget);
-    expect(find.text('101 ANGOSTURA'), findsOneWidget);
-    expect(find.text('Micro 101 ANGOSTURA'), findsOneWidget);
-
-    // Tarjeta destacada con mapa: quedó bajo la tirilla, entra con scroll.
-    await tester.scrollUntilVisible(
-      find.text('Explora Santa Cruz en el mapa'),
-      200,
-      scrollable: find.byType(Scrollable).first,
-    );
-    await tester.pump(const Duration(milliseconds: 200));
-    expect(find.text('Explora Santa Cruz en el mapa'), findsOneWidget);
-
-    // Deja que el kit de motion termine (Reveal de las secciones + CountUp de
-    // las stats), que es lo que antes hacía `flutter_animate` aquí.
+    // Deja que el kit de motion termine (Reveal de las secciones).
     await tester.pump(const Duration(milliseconds: 400));
   });
 
-  testWidgets('Home muestra resultados en vivo al buscar (debounced)', (
+  testWidgets('la banda oficial cabe a ancho real de móvil', (tester) async {
+    tester.view.physicalSize = const Size(1080, 2340);
+    tester.view.devicePixelRatio = 2.75;
+    addTearDown(tester.view.reset);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: _overrides(),
+        child: MaterialApp(
+          theme: AppTheme.light(),
+          home: const Scaffold(body: HomeHeader()),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+
+    // Escudo a la izquierda y píldora a la derecha, sin desbordar la franja
+    // en el viewport más ajustado (393 lógicos): es lo primero que se pinta.
+    final seal = tester.getRect(
+      find.image(const AssetImage('assets/images/gobierno-santa-cruz.png')),
+    );
+    final pill = tester.getRect(find.text('Transporte Oficial'));
+    expect(seal.left, lessThan(pill.left), reason: 'escudo · píldora');
+    expect(seal.height, greaterThan(20));
+    expect(tester.takeException(), isNull);
+
+    await tester.pump(const Duration(milliseconds: 400));
+  });
+
+  testWidgets('los cuatro accesos comparten el relleno plano del historial', (
     tester,
   ) async {
-    await tester.pumpWidget(_app());
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: _overrides(),
+        child: MaterialApp(theme: AppTheme.dark(), home: const HomeScreen()),
+      ),
+    );
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 500));
 
-    await tester.enterText(find.byType(TextField), 'angostura');
-    // El debounce dispara a los 350 ms.
-    await tester.pump(const Duration(milliseconds: 400));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 400));
+    // Un solo color de tarjeta para todos: el mismo `surface` de «Tus viajes
+    // recientes». El acento vive en la píldora, el punto y la ilustración,
+    // nunca en el relleno de la tarjeta.
+    final surface = AppTheme.dark().colorScheme.surface;
+    for (final key in const [
+      'home-tile-micros',
+      'home-tile-journey',
+      'home-tile-places',
+      'home-tile-complaints',
+    ]) {
+      final tile = find.byKey(ValueKey(key));
+      final material = tester.widget<Material>(
+        find.descendant(of: tile, matching: find.byType(Material)).first,
+      );
+      expect(
+        material.color,
+        surface,
+        reason: '$key debe usar el mismo relleno',
+      );
 
-    expect(find.text('Rutas'), findsWidgets);
-    expect(find.text('Micro 101 ANGOSTURA'), findsOneWidget);
+      final card = tester.widget<Container>(
+        find.descendant(of: tile, matching: find.byType(Container)).first,
+      );
+      final decoration = card.decoration! as BoxDecoration;
+      expect(
+        decoration.gradient,
+        isNull,
+        reason: '$key no debe mezclar colores en el fondo',
+      );
+    }
 
-    // Al limpiar vuelve el contenido principal.
-    await tester.tap(find.byIcon(Icons.close_rounded));
-    await tester.pump(const Duration(milliseconds: 500));
-    expect(find.text('Tus micros'), findsOneWidget);
-
-    // Deja que el kit de motion termine (Reveal de las secciones + CountUp de
-    // las stats), que es lo que antes hacía `flutter_animate` aquí.
-    await tester.pump(const Duration(milliseconds: 400));
-    await tester.pump(const Duration(milliseconds: 400));
     await tester.pump(const Duration(milliseconds: 400));
   });
 
   testWidgets(
-    'El shell muestra 2 pestañas (Rutas fusionada en el panel de Viaje)',
+    'el menú reemplaza a la barra inferior y conserva las tres ramas',
     (tester) async {
       final container = ProviderContainer(
         overrides: [
@@ -181,36 +271,32 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 600));
 
-      // 2 pestañas: Inicio · Viaje (Cerca se retiró con las paradas y Rutas se
-      // fusionó en el panel de micros de /journey).
-      final navBar = find.byType(NavigationBar);
+      // Ya no hay barra inferior: la navegación vive en el menú de la cabecera.
+      expect(find.byType(NavigationBar), findsNothing);
+      expect(find.byKey(const ValueKey('home-menu-button')), findsOneWidget);
+
+      // El menú lista las tres secciones (y «Acerca de»).
+      await tester.tap(find.byKey(const ValueKey('home-menu-button')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('menu-item-home')), findsOneWidget);
+      expect(find.byKey(const ValueKey('menu-item-journey')), findsOneWidget);
       expect(
-        find.descendant(of: navBar, matching: find.text('Inicio')),
+        find.byKey(const ValueKey('menu-item-complaints')),
         findsOneWidget,
       );
-      expect(
-        find.descendant(of: navBar, matching: find.text('Rutas')),
-        findsNothing,
-      );
-      expect(
-        find.descendant(of: navBar, matching: find.text('Cerca')),
-        findsNothing,
-      );
-      expect(
-        find.descendant(of: navBar, matching: find.text('Viaje')),
-        findsOneWidget,
-      );
-      expect(
-        find.descendant(of: navBar, matching: find.text('Mapa')),
-        findsNothing,
-      );
+      expect(find.byKey(const ValueKey('menu-item-info')), findsOneWidget);
+
+      // Viaje: cambia de rama y aterriza en el mapa con la píldora cerrada.
+      await tester.tap(find.byKey(const ValueKey('menu-item-journey')));
+      await tester.pumpAndSettle();
+      expect(router.routerDelegate.currentConfiguration.uri.path, '/journey');
+      expect(find.byKey(const ValueKey('planner-trigger')), findsOneWidget);
+      expect(find.textContaining('Marca origen y destino'), findsOneWidget);
 
       // /map redirige por seguridad a /journey (la pantalla-mapa única).
       router.go('/map');
       await tester.pumpAndSettle();
-      // El panel de origen/destino arranca cerrado: se anuncia con la píldora.
       expect(find.byKey(const ValueKey('planner-trigger')), findsOneWidget);
-      expect(find.textContaining('Marca origen y destino'), findsOneWidget);
       expect(
         find.text('Marca un punto en el mapa o usa tu ubicación'),
         findsNothing,
@@ -220,17 +306,68 @@ void main() {
     },
   );
 
+  testWidgets('el acceso Micros del home abre el catálogo completo', (
+    tester,
+  ) async {
+    final container = ProviderContainer(
+      overrides: [
+        ..._overrides(),
+        locationServiceProvider.overrideWithValue(FakeLocationService()),
+        // El catálogo pagina `/routes` al abrirse: sin este doble habría red.
+        routeRepositoryProvider.overrideWithValue(
+          FakeRouteRepository([_route()]),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+    final router = container.read(appRouterProvider);
+    addTearDown(router.dispose);
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp.router(
+          theme: AppTheme.light(),
+          routerConfig: router,
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 600));
+
+    // La sección vive bajo el borde inferior del viewport de test.
+    await tester.ensureVisible(find.byKey(const ValueKey('home-tile-micros')));
+    await tester.pump(const Duration(milliseconds: 200));
+    await tester.tap(find.byKey(const ValueKey('home-tile-micros')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+
+    // Pantalla propia: ya no es el cajón lateral de Viaje.
+    // `push` agrega una página: el lugar real está en `state.uri`, no en la
+    // configuración base del shell.
+    expect(router.state.uri.path, '/micros');
+    expect(find.text('Todas las líneas de Santa Cruz'), findsOneWidget);
+    expect(find.text('Busca por número o nombre'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('micros-card-101 ANGOSTURA')),
+      findsOneWidget,
+    );
+    expect(find.text('Ver detalles'), findsOneWidget);
+
+    // Cada tarjeta lleva al detalle de la línea.
+    await tester.tap(find.text('Ver detalles'));
+    await tester.pumpAndSettle();
+    expect(router.state.uri.path, '/routes/101%20ANGOSTURA');
+    expect(find.text('101 ANGOSTURA'), findsWidgets);
+  });
+
   testWidgets(
-    '«Ver todas» del home abre el panel de micros en Viaje (no una ruta muerta)',
+    '«¿A dónde vas?» del home abre el sheet de origen/destino (como Viajes)',
     (tester) async {
       final container = ProviderContainer(
         overrides: [
           ..._overrides(),
           locationServiceProvider.overrideWithValue(FakeLocationService()),
-          // El panel pagina `/routes` al abrirse: sin este doble habría red.
-          routeRepositoryProvider.overrideWithValue(
-            FakeRouteRepository([_route()]),
-          ),
         ],
       );
       addTearDown(container.dispose);
@@ -249,161 +386,73 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 600));
 
-      // La sección vive bajo el borde inferior del viewport de test.
-      await tester.ensureVisible(find.text('Ver todas'));
+      await tester.ensureVisible(find.text('Marca tu destino y listo'));
       await tester.pump(const Duration(milliseconds: 200));
-      await tester.tap(find.text('Ver todas'));
-
-      // Cambio de rama → la bandera se consume en el frame siguiente → el
-      // cajón se desliza (280 ms) sobre el mapa de `/journey`.
-      await tester.pump();
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 120));
-      await tester.pump(const Duration(milliseconds: 400));
-
-      // No cae en el `errorBuilder`: `/routes` (la antigua lista) ya no existe.
-      expect(find.text('Pantalla no encontrada'), findsNothing);
-      // Aterrizó en la pestaña Viaje (branch 1 del shell).
-      expect(
-        tester.widget<NavigationBar>(find.byType(NavigationBar)).selectedIndex,
-        1,
-      );
-      expect(router.routerDelegate.currentConfiguration.uri.path, '/journey');
-      // El catálogo completo de líneas es el panel de micros: buscador, acciones
-      // y la tarjeta de la única línea del falso repositorio.
-      expect(find.text('Buscar línea…'), findsOneWidget);
-      expect(find.text('Activar todas'), findsOneWidget);
-      expect(
-        find.byKey(const ValueKey('micro-tile-101 ANGOSTURA')),
-        findsOneWidget,
-      );
-    },
-  );
-
-  testWidgets(
-    '«Viajar» del home abre Viaje CON el panel de origen/destino desplegado',
-    (tester) async {
-      final container = ProviderContainer(
-        overrides: [
-          ..._overrides(),
-          locationServiceProvider.overrideWithValue(FakeLocationService()),
-        ],
-      );
-      addTearDown(container.dispose);
-      final router = container.read(appRouterProvider);
-      addTearDown(router.dispose);
-
-      await tester.pumpWidget(
-        UncontrolledProviderScope(
-          container: container,
-          child: MaterialApp.router(
-            theme: AppTheme.light(),
-            routerConfig: router,
-          ),
-        ),
-      );
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 600));
-
       await tester.tap(find.text('Marca tu destino y listo'));
-
-      // Cambio de rama → la bandera se consume en el frame siguiente → el
-      // panel se despliega (misma mecánica que «Ver todas» con el cajón).
-      await tester.pump();
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 120));
-      await tester.pump(const Duration(milliseconds: 400));
-
-      expect(router.routerDelegate.currentConfiguration.uri.path, '/journey');
-      expect(
-        tester.widget<NavigationBar>(find.byType(NavigationBar)).selectedIndex,
-        1,
-      );
-      // El panel de origen/destino llega ABIERTO: campos visibles sin tocar la
-      // píldora (regresión: antes había que abrir el panel a mano).
-      expect(find.byKey(const ValueKey('planner-panel-open')), findsOneWidget);
-      expect(
-        find.text('Marca un punto en el mapa o usa tu ubicación'),
-        findsOneWidget,
-      );
-
-      // La bandera se consumió: nada queda pendiente para la próxima visita.
-      expect(
-        container.read(pendingPlannerPanelProvider.notifier).state,
-        isFalse,
-      );
-    },
-  );
-
-  testWidgets(
-    'reabrir «Ver todas» REPLACES the micros panel (does not stack another drawer)',
-    (tester) async {
-      final container = ProviderContainer(
-        overrides: [
-          ..._overrides(),
-          locationServiceProvider.overrideWithValue(FakeLocationService()),
-          routeRepositoryProvider.overrideWithValue(
-            FakeRouteRepository([_route()]),
-          ),
-        ],
-      );
-      addTearDown(container.dispose);
-      final router = container.read(appRouterProvider);
-      addTearDown(router.dispose);
-
-      await tester.pumpWidget(
-        UncontrolledProviderScope(
-          container: container,
-          child: MaterialApp.router(
-            theme: AppTheme.light(),
-            routerConfig: router,
-          ),
-        ),
-      );
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 600));
-
-      // Primera apertura desde Inicio.
-      await tester.ensureVisible(find.text('Ver todas'));
-      await tester.pump(const Duration(milliseconds: 200));
-      await tester.tap(find.text('Ver todas'));
-      await tester.pump();
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 120));
-      await tester.pump(const Duration(milliseconds: 400));
-      expect(
-        find.byKey(const ValueKey('micro-tile-101 ANGOSTURA')),
-        findsOneWidget,
-      );
-
-      // El usuario da al tab Inicio con el cajón EN PIE: la rama Viaje
-      // conserva su stack (y el panel dentro de él).
-      await tester.tap(find.text('Inicio'));
       await tester.pumpAndSettle();
+
+      // Se abre el sheet de origen/destino (modal), no se navega a /journey.
       expect(
-        find.byKey(const ValueKey('micro-tile-101 ANGOSTURA')),
-        findsNothing,
+        router.routerDelegate.currentConfiguration.uri.path,
+        isNot('/journey'),
       );
-
-      // Segunda apertura: el panel viejo debe salir del stack y entrar UNO
-      // (regresión: antes se apilaban y al cerrar aparecía otro igual).
-      await tester.ensureVisible(find.text('Ver todas'));
-      await tester.pump(const Duration(milliseconds: 200));
-      await tester.tap(find.text('Ver todas'));
-      await tester.pump();
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 120));
-      await tester.pump(const Duration(milliseconds: 400));
-
-      expect(
-        find.byKey(const ValueKey('micro-tile-101 ANGOSTURA')),
-        findsOneWidget,
-        reason: 'solo un cajón: el nuevo reemplaza al que quedó',
-      );
-
-      await tester.pump(const Duration(seconds: 1));
+      expect(find.text('Punto de partida'), findsOneWidget);
+      expect(find.text('Destino'), findsOneWidget);
+      expect(find.text('Planificar viaje'), findsOneWidget);
     },
   );
+
+  testWidgets('volver desde Micros regresa a Inicio sin dejar copias', (
+    tester,
+  ) async {
+    final container = ProviderContainer(
+      overrides: [
+        ..._overrides(),
+        locationServiceProvider.overrideWithValue(FakeLocationService()),
+        routeRepositoryProvider.overrideWithValue(
+          FakeRouteRepository([_route()]),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+    final router = container.read(appRouterProvider);
+    addTearDown(router.dispose);
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp.router(
+          theme: AppTheme.light(),
+          routerConfig: router,
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 600));
+
+    await tester.ensureVisible(find.byKey(const ValueKey('home-tile-micros')));
+    await tester.pump(const Duration(milliseconds: 200));
+    await tester.tap(find.byKey(const ValueKey('home-tile-micros')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(router.state.uri.path, '/micros');
+
+    // La flecha de la AppBar vuelve: el catálogo se empuja sobre el shell.
+    await tester.tap(find.byTooltip('Volver').hitTestable());
+    await tester.pumpAndSettle();
+    expect(router.state.uri.path, '/');
+    expect(find.byType(MicrosScreen), findsNothing);
+
+    // Reabrirlo entra UNA pantalla, no una copia apilada.
+    await tester.ensureVisible(find.byKey(const ValueKey('home-tile-micros')));
+    await tester.pump(const Duration(milliseconds: 200));
+    await tester.tap(find.byKey(const ValueKey('home-tile-micros')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(find.byType(MicrosScreen), findsOneWidget);
+
+    await tester.pump(const Duration(seconds: 1));
+  });
 
   testWidgets('cambiar de pestaña funde el cuerpo en vez de un tijeretazo', (
     tester,
@@ -447,7 +496,8 @@ void main() {
 
     expect(bodyOpacity(), 1, reason: 'en reposo el cuerpo se pinta entero');
 
-    await tester.tap(find.text('Viaje'));
+    await _openMenu(tester);
+    await tester.tap(find.byKey(const ValueKey('menu-item-journey')));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 100));
     expect(
@@ -462,14 +512,77 @@ void main() {
     // que la pantalla del planner sigue siendo el MISMO `Element` (la regla del
     // mapa siempre montado no puede romperse por meter una transición).
     final planner = tester.element(find.byType(JourneyPlannerScreen));
-    await tester.tap(find.text('Inicio'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Viaje'));
-    await tester.pumpAndSettle();
+    await _goTo(tester, 'home');
+    await _goTo(tester, 'journey');
     expect(
       tester.element(find.byType(JourneyPlannerScreen)),
       same(planner),
-      reason: 'cambiar de pestaña no debe remontar el mapa',
+      reason: 'cambiar de sección no debe remontar el mapa',
     );
   });
+
+  testWidgets(
+    'el historial del home muestra el último viaje y lo reabre en Viaje',
+    (tester) async {
+      final store = MemoryTripHistoryStore([
+        TripHistoryEntry(
+          label: 'Plaza 24 de Septiembre',
+          subtitle: 'Centro histórico',
+          lat: -17.7833,
+          lon: -63.1821,
+          lastUsed: DateTime.now().subtract(const Duration(hours: 2)),
+          durationMinutes: 8,
+        ),
+      ]);
+      final container = ProviderContainer(
+        overrides: [
+          ..._overrides(history: store),
+          locationServiceProvider.overrideWithValue(FakeLocationService()),
+        ],
+      );
+      addTearDown(container.dispose);
+      final router = container.read(appRouterProvider);
+      addTearDown(router.dispose);
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: MaterialApp.router(
+            theme: AppTheme.light(),
+            routerConfig: router,
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 600));
+
+      // La sección aparece con el destino y la duración de la última vez. La
+      // tarjeta queda bajo el pliegue del viewport de test.
+      await tester.scrollUntilVisible(
+        find.text('Tus viajes recientes'),
+        200,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await tester.pump(const Duration(milliseconds: 200));
+      expect(find.text('Tus viajes recientes'), findsOneWidget);
+      expect(find.text('Plaza 24 de Septiembre'), findsOneWidget);
+      expect(find.text('8 min'), findsOneWidget);
+
+      // Tocar la fila vuelve a planificar: destino puesto, panel abierto y la
+      // rama Viaje visible.
+      await tester.ensureVisible(find.text('Plaza 24 de Septiembre'));
+      await tester.pump(const Duration(milliseconds: 200));
+      await tester.tap(find.text('Plaza 24 de Septiembre'));
+      await tester.pump();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 120));
+      await tester.pump(const Duration(milliseconds: 400));
+
+      expect(router.routerDelegate.currentConfiguration.uri.path, '/journey');
+      final planner = container.read(journeyPlannerControllerProvider);
+      expect(planner.destination?.label, 'Plaza 24 de Septiembre');
+      expect(planner.origin?.label, 'Mi ubicación');
+      expect(find.byKey(const ValueKey('planner-panel-open')), findsOneWidget);
+    },
+  );
 }

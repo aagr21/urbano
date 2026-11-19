@@ -17,12 +17,12 @@ const Duration bootCeiling = Duration(seconds: 6);
 /// Señal de «la app ya tiene en pantalla lo que tiene que enseñar al abrir».
 ///
 /// No es una espera decorativa ni un `Future.delayed` inventado: son las dos
-/// llamadas que el inicio dispara de verdad —la página del catálogo que pintan la
-/// tirilla «Tus micros» y el mini mapa destacado ([homeCatalogQuery]), y las
-/// stats del feed ([statsProvider])— escuchadas **desde antes** de que el home se
-/// monte. Eso es justo lo que la portada tapa: mientras ella anima, la red ya
-/// trabajó, y cuando el home llega el catálogo ya está servido (misma consulta,
-/// mismo provider: un solo `/routes`, no uno por pantalla).
+/// llamadas que el inicio dispara de verdad —la página del catálogo que abre el
+/// panel de micros ([homeCatalogQuery]) y las stats del feed que lee «Acerca de»
+/// ([statsProvider])— escuchadas **desde antes** de que el home se monte. Eso es
+/// justo lo que la portada tapa: mientras ella anima, la red ya trabajó, y cuando
+/// el home llega el catálogo ya está servido (misma consulta, mismo provider: un
+/// solo `/routes`, no uno por pantalla).
 ///
 /// Se completa con `true` si **al menos una** llamada trajo datos y con `false`
 /// si no llegó nada (servicio caído) o si se pasó de [bootCeiling]. Nunca lanza:

@@ -10,6 +10,7 @@ import '../../../core/utils/extensions.dart';
 import '../../../core/utils/time_formatters.dart';
 import '../../../core/widgets/loading_shimmer.dart';
 import '../../../core/widgets/section_header.dart';
+import '../../../core/widgets/urbano_back_button.dart';
 import '../../../core/widgets/urbano_logo.dart';
 import '../../home/presentation/home_providers.dart';
 
@@ -26,9 +27,14 @@ class InfoScreen extends ConsumerWidget {
     final text = context.text;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Acerca de Urbano')),
+      appBar: AppBar(
+        leading: const UrbanoBackButton(),
+        title: const Text('Acerca de Urbano'),
+      ),
       body: ListView(
-        padding: const EdgeInsets.only(bottom: 32),
+        padding: EdgeInsets.only(
+          bottom: 32 + MediaQuery.viewPaddingOf(context).bottom,
+        ),
         children: [
           const SizedBox(height: 8),
           // El logo abre la escena; el resto de la página entra con la
@@ -156,13 +162,6 @@ class InfoScreen extends ConsumerWidget {
                             ? 'Operativa · base ${h.db}'
                             : 'Estado: ${h.status}',
                       ),
-                    ),
-                    const SizedBox(height: 12),
-                    const _InfoRow(
-                      icon: Icons.link_rounded,
-                      label: 'Base URL',
-                      value: Env.apiBaseUrl,
-                      mono: true,
                     ),
                   ],
                 ),
@@ -305,7 +304,6 @@ class _InfoRow extends StatelessWidget {
     required this.label,
     required this.value,
     this.tint,
-    this.mono = false,
     this.danger = false,
   });
 
@@ -316,7 +314,6 @@ class _InfoRow extends StatelessWidget {
   /// Tinte de la ficha del ícono (por defecto el primario; `danger` lo
   /// pinta rojo).
   final Color? tint;
-  final bool mono;
   final bool danger;
 
   @override
@@ -351,12 +348,7 @@ class _InfoRow extends StatelessWidget {
               const SizedBox(height: 2),
               Text(
                 value,
-                style: mono
-                    ? text.bodySmall?.copyWith(
-                        fontFamily: 'monospace',
-                        color: colors.onSurfaceVariant,
-                      )
-                    : text.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
+                style: text.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
               ),
             ],
           ),

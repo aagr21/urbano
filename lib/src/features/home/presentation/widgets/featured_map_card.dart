@@ -100,9 +100,9 @@ class _FeaturedMapCardState extends ConsumerState<FeaturedMapCard> {
             child: Material(
               color: colors.surface,
               child: InkWell(
-                // `go`, no `push`: así la pestaña Viaje conmuta de verdad y la
-                // barra inferior la refleja (un `push` abriría esta pantalla
-                // ENCIMA del shell y la barra quedaba rezagada en Inicio).
+                // `go`, no `push`: así la sección Viaje conmuta de verdad y el
+                // menú de la cabecera la refleja (un `push` abriría esta
+                // pantalla ENCIMA del shell y dejaría Inicio debajo).
                 onTap: () => context.go('/journey'),
                 child: SizedBox(
                   height: 190,
