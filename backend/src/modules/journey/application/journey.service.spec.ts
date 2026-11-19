@@ -73,11 +73,31 @@ describe('JourneyService — motor externo (OTP2)', () => {
 
   function makeServiceWithRouter(router: { plan: jest.Mock }) {
     const port = {
-      findStopsNear: jest.fn(),
+      findStopsNear: jest.fn(async (lat: number) =>
+        lat === query.originLat
+          ? [
+              {
+                stopId: 'S1',
+                name: 'P1',
+                lat: -17.78,
+                lon: -63.15,
+                distanceMeters: 80,
+              },
+            ]
+          : [
+              {
+                stopId: 'S2',
+                name: 'P2',
+                lat: -17.8,
+                lon: -63.17,
+                distanceMeters: 80,
+              },
+            ]
+      ),
       findTripIdsServingStops: jest.fn(),
       loadTripSchedules: jest.fn(),
-      loadLegDetails: jest.fn(),
-      findStopRefs: jest.fn(),
+      loadLegDetails: jest.fn(async () => []),
+      findStopRefs: jest.fn(async () => []),
     };
     const service = new JourneyService(
       port as unknown as JourneyDataPort,
@@ -101,8 +121,78 @@ describe('JourneyService — motor externo (OTP2)', () => {
         maxResults: 3,
       })
     );
-    // El pipeline PostGIS (planner legacy) no se usó
+    // El pipeline PostGIS (planner legacy) no se usó cuando OTP responde.
     expect(port.findStopsNear).not.toHaveBeenCalled();
+    expect(port.findTripIdsServingStops).not.toHaveBeenCalled();
+    expect(port.loadTripSchedules).not.toHaveBeenCalled();
+    expect(port.loadLegDetails).not.toHaveBeenCalled();
+    expect(port.findStopRefs).not.toHaveBeenCalled();
+  });
+
+  it('no invierte un tramo perpendicular al rumbo del usuario: manda fromStop → toStop', async () => {
+    // El usuario viaja hacia el ESTE, pero el micro sube hacia el NORTE.
+    // Un giro de 90° es legítimo: el backend NO debe swappear paradas ni
+    // invertir la geometría por compararla con el rumbo global.
+    const eastQuery: JourneyQueryDto = {
+      ...query,
+      destLat: query.originLat,
+      destLon: query.originLon + 0.04,
+    };
+    const northBound: JourneyOption = {
+      ...otpOption,
+      walkToStop: {
+        id: 'S1',
+        name: 'P1',
+        distanceMeters: 80,
+        lat: -17.78,
+        lon: -63.15,
+      },
+      walkFromStop: {
+        id: 'S2',
+        name: 'P2',
+        distanceMeters: 80,
+        lat: -17.75,
+        lon: -63.15,
+      },
+      legs: [
+        {
+          kind: 'bus',
+          routeId: 'R1',
+          routeShortName: '1',
+          routeColor: 'D35400',
+          tripId: 'T1',
+          fromStopId: 'S1',
+          toStopId: 'S2',
+          departAt: '06:03:00',
+          arriveAt: '06:20:00',
+          stops: 5,
+          geometry: {
+            type: 'LineString',
+            coordinates: [
+              [-63.15, -17.78],
+              [-63.15, -17.76],
+              [-63.15, -17.75],
+            ],
+          },
+          fromStop: { id: 'S1', name: 'P1', lat: -17.78, lon: -63.15 },
+          toStop: { id: 'S2', name: 'P2', lat: -17.75, lon: -63.15 },
+        },
+      ],
+    };
+    const plan = jest.fn().mockResolvedValue([northBound]);
+    const { service } = makeServiceWithRouter({ plan });
+
+    const { options } = await service.plan(eastQuery);
+    const leg = options[0].legs.find((l) => l.kind === 'bus');
+
+    expect(leg?.kind).toBe('bus');
+    if (leg?.kind !== 'bus') return;
+    expect(leg.fromStopId).toBe('S1');
+    expect(leg.toStopId).toBe('S2');
+    expect(leg.fromStop?.id).toBe('S1');
+    expect(leg.toStop?.id).toBe('S2');
+    expect(leg.geometry?.coordinates[0]).toEqual([-63.15, -17.78]);
+    expect(leg.geometry?.coordinates.at(-1)).toEqual([-63.15, -17.75]);
   });
 
   it('aplica la política común (rankAndCut) al saldo de OTP: ordena y recorta', async () => {

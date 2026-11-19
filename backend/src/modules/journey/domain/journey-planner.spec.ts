@@ -3,6 +3,8 @@ import {
   rankAndCut,
   walkDurationMinutes,
   nextRunDeparture,
+  orientBusLegGeometry,
+  connectWalkAndBusGeometry,
 } from './journey-planner';
 import { CandidateStop, JourneyOption, TripSchedule } from './journey.model';
 
@@ -36,6 +38,203 @@ describe('journey-planner (lógica pura)', () => {
       // notBefore muy tarde → k > kMax
       const dep = nextRunDeparture(21600, 300, 24, 21600 + 100 * 300);
       expect(dep).toBeNull();
+    });
+  });
+
+  describe('orientBusLegGeometry', () => {
+    const optionWith = (coordinates: number[][]): JourneyOption => ({
+      type: 'direct',
+      departAt: '06:00:00',
+      arriveAt: '06:20:00',
+      durationMinutes: 20,
+      walkToStop: { id: 'S1', name: 'Subida', distanceMeters: 0 },
+      walkFromStop: { id: 'S2', name: 'Bajada', distanceMeters: 0 },
+      legs: [
+        {
+          kind: 'bus',
+          routeId: 'R1',
+          routeShortName: 'R1',
+          routeColor: null,
+          tripId: 'T1',
+          fromStopId: 'S1',
+          toStopId: 'S2',
+          departAt: '06:00:00',
+          arriveAt: '06:20:00',
+          stops: 2,
+          fromStop: { id: 'S1', name: 'Subida', lat: -17.78, lon: -63.15 },
+          toStop: { id: 'S2', name: 'Bajada', lat: -17.8, lon: -63.17 },
+          geometry: { type: 'LineString', coordinates },
+        },
+      ],
+    });
+
+    it('invierte SOLO la geometría cuando viene al revés de fromStop → toStop', () => {
+      const option = optionWith([
+        [-63.17, -17.8],
+        [-63.16, -17.79],
+        [-63.15, -17.78],
+      ]);
+
+      orientBusLegGeometry([option]);
+
+      const bus = option.legs[0];
+      expect(bus.kind).toBe('bus');
+      if (bus.kind !== 'bus') return;
+      // Las paradas y sus ids no se tocan: subida sigue siendo S1.
+      expect(bus.fromStopId).toBe('S1');
+      expect(bus.toStopId).toBe('S2');
+      expect(bus.geometry?.coordinates).toEqual([
+        [-63.15, -17.78],
+        [-63.16, -17.79],
+        [-63.17, -17.8],
+      ]);
+    });
+
+    it('deja intacta una geometría que ya sigue el sentido de las paradas', () => {
+      const coordinates = [
+        [-63.15, -17.78],
+        [-63.16, -17.79],
+        [-63.17, -17.8],
+      ];
+      const option = optionWith(coordinates);
+
+      orientBusLegGeometry([option]);
+
+      const bus = option.legs[0];
+      if (bus.kind !== 'bus') return;
+      expect(bus.geometry?.coordinates).toEqual(coordinates);
+    });
+  });
+
+  describe('connectWalkAndBusGeometry', () => {
+    /**
+     * Avenida de doble calzada: el micro va por el carril (12 m al este de la
+     * parada) y la caminata acaba en la parada de la acera.
+     */
+    const STOP_LON = -63.15014;
+    const BUS_LON = STOP_LON + 0.000113;
+
+    const optionWith = (busCoordinates: number[][]): JourneyOption => {
+      const stopLon = STOP_LON;
+      const stopLat = -17.78;
+      return {
+        type: 'direct',
+        departAt: '06:00:00',
+        arriveAt: '06:20:00',
+        durationMinutes: 20,
+        walkToStop: { id: 'S1', name: 'Subida', distanceMeters: 0 },
+        walkFromStop: { id: 'S2', name: 'Bajada', distanceMeters: 0 },
+        legs: [
+          {
+            kind: 'walk',
+            durationMinutes: 2,
+            distanceMeters: 120,
+            geometry: {
+              type: 'LineString',
+              coordinates: [
+                [-63.1512, -17.7812],
+                [stopLon - 0.00005, -17.7805],
+                [stopLon, -17.7801],
+              ],
+            },
+          },
+          {
+            kind: 'bus',
+            routeId: 'R1',
+            routeShortName: 'R1',
+            routeColor: null,
+            tripId: 'T1',
+            fromStopId: 'S1',
+            toStopId: 'S2',
+            departAt: '06:00:00',
+            arriveAt: '06:20:00',
+            stops: 2,
+            fromStop: { id: 'S1', name: 'Subida', lat: stopLat, lon: stopLon },
+            toStop: {
+              id: 'S2',
+              name: 'Bajada',
+              lat: stopLat - 0.02,
+              lon: stopLon,
+            },
+            geometry: { type: 'LineString', coordinates: busCoordinates },
+          },
+          {
+            kind: 'walk',
+            durationMinutes: 1,
+            distanceMeters: 40,
+            geometry: {
+              type: 'LineString',
+              coordinates: [
+                [stopLon, stopLat - 0.0196],
+                [stopLon + 0.0004, stopLat - 0.021],
+              ],
+            },
+          },
+        ],
+      } as JourneyOption;
+    };
+
+    it('no mueve el trazado del micro: el shape es la verdad de la calzada', () => {
+      const busCoordinates = [
+        [BUS_LON, -17.78],
+        [BUS_LON, -17.79],
+        [BUS_LON, -17.8],
+      ];
+      const option = optionWith(busCoordinates);
+
+      connectWalkAndBusGeometry([option]);
+
+      const bus = option.legs[1];
+      if (bus.kind !== 'bus') return;
+      expect(bus.geometry?.coordinates).toEqual(busCoordinates);
+    });
+
+    it('hace que la caminata acabe exactamente donde arranca el micro', () => {
+      const option = optionWith([
+        [BUS_LON, -17.78],
+        [BUS_LON, -17.8],
+      ]);
+
+      connectWalkAndBusGeometry([option]);
+
+      const walk = option.legs[0];
+      const bus = option.legs[1];
+      if (walk.kind !== 'walk' || bus.kind !== 'bus') return;
+      const walkCoords = walk.geometry?.coordinates ?? [];
+      const busCoords = bus.geometry?.coordinates ?? [];
+      expect(walkCoords[walkCoords.length - 1]).toEqual(busCoords[0]);
+    });
+
+    it('hace que la caminata de bajada arranque donde termina el micro', () => {
+      const option = optionWith([
+        [BUS_LON, -17.78],
+        [BUS_LON, -17.8],
+      ]);
+
+      connectWalkAndBusGeometry([option]);
+
+      const bus = option.legs[1];
+      const walk = option.legs[2];
+      if (walk.kind !== 'walk' || bus.kind !== 'bus') return;
+      const walkCoords = walk.geometry?.coordinates ?? [];
+      const busCoords = bus.geometry?.coordinates ?? [];
+      expect(walkCoords[0]).toEqual(busCoords[busCoords.length - 1]);
+    });
+
+    it('no inventa un salto si el micro pasa lejos de la caminata', () => {
+      const lejos = [
+        [STOP_LON + 0.01, -17.78],
+        [STOP_LON + 0.01, -17.8],
+      ];
+      const option = optionWith(lejos);
+      const before = (option.legs[0] as { geometry?: { coordinates: number[][] } })
+        .geometry?.coordinates;
+
+      connectWalkAndBusGeometry([option]);
+
+      const walk = option.legs[0];
+      if (walk.kind !== 'walk') return;
+      expect(walk.geometry?.coordinates).toEqual(before);
     });
   });
 

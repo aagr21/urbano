@@ -160,9 +160,33 @@ Colores hex **sin** `#` (ej: `D35400`), tal como vienen en GTFS.
     "lat": -18.161764,
     "lon": -63.50577,
     "distanceMeters": 123.4,
-    "routes": [{ "id": "133 LA GUARDIA", "shortName": "133 LA GUARDIA", "color": "3498DB" }]
+    "routes": [
+        {
+            "id": "133 LA GUARDIA",
+            "shortName": "133 LA GUARDIA",
+            "color": "3498DB",
+            "longName": "Terminal Bimodal ↔ La Guardia",
+            "imageUrl": "https://lh3.googleusercontent.com/d/…=w1000",
+            "directionIds": [0, 1]
+        }
+    ]
 }
 ```
+
+- Cada entrada de `routes` es una línea que sirve ESA parada, **agrupada por
+  `route_id`** (el `SELECT` hace `GROUP BY`, no `DISTINCT`, para no partir la
+  línea en dos registros por orientación). Campos:
+    - `longName`: trayecto escrito (`route_long_name`) o `null` si el feed no lo
+      trae. Permite mostrar el recorrido sin pagar un `/routes/:id` por línea.
+    - `imageUrl`: foto del micro (desde `backend/micros.csv`) o `null`.
+    - `directionIds`: sentidos que **de verdad** pasan por esta parada
+      (`ARRAY_AGG(DISTINCT trip.direction_id)` → `[0]`, `[1]` o `[0, 1]`;
+      0 = ida, 1 = vuelta). Es lo que pinta los botones **Ida/Vuelta** de la
+      tarjeta del modo Lugares. Un feed/contrato antiguo puede omitirlo: la app
+      asume ambos sentidos sin afirmarlo.
+
+> Se incluyen aquí (y no detrás de un `/routes/:id` por línea) para evitar el
+> N+1: `/stops/*` resuelve todo en una sola query agrupada.
 
 - `GET /stops/search?q=&limit=10` → `StopSummary[]` + rutas (mismo shape que nearby sin `distanceMeters`).
 - `GET /stops/:id` → `{ ...StopSummary, "routes": [...], "location": { "type": "Point", "coordinates": [lon, lat] } }`
@@ -220,13 +244,35 @@ Colores hex **sin** `#` (ej: `D35400`), tal como vienen en GTFS.
 ```
 
 - `type`: `"direct" | "transfer"`. Ordenado por `durationMinutes` asc.
+- **INVARIANTE — sentido de la geometría (fuente única de verdad)**: para
+  todo tramo de micro, `geometry` empieza en `fromStop` (subida) y termina en
+  `toStop` (bajada), es decir, en el sentido de marcha REAL del viaje. El
+  backend lo garantiza con `orientBusLegGeometry` (`domain/journey-planner.ts`)
+  para **ambos** motores (OTP2 y planner PostGIS), invirtiendo solo las
+  coordenadas cuando hace falta (margen 1 m); paradas, horarios e ids no se
+  tocan. **El cliente NO reorienta: confía en este contrato y solo dibuja.**
+  _No_ se compara con el rumbo origen→destino del usuario: un tramo puede
+  girar o ir contra el rumbo general y seguir siendo correcto. Esta sección es
+  la autoridad; cualquier corrección de sentido se hace aquí y en el backend,
+  nunca en el render.
 - **Mapa**: `geometry` es el tramo EXACTO del shape recortado entre
-  `fromStop` y `toStop` (PostGIS `ST_LineSubstring`), en `[lon, lat]` — el
-  cliente solo dibuja. `fromStop`/`toStop` llevan `lat`/`lon` para marcadores
+  `fromStop` y `toStop` (PostGIS `ST_LineSubstring`), en `[lon, lat]` y
+  **siempre en el sentido de marcha del viaje**: empieza en `fromStop`
+  (subida) y termina en `toStop` (bajada). No se invierte comparándolo con el
+  origen/destino del usuario; el cliente solo dibuja. `fromStop`/`toStop`
+  llevan `lat`/`lon` para marcadores
   (el paradero de transbordo es el `toStop` de un leg = `fromStop` del
   siguiente). Los tramos de caminata se dibujan como línea recta entre el
   punto del usuario (query) y `walkToStop`/`walkFromStop` (ahora con
   `lat`/`lon`). `geometry` puede ser `null` si la ruta no tiene shape.
+- **Caminata ↔ micro cosidos**: el `shape` es la verdad de por dónde pasa el
+  micro y **no se mueve**; la caminata adyacente se estira hasta él. El último
+  punto de la caminata de acceso es el primero de la `geometry` del micro
+  (y el primero de la de egreso, el último del micro) cuando el extremo queda
+  a ≤60 m; si el trazado pasa más lejos, el hueco es real y se deja. Así no
+  queda un salto de 10-20 m que se lea como "me hace cruzar la avenida". El
+  cliente aplica el mismo cosido al dibujar (cubre el fallback de línea recta
+  cuando la caminata no trae `geometry`).
 - **Motor OTP2 (caminatas por la red viaria)**: si `OTP_URL` está seteado y
   el motor OpenTripPlanner (GTFS + OSM) responde, las `options` salen de él
   y los tramos de caminata (`kind: "walk"`) vienen con:

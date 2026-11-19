@@ -19,6 +19,8 @@ import {
   planJourneys,
   rankAndCut,
   straightLineMeters,
+  orientBusLegGeometry,
+  connectWalkAndBusGeometry,
 } from '../domain/journey-planner';
 import { JourneyRouterPort } from '../domain/journey-router.port';
 import {
@@ -77,8 +79,10 @@ export class JourneyService {
       ? timeToSeconds(query.time)
       : nowSecondsInTimeZone('America/La_Paz');
 
+    let options: JourneyOption[] = [];
+
     // Motor externo (OTP2: GTFS + OSM). Si responde, sus itinerarios ya
-    // vienen con caminatas trazadas por la red viaria.
+    // vienen con caminatas trazadas por la red viaria y sus propias paradas.
     if (this.router) {
       try {
         const routed = await this.router.plan({
@@ -90,12 +94,10 @@ export class JourneyService {
           maxResults: query.maxResults,
         });
         if (routed !== null) {
-          // La POLÍTICA de orden/recorte vive en domain (rankAndCut): se
-          // aplica igual al resultado del motor externo que al del planner
-          // interno; el adapter OTP solo mapea.
-          return { options: rankAndCut(routed, query.maxResults) };
+          options = routed;
+        } else {
+          this.logger.warn('OTP no disponible; degrado al planner interno');
         }
-        this.logger.warn('OTP no disponible; degrado al planner interno');
       } catch (err) {
         this.logger.warn(
           `Error consultando OTP (${(err as Error).message}); degrado al planner interno`
@@ -103,44 +105,62 @@ export class JourneyService {
       }
     }
 
-    const [originStops, destStops] = await Promise.all([
-      this.data.findStopsNear(
-        query.originLat,
-        query.originLon,
-        WALK_RADIUS_M,
-        MAX_CANDIDATE_STOPS
-      ),
-      this.data.findStopsNear(
-        query.destLat,
-        query.destLon,
-        WALK_RADIUS_M,
-        MAX_CANDIDATE_STOPS
-      ),
-    ]);
+    // Planner interno sobre PostGIS cuando OTP no devolvió opciones.
+    if (options.length === 0) {
+      const [originStops, destStops] = await Promise.all([
+        this.data.findStopsNear(
+          query.originLat,
+          query.originLon,
+          WALK_RADIUS_M,
+          MAX_CANDIDATE_STOPS
+        ),
+        this.data.findStopsNear(
+          query.destLat,
+          query.destLon,
+          WALK_RADIUS_M,
+          MAX_CANDIDATE_STOPS
+        ),
+      ]);
 
-    if (originStops.length === 0 || destStops.length === 0) {
-      return { options: [] };
+      if (originStops.length === 0 || destStops.length === 0) {
+        return { options: [] };
+      }
+
+      const candidateStops = [...originStops, ...destStops];
+      const stopIds = [...new Set(candidateStops.map((s) => s.stopId))];
+      const tripIds = await this.data.findTripIdsServingStops(stopIds);
+      if (tripIds.length === 0) {
+        return { options: [] };
+      }
+      const trips = await this.data.loadTripSchedules(tripIds);
+
+      options = planJourneys({
+        originStops,
+        destStops,
+        trips,
+        timeSec,
+        maxResults: query.maxResults,
+      });
+
+      // Coordenadas de paradas + tramo exacto del shape recortado.
+      await this.enrichOptions(options, candidateStops);
     }
 
-    const stopIds = [
-      ...new Set([...originStops, ...destStops].map((s) => s.stopId)),
-    ];
-    const tripIds = await this.data.findTripIdsServingStops(stopIds);
-    if (tripIds.length === 0) {
-      return { options: [] };
-    }
-    const trips = await this.data.loadTripSchedules(tripIds);
+    // El sentido lo manda el propio viaje: fromStop (subida) → toStop
+    // (bajada). Nunca se compara contra el rumbo origen→destino del usuario,
+    // porque un tramo puede girar y seguir siendo correcto.
+    options = orientBusLegGeometry(options);
 
-    const options = planJourneys({
-      originStops,
-      destStops,
-      trips,
-      timeSec,
-      maxResults: query.maxResults,
-    });
+    // Recortar a maxResults (necesario para OTP; idempotente para el planner
+    // interno que ya lo hace internamente).
+    options = rankAndCut(options, query.maxResults);
 
-    await this.enrichOptions(options, [...originStops, ...destStops]);
+    // Rellena caminatas sin trazado (OTP ya trae las suyas).
     await this.attachWalkGeometry(options, query);
+
+    // Cose caminata y micro: el trazado del micro no se mueve (es la verdad
+    // de por dónde pasa) y la caminata adyacente termina justo sobre él.
+    options = connectWalkAndBusGeometry(options);
     return { options };
   }
 

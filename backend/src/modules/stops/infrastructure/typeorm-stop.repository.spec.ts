@@ -1,5 +1,5 @@
-import { TypeOrmStopRepository } from './typeorm-stop.repository';
 import type { NearbyQuery } from '../domain/stop.model';
+import { TypeOrmStopRepository } from './typeorm-stop.repository';
 
 interface Call {
   sql: string;
@@ -58,7 +58,9 @@ describe('TypeOrmStopRepository', () => {
 
     // La coordenada entra como ($2, $1): LON primero en MakePoint (PostGIS).
     expect(ds.calls[0].sql).toContain('ST_DWithin');
-    expect(ds.calls[0].sql).toContain('ST_SetSRID(ST_MakePoint($2, $1), 4326)::geography');
+    expect(ds.calls[0].sql).toContain(
+      'ST_SetSRID(ST_MakePoint($2, $1), 4326)::geography'
+    );
     expect(ds.calls[0].params).toEqual([-17.78, -63.18, 400, 10]);
     // La distancia se redondea a 1 decimal y sin rutas queda lista vacía.
     expect(page.items[0]).toMatchObject({
@@ -77,9 +79,33 @@ describe('TypeOrmStopRepository', () => {
     ])
       .next([{ count: '2' }])
       .next([
-        { stopId: 'S1', id: 'R1', shortName: '7', color: 'FF0000' },
-        { stopId: 'S1', id: 'R2', shortName: '105', color: null },
-        { stopId: 'S2', id: 'R1', shortName: '7', color: 'FF0000' },
+        {
+          stopId: 'S1',
+          id: 'R1',
+          shortName: '7',
+          color: 'FF0000',
+          longName: 'Terminal ↔ Mercado',
+          imageUrl: 'https://img/7.jpg',
+          directionIds: [0, 1],
+        },
+        {
+          stopId: 'S1',
+          id: 'R2',
+          shortName: '105',
+          color: null,
+          longName: null,
+          imageUrl: null,
+          directionIds: ['0'],
+        },
+        {
+          stopId: 'S2',
+          id: 'R1',
+          shortName: '7',
+          color: 'FF0000',
+          longName: 'Terminal ↔ Mercado',
+          imageUrl: 'https://img/7.jpg',
+          directionIds: [1],
+        },
       ]);
 
     const page = await repo(ds).findNearby(nearby());
@@ -88,9 +114,52 @@ describe('TypeOrmStopRepository', () => {
     expect(ds.calls[2].sql).toContain('ANY($1)');
     expect(ds.calls[2].params).toEqual([['S1', 'S2']]);
     expect(page.items[0].routes).toEqual([
-      { id: 'R1', shortName: '7', color: 'FF0000' },
-      { id: 'R2', shortName: '105', color: null },
+      {
+        id: 'R1',
+        shortName: '7',
+        color: 'FF0000',
+        longName: 'Terminal ↔ Mercado',
+        imageUrl: 'https://img/7.jpg',
+        directionIds: [0, 1],
+      },
+      {
+        id: 'R2',
+        shortName: '105',
+        color: null,
+        longName: null,
+        imageUrl: null,
+        directionIds: [0],
+      },
     ]);
+  });
+
+  it('routesForStops agrega sentidos por línea y no deja pasar el N+1', async () => {
+    const ds = new FakeDataSource();
+    ds.next([
+      { id: 'S1', code: null, name: 'A', lat: 1, lon: 2, distanceMeters: 5 },
+    ])
+      .next([{ count: '1' }])
+      .next([
+        {
+          stopId: 'S1',
+          id: 'R9',
+          shortName: '9',
+          color: '00FF00',
+          longName: null,
+          imageUrl: null,
+          // node-postgres puede traer el int[] como strings o repetido.
+          directionIds: ['1', 1, 0],
+        },
+      ]);
+
+    const page = await repo(ds).findNearby(nearby());
+
+    // Una sola query de rutas, agrupada: el sentido sale del array_agg, no de
+    // un `/routes/:id` por línea.
+    expect(ds.calls).toHaveLength(3);
+    expect(ds.calls[2].sql).toContain('ARRAY_AGG(DISTINCT t.direction_id)');
+    expect(ds.calls[2].sql).toContain('GROUP BY st.stop_id');
+    expect(page.items[0].routes[0].directionIds).toEqual([0, 1]);
   });
 
   it('search normaliza el LIKE a minúsculas y prioriza coincidencia exacta/rango', async () => {
@@ -111,8 +180,17 @@ describe('TypeOrmStopRepository', () => {
     const ds = new FakeDataSource();
     ds.next([
       { id: 'S1', code: '9', name: 'Terminal', lat: -17.8, lon: -63.2 },
-    ])
-      .next([{ stopId: 'S1', id: 'R5', shortName: '5', color: '00FF00' }]);
+    ]).next([
+      {
+        stopId: 'S1',
+        id: 'R5',
+        shortName: '5',
+        color: '00FF00',
+        longName: 'Anillo 5 ↔ Circunvalación',
+        imageUrl: null,
+        directionIds: [0],
+      },
+    ]);
 
     const detail = await repo(ds).findById('S1');
 

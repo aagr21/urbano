@@ -18,6 +18,10 @@ interface RouteRow {
   id: string;
   shortName: string;
   color: string | null;
+  longName: string | null;
+  imageUrl: string | null;
+  /** Postgres devuelve `int[]`; node-postgres puede traer números o strings. */
+  directionIds: Array<number | string> | null;
 }
 
 /**
@@ -26,9 +30,7 @@ interface RouteRow {
  */
 @Injectable()
 export class TypeOrmStopRepository implements StopRepositoryPort {
-  constructor(
-    @InjectDataSource() private readonly dataSource: DataSource,
-  ) {}
+  constructor(@InjectDataSource() private readonly dataSource: DataSource) {}
 
   async findNearby(query: NearbyQuery): Promise<StopNearbyPage> {
     const rows: Array<{
@@ -57,7 +59,7 @@ export class TypeOrmStopRepository implements StopRepositoryPort {
              )
        ORDER BY "distanceMeters" ASC
        LIMIT $4`,
-      [query.lat, query.lon, query.radiusMeters, query.limit],
+      [query.lat, query.lon, query.radiusMeters, query.limit]
     );
 
     const total = await this.countNearby(query);
@@ -85,7 +87,7 @@ export class TypeOrmStopRepository implements StopRepositoryPort {
                ST_SetSRID(ST_MakePoint($2, $1), 4326)::geography,
                $3
              )`,
-      [query.lat, query.lon, query.radiusMeters],
+      [query.lat, query.lon, query.radiusMeters]
     );
     return Number(rows[0]?.count ?? 0);
   }
@@ -113,14 +115,14 @@ export class TypeOrmStopRepository implements StopRepositoryPort {
          s.stop_name ASC,
          s.stop_id ASC
        LIMIT $4`,
-      [like, q.toLowerCase(), `${q.toLowerCase()}%`, limit],
+      [like, q.toLowerCase(), `${q.toLowerCase()}%`, limit]
     );
 
     const totalRows: Array<{ count: string }> = await this.dataSource.query(
       `SELECT COUNT(*)::text AS count
        FROM stop s
        WHERE LOWER(s.stop_name) LIKE $1 OR LOWER(s.stop_id) LIKE $1`,
-      [like],
+      [like]
     );
 
     const routesByStop = await this.routesForStops(rows.map((r) => r.id));
@@ -146,7 +148,7 @@ export class TypeOrmStopRepository implements StopRepositoryPort {
               s.stop_lon AS lon
        FROM stop s
        WHERE s.stop_id = $1`,
-      [id],
+      [id]
     );
     if (rows.length === 0) return null;
 
@@ -163,24 +165,43 @@ export class TypeOrmStopRepository implements StopRepositoryPort {
     };
   }
 
-  /** Rutas que sirven cada parada, agrupadas por stop_id (una sola query). */
-  private async routesForStops(stopIds: string[]): Promise<Map<string, RouteRef[]>> {
+  /**
+   * Rutas que sirven cada parada, agrupadas por stop_id (una sola query).
+   *
+   * Se agrupa (y no `SELECT DISTINCT`) para poder traer los **sentidos reales**
+   * de cada línea en ESA parada: un micro puede parar aquí solo en la ida. Sin
+   * el `array_agg` el listado de lugares no tiene forma de decirlo y toca
+   * pagar un `/routes/:id` por línea visible (N+1). `longName`/`imageUrl`
+   * vienen en la misma vuelta para que la tarjeta muestre trayecto y foto.
+   */
+  private async routesForStops(
+    stopIds: string[]
+  ): Promise<Map<string, RouteRef[]>> {
     const map = new Map<string, RouteRef[]>();
     if (stopIds.length === 0) return map;
 
     const rows: RouteRow[] = await this.dataSource.query(
-      `SELECT DISTINCT st.stop_id AS "stopId",
+      `SELECT st.stop_id AS "stopId",
               r.route_id AS id,
               r.route_short_name AS "shortName",
               r.route_color AS color,
-              ${ROUTE_NATURAL_ORDER_COLUMNS[0]} AS "sortNumber",
-              ${ROUTE_NATURAL_ORDER_COLUMNS[1]} AS "sortSuffix"
+              r.route_long_name AS "longName",
+              r.image_url AS "imageUrl",
+              ARRAY_AGG(DISTINCT t.direction_id)::int[] AS "directionIds",
+              MIN(${ROUTE_NATURAL_ORDER_COLUMNS[0]}) AS "sortNumber",
+              MIN(${ROUTE_NATURAL_ORDER_COLUMNS[1]}) AS "sortSuffix"
        FROM stop_time st
        JOIN trip t ON t.trip_id = st.trip_id
        JOIN route r ON r.route_id = t.route_id
        WHERE st.stop_id = ANY($1)
+       GROUP BY st.stop_id,
+                r.route_id,
+                r.route_short_name,
+                r.route_color,
+                r.route_long_name,
+                r.image_url
        ORDER BY "sortNumber" ASC, "sortSuffix" ASC, ${ROUTE_NATURAL_ORDER_COLUMNS[2]} ASC, r.route_id ASC`,
-      [stopIds],
+      [stopIds]
     );
     for (const row of rows) {
       const list = map.get(row.stopId);
@@ -188,6 +209,9 @@ export class TypeOrmStopRepository implements StopRepositoryPort {
         id: row.id,
         shortName: row.shortName,
         color: row.color,
+        longName: row.longName,
+        imageUrl: row.imageUrl,
+        directionIds: [...new Set((row.directionIds ?? []).map(Number))].sort(),
       };
       if (list) {
         list.push(ref);

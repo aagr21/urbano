@@ -27,10 +27,12 @@ Backend (always `cd backend` first — the boot order matters):
   and — once `otp-data/graph.obj` exists — **OpenTripPlanner 2 on host port 8081**.
 - `npm install && cp .env.example .env && npm run import:gtfs` → imports `gtfs.zip`.
 - `npm run fix:gtfs-directions` — dry-run diagnostic of the feed's ida/vuelta orientation; add `--apply`
-  (optionally `--routes 75,123`) to rewrite `stop_times.txt`/`shapes.txt` in place. The shipped
-  `gtfs.zip` is already repaired (13 routes had `direction_id=1` duplicated in the ida order — see
-  `docs/gtfs-dataset.md`); `backend/gtfs.orig.zip` keeps the untouched original. Re-run after pulling a
-  new feed, then re-import **and** rebuild the OTP graph.
+  (optionally `--routes 75,123`) to rewrite `stop_times.txt` in place. `--osm <city.geojson>` adds the
+  second repair: routes whose ida/vuelta `shape_id` are on the opposite carriageway (contraflecha) get
+  their shapes swapped, decided against OSM `oneway` data (without `--osm` that step is skipped with a
+  warning). The shipped `gtfs.zip` is already repaired (13 routes had `direction_id=1` duplicated in the
+  ida order and 18 had the shapes swapped — see `docs/gtfs-dataset.md`); `backend/gtfs.orig.zip` keeps
+  the untouched original. Re-run after pulling a new feed, then re-import **and** rebuild the OTP graph.
 - OTP2 graph build (one-time): `cd otp-data && cp ../gtfs.zip gtfs.zip && curl -L
 https://download.geofabrik.de/south-america/bolivia-latest.osm.pbf -o bolivia-latest.osm.pbf
 && cd .. && docker compose run --rm otp --build --save`. With `OTP_URL` set (see
@@ -93,11 +95,12 @@ Vercel URL**. Always pass it explicitly for targeted local runs
   so `Offset(-500, 0)`), otherwise it settles back on the same photo.
 - **The `/complaints` curtain must not eat the first post.** The header card, the category filter
   row and the "La comunidad reporta" row are chrome, not content: the feed's first
-  `ComplaintPostCard` (~447 px) has to fit between the list top and the shell's `NavigationBar`
-  at 1080×2340@2.75. `_CommunityHeader` is therefore one tight row (badge + title + compact
+  `ComplaintPostCard` (~447 px) has to fit between the list top and the bottom chrome at
+  1080×2340@2.75. `_CommunityHeader` is therefore one tight row (badge + title + compact
   `Crear` CTA with tooltip `Crear queja`) above the three `_StatTile`s — no tagline paragraph, no
   full-width button row — and `test/complaints_feed_test.dart` asserts `card.bottom < bar.top` at a
-  real phone height (that harness mounts its own `NavigationBar`; `_openFeed` does not). Anything
+  real phone height (the shell no longer has a `NavigationBar`: that harness mounts its own as the
+  bottom boundary; `_openFeed` does not). Anything
   new up there goes into the header row or gets scrolled, never stacked below it. Because the CTA
   shares the row with the title, the title is `Expanded > FittedBox(scaleDown)`, **never**
   `TextOverflow.ellipsis` (a long label there truncated "La voz del pasaj…" on real phones); the
@@ -148,8 +151,13 @@ Backend (`backend/src/modules/<feature>/{domain,application,infrastructure,prese
 - `DB_SYNCHRONIZE=true` in dev: TypeORM auto-syncs schema on boot; PostGIS/B-tree/`pg_trgm`
   indexes are created idempotently at startup (`DatabaseSetupService`).
 
-Flutter app: Riverpod for state, `go_router` (2 tabs: Inicio · Viaje; the old
-Rutas tab now lives as the left micros panel in `/journey`, with per-direction
+Flutter app: Riverpod for state, `go_router` (three sections: Inicio · Viaje · Denuncias —
+**sin barra inferior**: la navegación vive en el menú de cada cabecera, `showUrbanoMenu`
+en `core/widgets/urbano_menu.dart`, con el botón `home-menu-button` / `journey-menu-button`
+en la columna de controles del mapa / `complaints-menu-button`; el shell monta las tres
+ramas con `StatefulShellRoute.indexedStack` y solo funde el cuerpo al cambiar de sección).
+La antigua
+pestaña Rutas ahora vive como el panel izquierdo de micros en `/journey`, con per-direction
 ida/vuelta toggles; `/map` redirects to `/journey`). There is **no `/routes` list
 route** anymore — anything wanting the whole catalogue (the home's "Ver todas")
 goes through `UrbanoRoutes.openAllMicros`, which flips the branch and sets
@@ -161,6 +169,42 @@ behind the `UrbanoMap`
 facade, GPS isolated in `core/location/` (injectable `LocationService` so tests run
 without geolocator). `/journey` is a single always-mounted screen — don't recreate the
 platform view; the merged map/result-sheet design is deliberate (see README).
+
+- **La portada es UNA pantalla: marca, cuatro accesos, destino e historial.** El home se compone
+  de una **banda oficial** a sangre (`home_header.dart`: escudo del Gobierno Autónomo Municipal de
+  Santa Cruz de la Sierra —`assets/images/gobierno-santa-cruz.png`, se escala pero no se redibuja—
+  a la izquierda y la píldora «Transporte Oficial» a la derecha; en oscuro el escudo va sobre una
+  placa blanca para que su trazo negro no se pierda), una cabecera de marca sobre el lienzo
+  (wordmark centrado + lema + botón de menú flotando a la derecha y la píldora «Tu ubicación»; el
+  buscador de rutas se retiró, así que Inicio no tiene `TextField`), cuatro
+  cuadros **compactos** en retícula 2 × 2 con píldora, punto, ilustración plana
+  (`home_action_illustrations.dart`) y bajada (`home_action_tiles.dart`: Micros · Viajes · Lugares ·
+  Denuncias), la barra `¿A dónde vas?` (`destination_bar.dart`, cuya etiqueta
+  `Marca tu destino y listo` siguen tocando los tests) y `recent_trips.dart`, una sola tarjeta
+  agrupada con la píldora de duración al pie de cada fila. La portada **termina** en los viajes
+  recientes: el banner «Santa Cruz en movimiento», la tirilla «Tus micros» y el mini mapa se
+  retiraron para que cabecera, accesos, destino e historial quepan sin scroll; el catálogo completo
+  vive en el panel de Viaje (acceso **Micros**) y el mapa, en `/journey`. Los cuatro cuadros usan
+  una ilustración de 84 × 48 y tipografía `titleSmall`/`labelSmall`: no los agrandes sin volver a
+  medir el alto de la portada.
+  El historial se alimenta de `tripHistoryControllerProvider`
+  (`journey/application/trip_history_controller.dart` + `journey/data/trip_history.dart`):
+  `SharedPreferences` bajo `urbano.trips.recent`, dedupe por `label|lat|lon`, máximo
+  `maxEntries = 6`, orden por `lastUsed`; el planeador lo anota desde su listener de
+  `journeyResultsProvider` cuando llega una respuesta fresca. La portada lista solo
+  `RecentTrips.visibleOnHome = 3` filas; cuando hay más, el rótulo lleva la píldora
+  «Ver todos» (con el número de los que quedan fuera) en la esquina superior derecha y abre
+  la hoja con el historial completo (`recent-trip-all-*`, misma tarjeta agrupada). Sin
+  historial la sección no ocupa
+  espacio; tocar una fila repone el destino, usa `lastKnownLocationProvider` (o
+  `myLocationProvider`, que la tarjeta mantiene vivo) como origen si falta, abre
+  el panel y cambia a `/journey`. En tests el provider **siempre** se sobrescribe con
+  `test/helpers/memory_trip_history_store.dart` — `shared_preferences` no existe bajo
+  `flutter test`. Locked by `test/trip_history_test.dart`, `test/recent_trips_test.dart`
+  y el test del historial de
+  `test/widget_test.dart`. En el viewport de test (600 lógicos) los accesos y «¿A dónde vas?»
+  entran sin scroll; el historial con filas se sigue leyendo con
+  `scrollUntilVisible`/`ensureVisible`.
 
 - Render async lists/queries with `core/widgets/async_value_view.dart`
   (`AsyncValueView`/`AsyncListView`) instead of hand-rolling per screen.
@@ -302,13 +346,13 @@ platform view; the merged map/result-sheet design is deliberate (see README).
   condition: the curtain only lifts when `onEnd` fired the intro **and** the future resolved, so a
   fast backend can't make it blink (the intro is the minimum-visible floor) and a slow one is covered
   honestly. `bootReadinessProvider` (`core/boot/boot_readiness.dart`, watched from `_BootGate` in
-  `main.dart` — NOT from the home) awaits the same calls the home will show (`statsProvider` +
-  `routesListProvider(homeCatalogQuery)`) and never throws: it returns `bool` so an unreachable
+  `main.dart` — NOT from the home) awaits the data the app will show (`statsProvider` de «Acerca de» +
+  `routesListProvider(homeCatalogQuery)` del panel de micros) and never throws: it returns `bool` so an unreachable
   backend still lifts, with the `Sin respuesta del servicio` stage instead of a lying `Todo listo`.
   `bootCeiling` (6 s) is that safety — a loading screen that can trap the user is worse than the
   data it is waiting for. `homeCatalogQuery` is a shared const (`routes/presentation/route_providers.dart`)
-  because `SimpleCache` does not dedupe in-flight calls: boot, the micros strip and
-  `featuredRouteShapeProvider` must hit the same provider element or `/routes` is paid twice. New
+  because `SimpleCache` does not dedupe in-flight calls: boot y el panel de micros
+  deben pegarle al mismo elemento del provider o `/routes` se paga dos veces. New
   boot data goes into that future, and a `ready` future must never be re-listened in `build` —
   `provider.future` fabricates a new future per rebuild, so the subscription lives in `initState`.
   `TweenAnimationBuilder` also has a trap: if `begin == end` the tween never starts and `onEnd`
@@ -420,11 +464,22 @@ animator_duration_scale` — the key is `animator_duration_scale`, NOT `animator
   `test/journey_result_map_test.dart` first (and `test/endpoint_drag_policy_test.dart`
   for the pure decision). Walk legs may carry a street-network
   `geometry` (OTP2); the map widget renders that instead of the straight fallback.
+  In both cases the walk's bus-side endpoint is joined to the bus `geometry`
+  (`connectWalkAndBusGeometry` in the API, `_joinWalkToBus` in the map): the shape
+  never moves — it is the truth of where the micro passes — and the dashed walk is
+  stretched to it, so no 10-20 m gap reads as "it makes me cross the avenue".
 
 ## API contract
 
 `docs/api-contract.md` is the source of truth; keep it, the Flutter client
 (`core/network/endpoints.dart`), and Swagger annotations in sync when changing endpoints.
+
+- **Geometry direction is a server invariant** (see `docs/api-contract.md`,
+  section Journey): `geometry` always runs `fromStop` (board) → `toStop`
+  (alight). The backend enforces it with `orientBusLegGeometry` for both OTP
+  and the internal planner. The client (`JourneyLeg.mapPoints`) must **not**
+  reorient — it only draws. The one correction lived in three layers once and
+  caused a long regression; keep it in exactly one place (the backend).
 
 - Success responses are wrapped `{ "data": ..., "meta": ... }`; errors are
   `{ "error": { "statusCode", "message", "details" } }`. Only `GET /health` is unwrapped.
