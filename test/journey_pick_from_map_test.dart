@@ -95,10 +95,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byType(MapPickerScreen), findsNothing);
-      expect(
-        find.text('Punto en el mapa · -17.79000, -63.17000'),
-        findsWidgets,
-      );
+      expect(find.textContaining('-17.79000, -63.17000'), findsWidgets);
     },
   );
 

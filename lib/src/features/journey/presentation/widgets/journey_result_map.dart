@@ -359,7 +359,9 @@ class JourneyResultMapState extends State<JourneyResultMap> {
 
     // Tramos de caminata: geometría trazada por la red viaria (motor OTP)
     // cuando existe; si no, línea recta entre extremos conocidos (fallback,
-    // y único modo cuando el backend usa el planner interno sin OTP).
+    // y único modo cuando el backend usa el planner interno sin OTP). En
+    // ambos casos el extremo que toca el micro se pega a su trazado
+    // (`_joinWalkToBus`).
     const walkColor = Color(0xFF94A3B8);
     final walkLegs = option.walkLegs;
     if (walkLegs.isEmpty) {
@@ -368,7 +370,7 @@ class JourneyResultMapState extends State<JourneyResultMap> {
       if (walkTo != null) {
         polylines.add(
           MapPolyline(
-            points: [origin, walkTo],
+            points: _joinWalkToBus([origin, walkTo], option.legs, -1),
             width: 4,
             color: walkColor,
             dashed: true,
@@ -379,7 +381,11 @@ class JourneyResultMapState extends State<JourneyResultMap> {
       if (walkFrom != null) {
         polylines.add(
           MapPolyline(
-            points: [walkFrom, destination],
+            points: _joinWalkToBus(
+              [walkFrom, destination],
+              option.legs,
+              option.legs.length,
+            ),
             width: 4,
             color: walkColor,
             dashed: true,
@@ -392,42 +398,28 @@ class JourneyResultMapState extends State<JourneyResultMap> {
         final leg = legs[i];
         if (!leg.isWalk) continue;
         final geometry = leg.geometry;
-        if (geometry != null && geometry.length >= 2) {
-          polylines.add(
-            MapPolyline(
-              points: geometry,
-              width: 4,
-              color: walkColor,
-              dashed: true,
-            ),
-          );
-          continue;
-        }
-        // Sin geometría: recta entre los extremos vecinos de la caminata.
-        final straight = _straightWalkSegment(
-          option,
-          legs,
-          i,
-          origin,
-          destination,
+        final base = (geometry != null && geometry.length >= 2)
+            ? geometry
+            : _straightWalkSegment(option, legs, i, origin, destination);
+        if (base == null || base.length < 2) continue;
+        polylines.add(
+          MapPolyline(
+            points: _joinWalkToBus(base, legs, i),
+            width: 4,
+            color: walkColor,
+            dashed: true,
+          ),
         );
-        if (straight != null) {
-          polylines.add(
-            MapPolyline(
-              points: straight,
-              width: 4,
-              color: walkColor,
-              dashed: true,
-            ),
-          );
-        }
       }
     }
 
-    // Tramos de micro: geometry recortada o línea recta (degradado).
+    // Tramos de micro: `mapPoints` ya los entrega en el sentido del propio
+    // tramo (fromStop → toStop). No se comparan con el origen/destino del
+    // usuario: el segundo micro de un transbordo está más cerca del destino y
+    // aun así debe dibujarse hacia delante.
     for (final leg in option.busLegs) {
       final path = leg.mapPoints;
-      if (path == null) continue;
+      if (path == null || path.isEmpty) continue;
       polylines.add(
         MapPolyline(
           points: path,
@@ -438,6 +430,50 @@ class JourneyResultMapState extends State<JourneyResultMap> {
       );
     }
     return polylines;
+  }
+
+  /// Separación máxima (m) entre el extremo de una caminata y el trazado del
+  /// micro para coserlos. Más allá, el hueco es real y no se inventa un salto.
+  static const double _walkJoinMaxMeters = 60;
+
+  /// Estira la caminata hasta el trazado del micro vecino.
+  ///
+  /// El `shape` de GTFS circula por el eje de la calzada y la parada está en
+  /// la acera: en una avenida de doble calzada quedan 10-20 m entre el final
+  /// de la caminata y el dibujo del micro, y se lee como "me hace cruzar la
+  /// avenida" o "la caminata no llega hasta donde pasa el micro". El trazado
+  /// del micro **no se mueve** (es la verdad de por dónde pasa); lo que se
+  /// estira es la caminata: su último punto pasa a ser el primero del micro
+  /// siguiente y el primero, el último del micro anterior.
+  ///
+  /// [index] es la posición de la caminata en [legs]; `-1` y `legs.length`
+  /// sirven para las caminatas de compatibilidad (sin tramo explícito).
+  static List<LatLng> _joinWalkToBus(
+    List<LatLng> points,
+    List<JourneyLeg> legs,
+    int index,
+  ) {
+    if (points.length < 2) return points;
+    final joined = List<LatLng>.of(points);
+    const distance = Distance();
+
+    for (var j = index + 1; j < legs.length; j++) {
+      if (!legs[j].isBus) continue;
+      final start = legs[j].mapPoints?.first;
+      if (start != null && distance(joined.last, start) <= _walkJoinMaxMeters) {
+        joined[joined.length - 1] = start;
+      }
+      break;
+    }
+    for (var j = index - 1; j >= 0; j--) {
+      if (!legs[j].isBus) continue;
+      final end = legs[j].mapPoints?.last;
+      if (end != null && distance(joined.first, end) <= _walkJoinMaxMeters) {
+        joined[0] = end;
+      }
+      break;
+    }
+    return joined;
   }
 
   /// Extremos de una caminata sin geometría:

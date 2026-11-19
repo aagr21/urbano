@@ -6,11 +6,14 @@ import 'package:go_router/go_router.dart';
 import 'package:latlong2/latlong.dart';
 
 import '../../../core/animation/motion.dart';
+import '../../../core/location/reverse_geocoding.dart';
 import '../../../core/map/map.dart';
 import '../../../core/utils/extensions.dart';
 import '../../../core/utils/location.dart';
 import '../../../core/utils/time_formatters.dart';
+import '../../../core/widgets/urbano_menu.dart';
 import '../../routes/data/route_models.dart';
+import '../application/trip_history_controller.dart';
 import 'journey_planner_controller.dart';
 import 'journey_providers.dart';
 import 'journey_results_view.dart';
@@ -63,6 +66,18 @@ class _JourneyPlannerScreenState extends ConsumerState<JourneyPlannerScreen> {
   /// píldora inferior "¿A dónde vas?".
   bool _panelOpen = false;
 
+  /// Firma del último viaje que ya se anotó en el historial del home.
+  ///
+  /// Evita reescribir la fila en cada rebuild de `journeyResultsProvider`
+  /// (selección de opción, recálculo, cambio de capa…): solo un viaje con otra
+  /// consulta se vuelve a anotar.
+  String? _historySignature;
+
+  /// `true` cuando se llegó aquí por «Micros» del home: se muestra solo el
+  /// mapa con el panel de catálogo/lugares, sin la píldora de origen/destino
+  /// ni la hoja de resultados del viaje.
+  bool _microsOnly = false;
+
   /// Abre/cierra el panel de origen/destino (con animación de despliegue).
   void _togglePanel() => setState(() => _panelOpen = !_panelOpen);
   @override
@@ -91,6 +106,17 @@ class _JourneyPlannerScreenState extends ConsumerState<JourneyPlannerScreen> {
         _openMicrosSheet();
       });
     }, fireImmediately: true);
+    // «Solo micros» desde el home (ver [pendingMicrosOnlyProvider]): la
+    // bandera llega puesta al llegar a Viaje y aquí se activa el modo solo
+    // micros (mapa + panel, sin interfaz de planificación).
+    ref.listenManual(pendingMicrosOnlyProvider, (_, next) {
+      if (!next) return;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        ref.read(pendingMicrosOnlyProvider.notifier).state = false;
+        setState(() => _microsOnly = true);
+      });
+    }, fireImmediately: true);
     // «Viajar» desde el home (ver [pendingPlannerPanelProvider]): misma
     // mecánica que el cajón de micros —bandera que se limpia en el frame
     // siguiente—, pero aquí el gesto no abre una ruta: desplegar el panel de
@@ -102,6 +128,26 @@ class _JourneyPlannerScreenState extends ConsumerState<JourneyPlannerScreen> {
         ref.read(pendingPlannerPanelProvider.notifier).state = false;
         setState(() => _panelOpen = true);
       });
+    }, fireImmediately: true);
+    // «Tus viajes recientes» del home: en cuanto hay una respuesta fresca con
+    // opciones, el destino queda anotado. La firma de la consulta evita
+    // reescribir la fila en cada rebuild (elegir otra opción, replanificar por
+    // arrastre, cambiar de capa…).
+    ref.listenManual(journeyResultsProvider, (_, next) {
+      final query = next.query;
+      final options = next.options;
+      if (query == null || options == null || options.isEmpty) return;
+      final signature =
+          '${query.originPoint}|${query.destinationPoint}|${query.time}';
+      if (signature == _historySignature) return;
+      _historySignature = signature;
+      final index = next.selectedIndex.clamp(0, options.length - 1);
+      ref
+          .read(tripHistoryControllerProvider.notifier)
+          .record(
+            destination: query.destination,
+            durationMinutes: options[index].durationMinutes,
+          );
     }, fireImmediately: true);
   }
 
@@ -194,8 +240,20 @@ class _JourneyPlannerScreenState extends ConsumerState<JourneyPlannerScreen> {
       Uri(path: '/journey/pick', queryParameters: params).toString(),
     );
     if (point == null || !mounted) return;
+
+    // Fetch reverse geocoded address
+    String? address;
+    try {
+      final result = await ref.read(
+        reverseGeocodeProvider(LatLng(point.lat, point.lon)).future,
+      );
+      address = result?.shortFormatted;
+    } catch (_) {
+      // Ignore geocoding errors, fall back to coordinates
+    }
+
     _commitPlace(
-      JourneyPlacePoint(lat: point.lat, lon: point.lon),
+      JourneyPlacePoint(lat: point.lat, lon: point.lon, address: address),
       isOrigin: isOrigin,
     );
   }
@@ -396,20 +454,19 @@ class _JourneyPlannerScreenState extends ConsumerState<JourneyPlannerScreen> {
           final mapBottomPad = hasResults
               ? math.min(sheetTop + 12.0, constraints.maxHeight * 0.6)
               : 140.0;
-          // Los controles del mapa quedan anclados ABAJO siempre: abrir el
-          // panel de origen/destino NO los mueve (el panel cabe encima del
-          // mapa); con resultados, la hoja de resultados los sube.
-          final controlsBottom = hasResults ? sheetTop + 12.0 : 24.0;
-          // En pantalla completa la barra del shell desaparece, pero los
-          // controles de navegación del sistema siguen ocupando el borde
-          // inferior. `viewPadding` conserva esa zona segura incluso cuando
-          // el contenido se dibuja edge-to-edge.
-          final fullscreenControlsBottom = math.max(
+          // Borde inferior seguro: la pantalla se dibuja edge-to-edge y el
+          // gesto/barra del sistema ocupa sus últimos píxeles. `viewPadding`
+          // conserva esa zona (y vale 0 en los tests, así que no mueve nada).
+          final bottomBase = math.max(
             24.0,
             mediaQuery.viewPadding.bottom + 16.0,
           );
+          // Los controles del mapa quedan anclados ABAJO siempre: abrir el
+          // panel de origen/destino NO los mueve (el panel cabe encima del
+          // mapa); con resultados, la hoja de resultados los sube.
+          final controlsBottom = hasResults ? sheetTop + 12.0 : bottomBase;
           final showStatusPanel =
-              !hasResults && planner.submitted && planner.ready;
+              planner.submitted && planner.ready && (!hasResults || replanning);
           return Stack(
             children: [
               // 1. Mapa a pantalla completa (SIEMPRE montado).
@@ -531,7 +588,7 @@ class _JourneyPlannerScreenState extends ConsumerState<JourneyPlannerScreen> {
                 duration: Motion.fade,
                 curve: Curves.easeOutCubic,
                 right: 16,
-                bottom: fullscreen ? fullscreenControlsBottom : controlsBottom,
+                bottom: fullscreen ? bottomBase : controlsBottom,
                 child: LiveMapControls(
                   onZoomIn: () => _journeyMapKey.currentState?.zoomIn(),
                   onZoomOut: () => _journeyMapKey.currentState?.zoomOut(),
@@ -540,12 +597,13 @@ class _JourneyPlannerScreenState extends ConsumerState<JourneyPlannerScreen> {
                     _journeyMapKey.currentState?.resetNorth();
                     if (mounted) setState(() => _mapBearing = 0);
                   },
-                  onOpenMicros: _openMicrosSheet,
-                  microsActive: planner.visibleRouteKeys.isNotEmpty,
                   fullscreen: fullscreen,
                   onToggleFullscreen: () =>
                       ref.read(mapFullscreenProvider.notifier).state =
                           !fullscreen,
+                  onOpenMenu: () =>
+                      showUrbanoMenu(context, current: UrbanoSection.journey),
+                  onBack: () => context.go('/'),
                 ),
               ),
               // 4. Hoja de resultados (cuando hay un viaje planificado).
@@ -561,17 +619,18 @@ class _JourneyPlannerScreenState extends ConsumerState<JourneyPlannerScreen> {
                     endpointsTooClose: planner.endpointsTooClose,
                     endpointsDistanceM: planner.endpointsDistanceM,
                     onOptionSelected: _selectOption,
+                    onClear: _clear,
                   ),
                 ),
               // 5. Zona inferior izquierda: estado de la consulta (si procede)
               //    y la píldora que abre/cierra el panel de origen y destino.
-              if (!fullscreen)
+              if (!fullscreen && !_microsOnly)
                 AnimatedPositioned(
                   duration: Motion.fade,
                   curve: Curves.easeOutCubic,
                   left: 16,
                   right: 76,
-                  bottom: hasResults ? sheetTop + 12 : 24,
+                  bottom: hasResults ? sheetTop + 12 : bottomBase,
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -582,6 +641,7 @@ class _JourneyPlannerScreenState extends ConsumerState<JourneyPlannerScreen> {
                           result: result!,
                           endpointsTooClose: planner.endpointsTooClose,
                           endpointsDistanceM: planner.endpointsDistanceM,
+                          forceLoading: replanning,
                         ),
                         const SizedBox(height: 12),
                       ],

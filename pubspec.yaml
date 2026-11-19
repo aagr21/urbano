@@ -18,6 +18,7 @@ dependencies:
 
     # HTTP
     dio: ^5.7.0
+    http: ^1.3.0
 
     # Navegación
     go_router: ^14.6.2
@@ -51,6 +52,12 @@ dev_dependencies:
 
 flutter:
     uses-material-design: true
+
+    # Escudo del Gobierno Autónomo Municipal de Santa Cruz de la Sierra: la
+    # banda oficial de Inicio lo pinta tal cual (PNG recortado, fondo
+    # transparente). No se redibuja ni se recolorea.
+    assets:
+        - assets/images/
 
     # Fuentes empaquetadas e inscritas como manifiesto `fonts:` (no como assets
     # crudos): Inter para cuerpo/títulos y Plus Jakarta Sans solo para el

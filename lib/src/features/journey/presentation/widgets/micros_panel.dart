@@ -302,7 +302,8 @@ class MicrosPanelState extends ConsumerState<MicrosPanel>
                           activeDirectionKeys: activeKeys,
                           busyKey: snapshot.busyKey,
                           locked: snapshot.locked,
-                          onToggleRoute: _toggleStopRoute,
+                          directionsOf: panel.stopDirectionsOfRoute,
+                          onToggleDirection: _toggleStopDirection,
                           onFramePlaces: widget.onFramePlaces,
                         )
                       : MicrosPanelList(
@@ -336,6 +337,10 @@ class MicrosPanelState extends ConsumerState<MicrosPanel>
   Future<void> _toggleMicro(RouteSummary micro, int directionId) => _panel
       .toggleDirection(micro, directionId, onToggle: widget.onToggleDirection);
 
-  Future<void> _toggleStopRoute(StopRouteRef route) =>
-      _panel.toggleStopRoute(route, onToggle: widget.onToggleDirection);
+  Future<void> _toggleStopDirection(StopRouteRef route, int directionId) =>
+      _panel.toggleStopDirection(
+        route,
+        directionId,
+        onToggle: widget.onToggleDirection,
+      );
 }

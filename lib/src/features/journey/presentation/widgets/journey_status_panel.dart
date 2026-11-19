@@ -20,6 +20,7 @@ class JourneyStatusPanel extends ConsumerWidget {
     required this.result,
     required this.endpointsTooClose,
     required this.endpointsDistanceM,
+    this.forceLoading = false,
   });
 
   final JourneyQuery query;
@@ -31,34 +32,42 @@ class JourneyStatusPanel extends ConsumerWidget {
   /// Distancia en línea recta entre ambos extremos (para el mensaje).
   final double? endpointsDistanceM;
 
+  /// Fuerza el mismo estado visual de carga durante un recálculo con caché.
+  final bool forceLoading;
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return GlassCard(
-      child: AsyncValueView<List<JourneyOption>>(
-        value: result,
-        onRetry: () => ref.invalidate(journeyProvider(query)),
-        isEmpty: (options) => options.isEmpty,
-        emptyIcon: Icons.directions_off_rounded,
-        emptyTitle: endpointsTooClose
-            ? 'Están muy cerca'
-            : 'No encontramos viajes',
-        emptyMessage: endpointsTooClose
-            ? 'El origen y el destino están a '
-                  '${(endpointsDistanceM ?? 0).round()} m: camina hasta allí, '
-                  'no hay viaje de bus que valga la pena.'
-            : 'No hay rutas directas ni con un transbordo para ese '
-                  'origen/destino a esa hora. Prueba otra hora u otro punto.',
-        loading: () => const Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [_Scanning(), SkeletonList(count: 2)],
-        ),
-        onError: (error) => ErrorView(
-          error: error,
-          compact: true,
-          onRetry: () => ref.invalidate(journeyProvider(query)),
-        ),
-        data: (_) => const SizedBox.shrink(),
-      ),
+      child: forceLoading
+          ? const Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [_Scanning(), SkeletonList(count: 2)],
+            )
+          : AsyncValueView<List<JourneyOption>>(
+              value: result,
+              onRetry: () => ref.invalidate(journeyProvider(query)),
+              isEmpty: (options) => options.isEmpty,
+              emptyIcon: Icons.directions_off_rounded,
+              emptyTitle: endpointsTooClose
+                  ? 'Están muy cerca'
+                  : 'No encontramos viajes',
+              emptyMessage: endpointsTooClose
+                  ? 'El origen y el destino están a '
+                        '${(endpointsDistanceM ?? 0).round()} m: camina hasta allí, '
+                        'no hay viaje de bus que valga la pena.'
+                  : 'No hay rutas directas ni con un transbordo para ese '
+                        'origen/destino a esa hora. Prueba otra hora u otro punto.',
+              loading: () => const Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [_Scanning(), SkeletonList(count: 2)],
+              ),
+              onError: (error) => ErrorView(
+                error: error,
+                compact: true,
+                onRetry: () => ref.invalidate(journeyProvider(query)),
+              ),
+              data: (_) => const SizedBox.shrink(),
+            ),
     );
   }
 }

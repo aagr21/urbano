@@ -9,6 +9,7 @@ import 'package:urbano/src/core/location/location_service.dart';
 import 'package:urbano/src/core/map/fake_map_engine.dart';
 import 'package:urbano/src/core/map/map_types.dart';
 import 'package:urbano/src/core/theme/app_theme.dart';
+import 'package:urbano/src/features/journey/application/micros_catalog.dart';
 import 'package:urbano/src/features/journey/presentation/journey_planner_controller.dart';
 import 'package:urbano/src/features/journey/presentation/journey_providers.dart';
 import 'package:urbano/src/features/journey/presentation/map_picker_screen.dart';
@@ -172,8 +173,8 @@ Future<void> _commitSearch(WidgetTester tester, String q) async {
   await tester.pumpAndSettle();
 }
 
-Future<void> _tapRouteToggle(WidgetTester tester, String routeId) async {
-  await tester.tap(find.byKey(ValueKey('place-route-toggle-$routeId')));
+Future<void> _tapDirection(WidgetTester tester, String routeId, int dir) async {
+  await tester.tap(find.byKey(ValueKey('place-route-toggle-$routeId#$dir')));
   await tester.pumpAndSettle();
 }
 
@@ -239,7 +240,7 @@ void main() {
   });
 
   testWidgets(
-    'cada línea tiene su propio «Ver ruta» y se dibuja de forma independiente',
+    'cada línea ofrece Ida y Vuelta como botones independientes (+ Detalle)',
     (tester) async {
       final repo = FakeStopSearchRepository([
         _hit('Terminal Bimodal esquina Cuarto Anillo', _micros),
@@ -247,27 +248,57 @@ void main() {
       final h = await _openPlaces(tester, repo);
       await _commitSearch(tester, 'terminal');
 
-      // Dos líneas del resultado = DOS botones «Ver ruta» (ya no es un único
-      // botón global que encendía todo junto).
-      expect(find.text('Ver ruta'), findsNWidgets(2));
+      // Dos líneas del resultado: dos «Ida», dos «Vuelta» y dos «Detalle».
+      // Ya no existe el antiguo «Ver ruta» que encendía ambos sentidos a ciegas.
+      expect(find.text('Ida'), findsNWidgets(2));
+      expect(find.text('Vuelta'), findsNWidgets(2));
+      expect(find.text('Detalle'), findsNWidgets(2));
+      expect(find.text('Ver ruta'), findsNothing);
 
-      // Tocar la 41 delega SOLO su recorrido, y la bandera es «ver la ruta
-      // entera»: dibuja ida (0) y vuelta (1), no una sola orientación.
-      await _tapRouteToggle(tester, '41');
+      // Tocar la IDA de la 41 delega SOLO ese sentido (`41#0`), no la vuelta.
+      await _tapDirection(tester, '41', 0);
+      expect(h.toggleCalls, ['41#0']);
+
+      // La VUELTA de la 41 es independiente: suma `41#1` sin tocar la otra.
+      await _tapDirection(tester, '41', 1);
       expect(h.toggleCalls, ['41#0', '41#1']);
-      expect(find.text('Ocultar'), findsOneWidget);
-      // La 60 sigue independiente: todavía disponible.
-      expect(find.text('Ver ruta'), findsOneWidget);
 
-      // Encender la 60 añade su ruta por separado (las dos visibles).
-      await _tapRouteToggle(tester, '60');
-      expect(h.toggleCalls, ['41#0', '41#1', '60#0', '60#1']);
-      expect(find.text('Ocultar'), findsNWidgets(2));
+      // Encender la ida de la 60 añade su ruta por separado.
+      await _tapDirection(tester, '60', 0);
+      expect(h.toggleCalls, ['41#0', '41#1', '60#0']);
 
-      // Apagar la 41 (ahora «Ocultar») retira solo ella: vuelve a invertir
-      // sus dos direcciones, la 60 queda intacta.
-      await _tapRouteToggle(tester, '41');
-      expect(h.toggleCalls, ['41#0', '41#1', '60#0', '60#1', '41#0', '41#1']);
+      // Apagar la ida de la 41 (segundo toque sobre el mismo botón) retira SOLO
+      // ella: invierte `41#0`, la vuelta y la 60 quedan intactas.
+      await _tapDirection(tester, '41', 0);
+      expect(h.toggleCalls, ['41#0', '41#1', '60#0', '41#0']);
+    },
+  );
+
+  testWidgets(
+    'los sentidos reales del payload definen los botones (solo ida si llega [0])',
+    (tester) async {
+      // El backend ahora manda `directionIds` por línea: una mano única que
+      // solo sirve la ida NO debe ofrecer botón de Vuelta.
+      final repo = FakeStopSearchRepository([
+        _hit('Terminal Bimodal esquina Cuarto Anillo', const [
+          StopRouteRef(
+            id: '41',
+            shortName: '41',
+            color: 'D35400',
+            longName: 'Terminal ↔ Mercado',
+            directionIds: [0],
+          ),
+        ]),
+      ]);
+      await _openPlaces(tester, repo);
+      await _commitSearch(tester, 'terminal');
+
+      expect(find.text('Ida'), findsOneWidget);
+      expect(find.text('Vuelta'), findsNothing);
+      expect(
+        find.byKey(const ValueKey('place-route-toggle-41#1')),
+        findsNothing,
+      );
     },
   );
 
@@ -284,10 +315,16 @@ void main() {
     await _openPlaces(tester, repo);
     await _commitSearch(tester, 'terminal');
 
-    // La 41 iba duplicada: un solo badge y UN solo toggle por línea.
+    // La 41 iba duplicada: un solo badge y UNA sola pareja de sentidos.
     expect(find.text('41'), findsOneWidget);
-    expect(find.byKey(const ValueKey('place-route-toggle-41')), findsOneWidget);
-    expect(find.byKey(const ValueKey('place-route-toggle-60')), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('place-route-toggle-41#0')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('place-route-toggle-60#0')),
+      findsOneWidget,
+    );
   });
 
   testWidgets('limpiar la búsqueda retira los marcadores del mapa', (
@@ -450,59 +487,65 @@ void main() {
     expect(h.placeMarkers, isEmpty);
   });
 
-  testWidgets(
-    'una fila por línea nunca desborda el panel (nombre/ruta largos, muchas '
-    'líneas, ancho angosto)',
-    (tester) async {
-      // El badge de cada línea solía ser hijo no-flexible del Row: con un
-      // `shortName` largo su texto se layout con ancho ilimitado (sin ellipsis)
-      // y empujaba el chip «Ver ruta» fuera del panel -> RenderFlex overflowed
-      // on the right. Se fija que la fila se ajuste sin importar la cantidad ni
-      // la longitud.
-      tester.view.physicalSize = const Size(320, 640);
-      tester.view.devicePixelRatio = 1;
-      addTearDown(tester.view.reset);
-      final hit = _hit(
-        'Avenida Cristo Redentor esquina Universidad Tecnológica y Segundo '
-        'Anillo',
-        [
-          for (var i = 0; i < 8; i++)
-            StopRouteRef(
-              id: 'r$i',
-              shortName: 'TRINITARIA-BAJA GRANDES $i',
-              color: 'D35400',
-            ),
-        ],
-        distance: 1520,
-      );
-      await tester.pumpWidget(
-        MaterialApp(
-          theme: AppTheme.light(),
-          home: Scaffold(
-            // Ancho del interior del panel (~272) menos paddings del tile.
-            body: Center(
-              child: SizedBox(
-                width: 240,
-                child: MicrosPlaceTile(
-                  hit: hit,
-                  activeKeys: const {},
-                  busyKey: null,
-                  locked: false,
-                  onToggleRoute: (_) async {},
-                ),
+  testWidgets('una fila por línea nunca desborda el panel (nombre/ruta largos, muchas '
+      'líneas, ancho angosto)', (tester) async {
+    // El badge de cada línea solía ser hijo no-flexible del Row: con un
+    // `shortName` largo su texto se layout con ancho ilimitado (sin ellipsis)
+    // y empujaba el chip «Ver ruta» fuera del panel -> RenderFlex overflowed
+    // on the right. Se fija que la fila se ajuste sin importar la cantidad ni
+    // la longitud.
+    tester.view.physicalSize = const Size(320, 640);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final hit = _hit(
+      'Avenida Cristo Redentor esquina Universidad Tecnológica y Segundo '
+      'Anillo',
+      [
+        for (var i = 0; i < 8; i++)
+          StopRouteRef(
+            id: 'r$i',
+            shortName: 'TRINITARIA-BAJA GRANDES $i',
+            color: 'D35400',
+          ),
+      ],
+      distance: 1520,
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.light(),
+        home: Scaffold(
+          // Ancho del interior del panel (~272) menos paddings del tile. El
+          // alto se deja scroll (como el ListView real del cajón): con 8
+          // líneas ricas (foto + trayecto + sentidos) la tarjeta mide más que
+          // 640 px y un Container fijo la desbordaría VERTICALMENTE; lo que se
+          // fija aquí es que NINGUNA fila desborda en ANCHO.
+          body: SingleChildScrollView(
+            child: SizedBox(
+              width: 240,
+              child: MicrosPlaceTile(
+                hit: hit,
+                activeKeys: const {},
+                busyKey: null,
+                locked: false,
+                directionsOf: (route) => [
+                  const MicroDirection(0, ''),
+                  const MicroDirection(1, ''),
+                ],
+                onToggleDirection: (route, directionId) async {},
               ),
             ),
           ),
         ),
-      );
-      await tester.pumpAndSettle();
-      // Ningún desbordamiento (RenderFlex) ni otra excepción de renderizado.
-      expect(tester.takeException(), isNull);
-      // Cada línea conserva su toggle visible/tappable.
-      expect(
-        find.byKey(const ValueKey('place-route-toggle-r0')),
-        findsOneWidget,
-      );
-    },
-  );
+      ),
+    );
+    await tester.pumpAndSettle();
+    // Ningún desbordamiento (RenderFlex) ni otra excepción de renderizado.
+    expect(tester.takeException(), isNull);
+    // Cada línea conserva sus botones de sentido visibles/tappable.
+    expect(
+      find.byKey(const ValueKey('place-route-toggle-r0#0')),
+      findsOneWidget,
+    );
+    expect(find.text('Detalle'), findsNWidgets(8));
+  });
 }

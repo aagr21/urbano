@@ -391,6 +391,39 @@ void main() {
         const LatLng(-17.79, -63.16),
       );
     });
+
+    test('mapPoints respeta la geometría del servidor sin reorientarla', () {
+      // El backend garantiza por contrato (docs/api-contract.md) que la
+      // geometry ya viene de fromStop → toStop. El cliente SOLO dibuja:
+      // reorientar aquí duplicaría la corrección del servidor.
+      final leg = JourneyLeg.fromJson(const {
+        'kind': 'bus',
+        'fromStop': {
+          'id': 'S10',
+          'name': 'Parada 10',
+          'lat': -17.78,
+          'lon': -63.15,
+        },
+        'toStop': {
+          'id': 'S200',
+          'name': 'Parada 200',
+          'lat': -17.79,
+          'lon': -63.16,
+        },
+        'geometry': {
+          'type': 'LineString',
+          'coordinates': [
+            [-63.15, -17.78],
+            [-63.155, -17.785],
+            [-63.16, -17.79],
+          ],
+        },
+      });
+
+      expect(leg.mapPoints, leg.geometry);
+      expect(leg.mapPoints!.first, const LatLng(-17.78, -63.15));
+      expect(leg.mapPoints!.last, const LatLng(-17.79, -63.16));
+    });
   });
 
   group('Departure / Stats / Health', () {

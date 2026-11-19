@@ -9,13 +9,18 @@ sealed class JourneyPlace {
 }
 
 class JourneyPlaceLocation extends JourneyPlace {
-  const JourneyPlaceLocation({required this.lat, required this.lon});
+  const JourneyPlaceLocation({
+    required this.lat,
+    required this.lon,
+    this.address,
+  });
 
   final double lat;
   final double lon;
+  final String? address;
 
   @override
-  String get label => 'Mi ubicación';
+  String get label => address ?? 'Mi ubicación';
 }
 
 /// Punto elegido en el mapa (selector de origen/destino).
@@ -24,14 +29,19 @@ class JourneyPlaceLocation extends JourneyPlace {
 /// parada GTFS: el planificador usa la parada más cercana solo como punto de
 /// subida/baja y calcula la caminata hasta el punto exacto.
 class JourneyPlacePoint extends JourneyPlace {
-  const JourneyPlacePoint({required this.lat, required this.lon});
+  const JourneyPlacePoint({required this.lat, required this.lon, this.address});
 
   final double lat;
   final double lon;
+  final String? address;
 
   @override
-  String get label =>
-      'Punto en el mapa · ${lat.toStringAsFixed(5)}, ${lon.toStringAsFixed(5)}';
+  String get label => address ?? _formatCoords(lat, lon);
+
+  static String _formatCoords(double lat, double lon) {
+    // Formato limpio sin "Punto en el mapa"
+    return '${lat.toStringAsFixed(5)}, ${lon.toStringAsFixed(5)}';
+  }
 }
 
 /// Hito o lugar de interés común en Santa Cruz (mercado, plaza, hospital, etc.).

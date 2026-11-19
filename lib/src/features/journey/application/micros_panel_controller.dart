@@ -84,9 +84,11 @@ class MicrosPanelController extends Notifier<MicrosPanelSnapshot> {
   List<MicroDirection> directionsOf(RouteSummary micro) =>
       directionsOfMicro(micro, session.details[micro.id]);
 
-  /// `true` si el recorrido (ida) de esta línea ya está dibujado en el mapa.
-  bool routeActive(StopRouteRef route) =>
-      activeKeys.contains(microDirectionKey(route.id, 0));
+  /// Sentidos de una línea del resultado de LUGARES (0 = ida, 1 = vuelta) con su
+  /// headsign si el detalle ya se cacheó. Es lo que pinta la tarjeta como
+  /// botones «Ida»/«Vuelta» separados.
+  List<MicroDirection> stopDirectionsOfRoute(StopRouteRef route) =>
+      stopDirectionsOf(route, session.details[route.id]);
 
   /// Texto que debe mostrar el buscador en el modo indicado (el campo se
   /// reinicia con la consulta de SU modo al cambiar de pestaña).
@@ -233,29 +235,23 @@ class MicrosPanelController extends Notifier<MicrosPanelSnapshot> {
     }
   }
 
-  /// Dibuja/borra en el mapa el recorrido COMPLETO de UNA línea del resultado
-  /// (ida y vuelta juntas), no una sola orientación: «Ver ruta» muestra la
-  /// línea entera. La bandera se decide con la ida y luego la vuelta se aplica
-  /// solo si está en el estado contrario (y la ruta realmente la tiene: una de
-  /// mano única no tiene vuelta).
-  Future<void> toggleStopRoute(
-    StopRouteRef route, {
+  /// Dibuja/borra EN EL MAPA UN SOLO sentido de una línea del resultado de
+  /// lugares. Antes «Ver ruta» encendía ida y vuelta a ciegas; ahora cada
+  /// sentido es un botón propio, así la tarjeta puede mostrar solo la Ida (o
+  /// solo la Vuelta) que sirve esta parada. Reutiliza el [toggleDirection] del
+  /// catálogo: primero asegura el detalle (headsign + polilínea) y luego delega
+  /// el dibujado en la pantalla padre.
+  Future<void> toggleStopDirection(
+    StopRouteRef route,
+    int directionId, {
     required Future<void> Function(RouteSummary micro, int directionId)
     onToggle,
   }) async {
-    if (locked) return;
-    final summary = summaryForStopRoute(route);
-    final turnOff = routeActive(route);
-    await toggleDirection(summary, 0, onToggle: onToggle);
-    // El detalle de la ruta ya quedó cacheado por el toggle de la ida, así que
-    // aquí sabemos si de verdad existe la vuelta.
-    final detail = session.details[route.id];
-    final hasVuelta =
-        detail == null || detail.directions.any((d) => d.directionId == 1);
-    final vueltaActive = activeKeys.contains(microDirectionKey(route.id, 1));
-    if (hasVuelta && turnOff == vueltaActive) {
-      await toggleDirection(summary, 1, onToggle: onToggle);
-    }
+    await toggleDirection(
+      summaryForStopRoute(route),
+      directionId,
+      onToggle: onToggle,
+    );
   }
 
   /// «Activar todas»: dibuja cada dirección del catálogo que aún no esté en el

@@ -189,11 +189,16 @@ class _PlaceField extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.colors;
     final text = context.text;
+    // Sobre el vidrio oscuro casi opaco de la tarjeta, `surface` se fundía
+    // con el relleno y los campos dejaban de leerse como tales:
+    // en oscuro suben un peldaño de elevación (`surfaceContainerHigh`);
+    // en claro el blanco opaco sobre el velo ya marca la jerarquía.
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Container(
       padding: const EdgeInsets.fromLTRB(12, 12, 6, 12),
       decoration: BoxDecoration(
-        color: colors.surface,
+        color: isDark ? colors.surfaceContainerHigh : colors.surface,
         borderRadius: BorderRadius.circular(AppRadius.md),
         border: Border.all(
           color: place == null

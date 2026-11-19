@@ -154,6 +154,12 @@ class JourneyLeg {
 
   /// Puntos dibujables del tramo: la `geometry` si existe; si no, la línea
   /// recta `fromStop` → `toStop` (degrada cuando no hay shape).
+  ///
+  /// El sentido NO se recalcula aquí: el backend garantiza por contrato que
+  /// `geometry` ya viene orientada de `fromStop` (subida) a `toStop` (bajada)
+  /// — ver `docs/api-contract.md`, sección Journey. El cliente solo dibuja;
+  /// reorientar aquí duplicaría la corrección y reintroduciría el bug del
+  /// sentido de marcha que ya está resuelto en el servidor.
   List<LatLng>? get mapPoints {
     final shape = geometry;
     if (shape != null && shape.length >= 2) return shape;

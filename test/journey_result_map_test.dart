@@ -65,6 +65,91 @@ Widget _mapApp(
   ),
 );
 
+/// Opción con el `shape` del micro desplazado ~12 m de la parada, como pasa en
+/// una avenida de doble calzada: la parada está en la acera y el trazado en el
+/// eje de la calzada.
+JourneyOption _offsetStopOption({required bool withWalkGeometry}) =>
+    JourneyOption.fromJson(<String, dynamic>{
+      'type': 'direct',
+      'departAt': '06:03:00',
+      'arriveAt': '06:41:00',
+      'durationMinutes': 38,
+      'walkToStop': {
+        'id': 'S10',
+        'name': 'Parada 10',
+        'distanceMeters': 80,
+        'lat': -17.78,
+        'lon': -63.15,
+      },
+      'walkFromStop': {
+        'id': 'S200',
+        'name': 'Parada 200',
+        'distanceMeters': 120,
+        'lat': -17.79,
+        'lon': -63.16,
+      },
+      'legs': [
+        {
+          'kind': 'walk',
+          'durationMinutes': 2,
+          'distanceMeters': 80,
+          if (withWalkGeometry)
+            'geometry': {
+              'type': 'LineString',
+              'coordinates': [
+                [-63.1512, -17.7812],
+                [-63.15, -17.78],
+              ],
+            },
+        },
+        {
+          'kind': 'bus',
+          'routeId': '1',
+          'routeShortName': '1',
+          'routeColor': 'D35400',
+          'tripId': 'T1',
+          'fromStopId': 'S10',
+          'toStopId': 'S200',
+          'departAt': '06:03:00',
+          'arriveAt': '06:39:00',
+          'stops': 12,
+          'fromStop': {
+            'id': 'S10',
+            'name': 'Parada 10',
+            'lat': -17.78,
+            'lon': -63.15,
+          },
+          'toStop': {
+            'id': 'S200',
+            'name': 'Parada 200',
+            'lat': -17.79,
+            'lon': -63.16,
+          },
+          'geometry': {
+            'type': 'LineString',
+            'coordinates': [
+              [-63.149887, -17.78],
+              [-63.155, -17.785],
+              [-63.159887, -17.79],
+            ],
+          },
+        },
+        {
+          'kind': 'walk',
+          'durationMinutes': 3,
+          'distanceMeters': 120,
+          if (withWalkGeometry)
+            'geometry': {
+              'type': 'LineString',
+              'coordinates': [
+                [-63.16, -17.79],
+                [-63.1595, -17.7912],
+              ],
+            },
+        },
+      ],
+    });
+
 void main() {
   group('JourneyResultMap', () {
     testWidgets('dibuja geometry, caminatas punteadas y marcadores', (
@@ -93,6 +178,116 @@ void main() {
         findsOneWidget,
       );
     });
+
+    testWidgets(
+      'la caminata acaba donde pasa el micro, no en la parada de la acera',
+      (tester) async {
+        // El shape corre 12 m al este de la parada: la caminata debe estirarse
+        // hasta el trazado (y el trazado NO moverse hacia la parada).
+        await tester.pumpWidget(
+          _mapApp(
+            _offsetStopOption(withWalkGeometry: true),
+            origin: const (lat: -17.7815, lon: -63.1515),
+            destination: const (lat: -17.7915, lon: -63.1615),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        final map = tester.widget<UrbanoMap>(find.byType(UrbanoMap));
+        final walks = map.polylines.where((line) => line.dashed).toList();
+        final bus = map.polylines.firstWhere((line) => line.width == 6);
+        expect(walks, hasLength(2));
+
+        // El trazado del micro conserva el shape tal cual.
+        expect(bus.points.first, const LatLng(-17.78, -63.149887));
+        expect(bus.points.last, const LatLng(-17.79, -63.159887));
+
+        // La caminata de acceso termina en el micro; la de egreso arranca ahí.
+        expect(walks.first.points.last, bus.points.first);
+        expect(walks.last.points.first, bus.points.last);
+        // El extremo del lado del usuario no se toca.
+        expect(walks.first.points.first, const LatLng(-17.7812, -63.1512));
+      },
+    );
+
+    testWidgets(
+      'la caminata en línea recta (sin geometría) también llega al micro',
+      (tester) async {
+        await tester.pumpWidget(
+          _mapApp(
+            _offsetStopOption(withWalkGeometry: false),
+            origin: const (lat: -17.7815, lon: -63.1515),
+            destination: const (lat: -17.7915, lon: -63.1615),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        final map = tester.widget<UrbanoMap>(find.byType(UrbanoMap));
+        final walks = map.polylines.where((line) => line.dashed).toList();
+        final bus = map.polylines.firstWhere((line) => line.width == 6);
+        expect(walks, hasLength(2));
+
+        expect(walks.first.points.last, bus.points.first);
+        expect(walks.last.points.first, bus.points.last);
+        // La recta arranca en el pin de origen y acaba en el micro.
+        expect(walks.first.points.first, const LatLng(-17.7815, -63.1515));
+      },
+    );
+
+    testWidgets(
+      'no invierte un tramo solo porque su subida está más cerca del destino',
+      (tester) async {
+        // Segundo micro de un transbordo: su parada de subida está más cerca
+        // del destino global que del origen, pero la geometría ya va de
+        // fromStop → toStop. Antes se invertía por compararla con los pines
+        // del usuario y el mapa dibujaba la contraflecha.
+        final option = JourneyOption.fromJson(const {
+          'type': 'transfer',
+          'departAt': '06:10:00',
+          'arriveAt': '06:30:00',
+          'durationMinutes': 20,
+          'legs': [
+            {
+              'kind': 'bus',
+              'routeId': '5',
+              'routeShortName': '5',
+              'routeColor': '27AE60',
+              'tripId': 'T5',
+              'fromStopId': 'SC',
+              'toStopId': 'S200',
+              'fromStop': {
+                'id': 'SC',
+                'name': 'Transbordo',
+                'lat': -17.788,
+                'lon': -63.158,
+              },
+              'toStop': {
+                'id': 'S200',
+                'name': 'Bajada',
+                'lat': -17.7895,
+                'lon': -63.1595,
+              },
+              'geometry': {
+                'type': 'LineString',
+                'coordinates': [
+                  [-63.158, -17.788],
+                  [-63.1588, -17.7888],
+                  [-63.1595, -17.7895],
+                ],
+              },
+            },
+          ],
+        });
+
+        await tester.pumpWidget(_mapApp(option));
+        await tester.pumpAndSettle();
+
+        final map = tester.widget<UrbanoMap>(find.byType(UrbanoMap));
+        final bus = map.polylines.firstWhere((line) => line.width == 6);
+        expect(bus.points.first, const LatLng(-17.788, -63.158));
+        expect(bus.points.last, const LatLng(-17.7895, -63.1595));
+      },
+    );
 
     testWidgets('cambia de opción: transbordo y micro sin geometry degradado', (
       tester,
@@ -575,12 +770,12 @@ void main() {
     });
 
     testWidgets(
-      'la pantalla completa oculta paneles y barra; salir los restaura',
+      'la pantalla completa oculta paneles y controles; salir los restaura',
       (tester) async {
         await pumpPlanner(tester);
         await tester.pump();
 
-        // Planifica para tener hoja de resultados + barra del shell visibles.
+        // Planifica para tener hoja de resultados y controles del mapa visibles.
         await openPanel(tester);
         await pickPlace(
           tester,
@@ -595,18 +790,16 @@ void main() {
         await tester.tap(find.text('Viajar'));
         await tester.pumpAndSettle();
 
-        expect(find.byType(NavigationBar), findsOneWidget);
         expect(find.text('Opción 1 en el mapa'), findsOneWidget);
+        expect(find.byKey(const ValueKey('planner-trigger')), findsOneWidget);
 
         // Entra en pantalla completa desde los controles del mapa.
         await tester.tap(find.byIcon(Icons.fullscreen_rounded));
         await tester.pumpAndSettle();
 
-        // Solo queda el mapa: sin hoja de resultados, sin panel/píldora y sin
-        // la barra inferior del shell; el botón ahora ofrece salir.
+        // Solo queda el mapa: sin hoja de resultados y sin panel/píldora.
         expect(find.text('Opción 1 en el mapa'), findsNothing);
         expect(find.byKey(const ValueKey('planner-trigger')), findsNothing);
-        expect(find.byType(NavigationBar), findsNothing);
         expect(find.byIcon(Icons.fullscreen_exit_rounded), findsOneWidget);
         expect(find.byType(JourneyResultMap), findsOneWidget);
 
@@ -615,7 +808,6 @@ void main() {
         await tester.pumpAndSettle();
         expect(find.text('Opción 1 en el mapa'), findsOneWidget);
         expect(find.byKey(const ValueKey('planner-trigger')), findsOneWidget);
-        expect(find.byType(NavigationBar), findsOneWidget);
         expect(find.byIcon(Icons.fullscreen_rounded), findsOneWidget);
       },
     );
@@ -727,6 +919,7 @@ void main() {
 
         // Mientras corre el debounce el mapa sigue visible con el aviso.
         expect(find.text('Recalculando…'), findsOneWidget);
+        expect(find.text('Buscando conexiones de micro…'), findsOneWidget);
         expect(find.byType(JourneyResultMap), findsOneWidget);
 
         // Pasa el debounce (600 ms) y la nueva consulta termina.
@@ -738,10 +931,7 @@ void main() {
         expect(tester.element(find.byType(JourneyResultMap)), same(mapElement));
 
         // El campo de origen ahora es el punto soltado (re-planificado).
-        expect(
-          find.textContaining('Punto en el mapa · -17.77000, -63.14000'),
-          findsOneWidget,
-        );
+        expect(find.textContaining('-17.77000, -63.14000'), findsOneWidget);
       },
     );
 
@@ -792,12 +982,12 @@ void main() {
         await tester.pumpAndSettle();
 
         expect(
-          find.textContaining('Punto en el mapa · -17.77000, -63.14000'),
+          find.textContaining('-17.77000, -63.14000'),
           findsOneWidget,
           reason: 'el origen soltado se aplicó',
         );
         expect(
-          find.textContaining('Punto en el mapa · -17.80000, -63.17000'),
+          find.textContaining('-17.80000, -63.17000'),
           findsOneWidget,
           reason: 'el destino soltado se aplicó',
         );
@@ -850,7 +1040,7 @@ void main() {
         await tester.pump();
 
         expect(
-          find.textContaining('Punto en el mapa · -17.77000, -63.14000'),
+          find.textContaining('-17.77000, -63.14000'),
           findsOneWidget,
           reason: 'las coordenadas del campo deben cambiar al soltar el punto',
         );
@@ -896,7 +1086,7 @@ void main() {
         await tester.pump();
 
         expect(
-          find.textContaining('Punto en el mapa · -17.77500, -63.14500'),
+          find.textContaining('-17.77500, -63.14500'),
           findsOneWidget,
           reason:
               'las coordenadas deben seguir el arrastre mientras se arrastra',
@@ -969,10 +1159,7 @@ void main() {
 
       // El campo refleja el punto FINAL del gesto (las coordenadas del
       // arranque): sin replanificar porque las coordenadas ya eran esas.
-      expect(
-        find.textContaining('Punto en el mapa · -17.78000, -63.15000'),
-        findsOneWidget,
-      );
+      expect(find.textContaining('-17.78000, -63.15000'), findsOneWidget);
     });
   });
 

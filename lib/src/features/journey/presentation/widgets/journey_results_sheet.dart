@@ -24,6 +24,7 @@ class JourneyResultsSheet extends StatelessWidget {
     required this.endpointsTooClose,
     required this.endpointsDistanceM,
     required this.onOptionSelected,
+    required this.onClear,
   });
 
   final DraggableScrollableController controller;
@@ -46,9 +47,16 @@ class JourneyResultsSheet extends StatelessWidget {
   /// Tocar una tarjeta: la selecciona (y expande/colapsa su detalle).
   final void Function(int index) onOptionSelected;
 
+  /// Quita la consulta y las capas del viaje del mapa.
+  final VoidCallback onClear;
+
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
+    // La hoja se dibuja edge-to-edge: el contenido final (la última tarjeta o
+    // el texto de "sin rutas") tiene que poder subir por encima del gesto o de
+    // la barra del sistema. `viewPadding` vale 0 en los tests.
+    final bottomInset = MediaQuery.viewPaddingOf(context).bottom;
 
     return DraggableScrollableSheet(
       controller: controller,
@@ -84,6 +92,22 @@ class JourneyResultsSheet extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(height: 12),
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: FilledButton.icon(
+                          onPressed: onClear,
+                          icon: const Icon(Icons.clear_all_rounded, size: 18),
+                          label: const Text('Quitar resultados'),
+                          style: FilledButton.styleFrom(
+                            minimumSize: Size.zero,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 14,
+                              vertical: 8,
+                            ),
+                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          ),
+                        ),
+                      ),
                       if (!bare)
                         Reveal(
                           // Cambiar de opción re-entra el resumen: el número y
@@ -178,7 +202,7 @@ class JourneyResultsSheet extends StatelessWidget {
                   hasScrollBody: false,
                   child: Center(
                     child: Padding(
-                      padding: const EdgeInsets.all(24),
+                      padding: EdgeInsets.all(24 + bottomInset),
                       child: Text(
                         endpointsTooClose
                             ? 'El origen y el destino están a '
@@ -197,7 +221,7 @@ class JourneyResultsSheet extends StatelessWidget {
                 )
               else
                 SliverPadding(
-                  padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
+                  padding: EdgeInsets.fromLTRB(16, 4, 16, 24 + bottomInset),
                   sliver: SliverList(
                     delegate: SliverChildBuilderDelegate((context, index) {
                       if (index.isOdd) return const SizedBox(height: 12);

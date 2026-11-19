@@ -58,17 +58,47 @@ List<MicroDirection> directionsOfMicro(
 }
 
 /// Referencia de línea de un resultado del modo LUGARES → [RouteSummary]
-/// mínima para el toggle: el controller solo lee `id` y `shortName` (la forma
-/// de la ruta la pide él al backend).
+/// para el toggle y la tarjeta: lleva el trayecto y la foto reales que trae
+/// `/stops` (antes se inventaba `Línea N` y la tarjeta no tenía imagen), y el
+/// conteo de sentidos que de verdad sirven esa parada.
 RouteSummary summaryForStopRoute(StopRouteRef route) => RouteSummary(
   id: route.id,
   shortName: route.shortName,
-  longName: 'Línea ${route.shortName}',
+  longName: route.longName?.trim().isNotEmpty == true
+      ? route.longName!
+      : 'Línea ${route.shortName}',
   color: route.color,
   textColor: 'FFFFFF',
   description: 'Transporte publico urbano de micros',
   type: 3,
-  directionsCount: 2,
+  directionsCount: route.directionIds.isEmpty
+      ? 2
+      : route.directionIds.length.clamp(1, 2),
   stopCount: 0,
   tripCount: 0,
+  imageUrl: route.imageUrl,
 );
+
+/// Sentidos de una línea que sirven ESTA parada, en el orden del feed (0 = ida,
+/// 1 = vuelta). Es lo que permite ofrecer Ida y Vuelta como botones separados en
+/// vez del antiguo «Ver ruta» que dibujaba ambos a ciegas.
+///
+/// Con el detalle ya cacheado (por un toggle previo o por el catálogo) cada
+/// sentido trae su `headsign`; sin detalle queda el rótulo genérico. Si el
+/// payload no vino con `directionIds` (feed/contrato antiguo) se asumen ambos
+/// sentidos sin afirmarlo, igual que hace [directionsOfMicro].
+List<MicroDirection> stopDirectionsOf(StopRouteRef route, RouteDetail? detail) {
+  MicroDirection forId(int directionId) {
+    final known = detail?.directions
+        .where((d) => d.directionId == directionId)
+        .firstOrNull;
+    return MicroDirection(directionId, known?.headsign ?? '');
+  }
+
+  if (route.directionIds.isNotEmpty) {
+    return [for (final id in route.directionIds) forId(id)];
+  }
+  final detailCount = detail?.directions.length ?? 0;
+  final count = detailCount > 0 ? detailCount.clamp(1, 2) : 2;
+  return [for (var i = 0; i < count; i++) forId(i)];
+}

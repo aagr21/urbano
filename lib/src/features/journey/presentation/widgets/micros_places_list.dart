@@ -12,9 +12,12 @@ import '../../../../core/utils/extensions.dart';
 import '../../../../core/utils/time_formatters.dart';
 import '../../../../core/widgets/async_value_view.dart';
 import '../../../../core/widgets/glass_card.dart';
+import '../../../../core/widgets/photo_viewer.dart';
 import '../../../../core/widgets/route_badge.dart';
+import '../../../../core/widgets/route_photo.dart';
 import '../../../stops/data/stop_search_models.dart';
 import '../../../stops/presentation/stop_search_providers.dart';
+import '../../application/micros_catalog.dart';
 import '../journey_planner_controller.dart';
 
 /// Lista de resultados y guía del modo LUGARES del panel de micros
@@ -37,7 +40,8 @@ class MicrosPlacesList extends ConsumerStatefulWidget {
     required this.activeDirectionKeys,
     required this.busyKey,
     required this.locked,
-    required this.onToggleRoute,
+    required this.directionsOf,
+    required this.onToggleDirection,
     this.onFramePlaces,
   });
 
@@ -48,14 +52,20 @@ class MicrosPlacesList extends ConsumerStatefulWidget {
   /// «Marcar en el mapa»: abre el selector de punto y consulta ESOS lugares.
   final Future<void> Function() onPickOnMap;
 
-  /// Estado de los recorridos ya dibujados (para pintar el toggle de ruta).
+  /// Estado de los recorridos ya dibujados (para pintar los toggles de sentido).
   final Set<String> activeDirectionKeys;
   final String? busyKey;
   final bool locked;
 
-  /// Dibuja/borra en el mapa el recorrido de UNA línea del resultado (cada
-  /// línea se visualiza de forma independiente, no todas juntas).
-  final Future<void> Function(StopRouteRef route) onToggleRoute;
+  /// Sentidos (Ida/Vuelta) que sirve cada línea del resultado, con su headsign
+  /// si el detalle ya se conoce. Viene del controller (cachea el detalle en la
+  /// sesión), no del payload: la tarjeta solo pinta.
+  final List<MicroDirection> Function(StopRouteRef route) directionsOf;
+
+  /// Dibuja/borra en el mapa UN sentido (ida o vuelta) de UNA línea del
+  /// resultado; cada sentido se visualiza de forma independiente.
+  final Future<void> Function(StopRouteRef route, int directionId)
+  onToggleDirection;
 
   /// Encuadre del mapa sobre el lugar + sus paradas (`null` = sin capacidad).
   final void Function(List<({double lat, double lon})> points)? onFramePlaces;
@@ -169,16 +179,19 @@ class _MicrosPlacesListState extends ConsumerState<MicrosPlacesList> {
     activeKeys: widget.activeDirectionKeys,
     busyKey: widget.busyKey,
     locked: widget.locked,
-    onToggleRoute: widget.onToggleRoute,
+    directionsOf: widget.directionsOf,
+    onToggleDirection: widget.onToggleDirection,
   );
 }
 
-/// Tarjeta de resultado de lugar: la esquina (nombre completo), la distancia
-/// en modo «cerca de mí» y UNA FILA POR LÍNEA servida — el badge con el color
-/// real del GTFS (tap → DETALLE de la línea) y su propio botón «Ver ruta», que
-/// dibuja/borra el recorrido de ESA línea en el mapa de forma independiente
-/// (sin atarse a una sola orientación: pinta la ruta completa). Las líneas
-/// repetidas del feed se muestran una sola vez.
+/// Tarjeta de resultado de lugar: la esquina (nombre completo) y su distancia
+/// (modo «cerca de mí») y, POR CADA LÍNEA servida, un bloque más completo —
+/// **foto del micro** a la izquierda (tocable: se abre a pantalla completa), el
+/// numeral con su **trayecto** (`longName`) y una fila de acciones con los
+/// botones **Ida / Vuelta** (dibujan/borran ese sentido en el mapa, cada uno
+/// independiente) más un acceso **Detalle** al micro completo (recorrido,
+/// horarios, empresa). Las líneas repetidas del feed (un registro por
+/// orientación) se muestran una sola vez.
 class MicrosPlaceTile extends StatelessWidget {
   const MicrosPlaceTile({
     super.key,
@@ -186,7 +199,8 @@ class MicrosPlaceTile extends StatelessWidget {
     required this.activeKeys,
     required this.busyKey,
     required this.locked,
-    required this.onToggleRoute,
+    required this.directionsOf,
+    required this.onToggleDirection,
   });
 
   final StopHit hit;
@@ -200,8 +214,12 @@ class MicrosPlaceTile extends StatelessWidget {
   /// Bloqueado porque OTRA dirección está en vuelo (toggle de red pendiente).
   final bool locked;
 
-  /// Dibuja/borra el recorrido de una línea del resultado.
-  final Future<void> Function(StopRouteRef route) onToggleRoute;
+  /// Sentidos (Ida/Vuelta) que sirve cada línea, con headsign si ya se conoce.
+  final List<MicroDirection> Function(StopRouteRef route) directionsOf;
+
+  /// Dibuja/borra en el mapa UN sentido de una línea del resultado.
+  final Future<void> Function(StopRouteRef route, int directionId)
+  onToggleDirection;
 
   @override
   Widget build(BuildContext context) {
@@ -270,10 +288,10 @@ class MicrosPlaceTile extends StatelessWidget {
               )
             else
               Padding(
-                padding: const EdgeInsets.only(top: 6),
+                padding: const EdgeInsets.only(top: 2),
                 child: Column(
                   children: [
-                    for (final route in routes) _routeRow(context, route),
+                    for (final route in routes) _routeBlock(context, route),
                   ],
                 ),
               ),
@@ -283,40 +301,106 @@ class MicrosPlaceTile extends StatelessWidget {
     );
   }
 
-  /// Fila de una línea: badge (tap → detalle) + su toggle «Ver ruta».
+  /// Bloque de una línea: foto + numeral/trayecto + sentido(s) + Detalle.
   ///
-  /// El badge va dentro de `Expanded` + `Align` a la izquierda: así ocupa como
-  /// máximo el espacio restante y **se corta con ellipsis** si el `shortName`
-  /// es largo, en vez de estirar su fondo o desbordar el Row. El chip queda
-  /// fijado a la derecha y SIEMPRE es visible/tappable, sin importar la
-  /// longitud de la línea ni el ancho del panel. El estado (dibujado o no) lo
-  /// comunica el propio chip («Ocultar» / «Ver ruta»), por lo que no se
-  /// duplica un texto intermedio.
-  Widget _routeRow(BuildContext context, StopRouteRef route) {
-    final idaKey = '${route.id}#0';
-    final drawn = activeKeys.contains(idaKey);
-    final pending = busyKey == idaKey;
+  /// La foto va fija a la izquierda (46 px) y el resto dentro de un `Expanded`,
+  /// así ninguna línea larga desborda el panel: el badge va en `Flexible` (se
+  /// corta con ellipsis).
+  ///
+  /// Los botones **no** van en un `Wrap` (eso los dejaba a veces en una fila y a
+  /// veces en dos, según el ancho — irregular). Van en un layout **determinista y
+  /// simétrico**: una sola fila de sentidos donde cada botón (`Ida`, `Vuelta`) se
+  /// estira con `Expanded` al mismo ancho y llena la tarjeta, y debajo **Detalle**
+  /// como una fila completa. Así todas las líneas del resultado se ven iguales.
+  Widget _routeBlock(BuildContext context, StopRouteRef route) {
+    final colors = context.colors;
+    final text = context.text;
+    final tint = AppColors.fromHex(route.color);
+    final directions = directionsOf(route);
+    final trayecto = (route.longName?.trim().isNotEmpty ?? false)
+        ? route.longName!
+        : 'Línea ${route.shortName}';
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 3),
+      padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          _MicroThumb(route: route, tint: tint),
+          const SizedBox(width: 10),
           Expanded(
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: RouteBadge(
-                label: route.shortName,
-                colorHex: route.color,
-                size: RouteBadgeSize.small,
-                onTap: () => _openLine(context, route),
-              ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Flexible(
+                      child: RouteBadge(
+                        label: route.shortName,
+                        colorHex: route.color,
+                        size: RouteBadgeSize.small,
+                        onTap: () => _openDetail(context, route),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        trayecto,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: text.bodySmall?.copyWith(
+                          color: colors.onSurfaceVariant,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                // Sentidos en UNA sola fila, cada botón al mismo ancho (Expanded)
+                // para que la tarjeta se vea simétrica y llena el ancho disponible.
+                Row(
+                  children: [
+                    for (var i = 0; i < directions.length; i++) ...[
+                      if (i > 0) const SizedBox(width: 8),
+                      Expanded(
+                        child: _PlaceDirectionChip(
+                          routeId: route.id,
+                          direction: directions[i],
+                          tint: tint,
+                          active: activeKeys.contains(
+                            microDirectionKey(
+                              route.id,
+                              directions[i].directionId,
+                            ),
+                          ),
+                          loading:
+                              busyKey ==
+                              microDirectionKey(
+                                route.id,
+                                directions[i].directionId,
+                              ),
+                          enabled: !locked,
+                          onTap: () => onToggleDirection(
+                            route,
+                            directions[i].directionId,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+                const SizedBox(height: 6),
+                // Detalle como fila completa, alineada con la de sentidos.
+                SizedBox(
+                  width: double.infinity,
+                  child: _PlaceDetailChip(
+                    routeId: route.id,
+                    enabled: !locked,
+                    onTap: () => _openDetail(context, route),
+                  ),
+                ),
+              ],
             ),
-          ),
-          const SizedBox(width: 8),
-          _RouteToggleChip(
-            routeId: route.id,
-            active: drawn || pending,
-            enabled: !locked,
-            onPressed: () => onToggleRoute(route),
           ),
         ],
       ),
@@ -325,7 +409,7 @@ class MicrosPlaceTile extends StatelessWidget {
 
   static String _distance(double meters) => Fmt.distance(meters);
 
-  void _openLine(BuildContext context, StopRouteRef micro) {
+  void _openDetail(BuildContext context, StopRouteRef micro) {
     unawaited(
       context.push(UrbanoRoutes.routeDetail(micro.id, from: 'panel-lugares')),
     );
@@ -352,22 +436,158 @@ List<StopRouteRef> uniqueStopRoutes(List<StopRouteRef> routes) {
   ];
 }
 
-/// Botón compacto que dibuja/retira EN EL MAPA el recorrido de UNA línea del
-/// resultado. Activo: relleno sólido del primario (letra `onPrimary`);
-/// inactivo: fondo de contorno. Colores del tema en ambos estados, nunca un
-/// tinte GTFS arbitrario (el badge de la izquierda ya lleva el color real).
-class _RouteToggleChip extends StatelessWidget {
-  const _RouteToggleChip({
+/// Miniatura del micro para el resultado de lugares: la **foto real** (`imageUrl`
+/// del feed) recortada a 46 px y TOCABLE — abre el visor a pantalla completa con
+/// un vuelo desde aquí. Sin foto, la franja la pinta el color de la línea con un
+/// bus encima, así la tarjeta nunca pierde su identidad visual.
+class _MicroThumb extends StatelessWidget {
+  const _MicroThumb({required this.route, required this.tint});
+
+  final StopRouteRef route;
+  final Color tint;
+
+  static const double _size = 46;
+
+  @override
+  Widget build(BuildContext context) {
+    final radius = BorderRadius.circular(AppRadius.sm);
+    final url = route.imageUrl;
+    final Widget face = url == null
+        ? Container(
+            decoration: BoxDecoration(
+              borderRadius: radius,
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [tint, Color.lerp(tint, Colors.black, 0.45)!],
+              ),
+            ),
+            child: Icon(
+              Icons.directions_bus_rounded,
+              size: 20,
+              color: AppColors.onColor(tint),
+            ),
+          )
+        : RoutePhoto(url: url, width: _size, height: _size, radius: radius);
+    final box = SizedBox(
+      width: _size,
+      height: _size,
+      child: ClipRRect(borderRadius: radius, child: face),
+    );
+    if (url == null) return box;
+    return PressScale(
+      child: GestureDetector(
+        key: ValueKey('place-route-photo-${route.id}'),
+        onTap: () => openPhotoViewer(
+          context,
+          url: url,
+          tag: photoHeroTag('lugares', route.id),
+          title: (route.longName?.trim().isNotEmpty ?? false)
+              ? route.longName!
+              : 'Línea ${route.shortName}',
+          subtitle: 'Foto del micro',
+          accent: tint,
+          sourceRadius: AppRadius.sm,
+        ),
+        child: box,
+      ),
+    );
+  }
+}
+
+/// Chip de UN sentido (Ida/Vuelta) de una línea del resultado: al tocarlo se
+/// dibuja/borra SOLO ese recorrido en el mapa. Activo: relleno sólido del color
+/// de la línea; inactivo: insinuación del tinte sobre la superficie. El disco del
+/// ícono (flecha según el sentido) hereda el foreground calculado por contraste,
+/// porque un color de línea claro o casi negro nunca se usa tal cual para letras.
+/// `loading` muestra un indicador estático (nada de `repeat()`: rompería
+/// `pumpAndSettle`); `enabled=false` (otra dirección en vuelo) baja la opacidad.
+class _PlaceDirectionChip extends StatelessWidget {
+  const _PlaceDirectionChip({
     required this.routeId,
+    required this.direction,
+    required this.tint,
     required this.active,
+    required this.loading,
     required this.enabled,
-    required this.onPressed,
+    required this.onTap,
   });
 
   final String routeId;
+  final MicroDirection direction;
+  final Color tint;
   final bool active;
+  final bool loading;
   final bool enabled;
-  final VoidCallback onPressed;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    final text = context.text;
+    final radius = BorderRadius.circular(AppRadius.pill);
+    final fill = active ? tint : Color.lerp(colors.surface, tint, 0.10)!;
+    final ink = active
+        ? AppColors.onColor(tint, preferred: AppColors.fromHex('FFFFFF'))
+        : AppColors.legible(tint, fill, minContrast: 3);
+    return Opacity(
+      opacity: enabled ? 1 : 0.5,
+      child: Material(
+        color: fill,
+        borderRadius: radius,
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          key: ValueKey('place-route-toggle-$routeId#${direction.directionId}'),
+          borderRadius: radius,
+          onTap: enabled ? onTap : null,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  loading
+                      ? Icons.pending_rounded
+                      : direction.directionId == 0
+                      ? Icons.arrow_circle_right_outlined
+                      : Icons.arrow_circle_left_outlined,
+                  size: 15,
+                  color: ink,
+                ),
+                const SizedBox(width: 6),
+                Flexible(
+                  child: Text(
+                    direction.label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: (text.labelMedium ?? text.bodySmall)?.copyWith(
+                      fontWeight: FontWeight.w800,
+                      color: ink,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Acceso «Detalle» de una línea del resultado: abre la pantalla del micro
+/// completo (recorrido, horarios, empresa). Neutro (color de superficie) para no
+/// competir con el tinte de los botones de sentido de al lado.
+class _PlaceDetailChip extends StatelessWidget {
+  const _PlaceDetailChip({
+    required this.routeId,
+    required this.enabled,
+    required this.onTap,
+  });
+
+  final String routeId;
+  final bool enabled;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -377,31 +597,33 @@ class _RouteToggleChip extends StatelessWidget {
     return Opacity(
       opacity: enabled ? 1 : 0.5,
       child: Material(
-        color: active ? colors.primary : colors.surfaceContainerHighest,
+        color: colors.surfaceContainerHighest,
         borderRadius: radius,
         clipBehavior: Clip.antiAlias,
         child: InkWell(
-          key: ValueKey('place-route-toggle-$routeId'),
+          key: ValueKey('place-route-detalle-$routeId'),
           borderRadius: radius,
-          onTap: enabled ? onPressed : null,
+          onTap: enabled ? onTap : null,
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+            padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
             child: Row(
-              mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Icon(
-                  active ? Icons.route_rounded : Icons.alt_route_rounded,
+                  Icons.info_outline_rounded,
                   size: 15,
-                  color: active ? colors.onPrimary : colors.primary,
+                  color: colors.onSurfaceVariant,
                 ),
-                const SizedBox(width: 6),
-                Text(
-                  active ? 'Ocultar' : 'Ver ruta',
-                  style: (text.labelMedium ?? text.bodySmall)?.copyWith(
-                    fontWeight: FontWeight.w800,
-                    color: active
-                        ? colors.onPrimary
-                        : AppColors.legible(colors.primary, colors.surface),
+                const SizedBox(width: 5),
+                Flexible(
+                  child: Text(
+                    'Detalle',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: (text.labelMedium ?? text.bodySmall)?.copyWith(
+                      fontWeight: FontWeight.w700,
+                      color: colors.onSurfaceVariant,
+                    ),
                   ),
                 ),
               ],

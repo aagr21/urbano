@@ -245,22 +245,26 @@ class LiveMapControls extends ConsumerWidget {
     super.key,
     required this.onZoomIn,
     required this.onZoomOut,
-    required this.onOpenMicros,
-    required this.microsActive,
     required this.fullscreen,
     required this.onToggleFullscreen,
     required this.bearing,
     required this.onResetNorth,
+    this.onOpenMenu,
+    this.onBack,
   });
 
   final VoidCallback onZoomIn;
   final VoidCallback onZoomOut;
-  final Future<void> Function() onOpenMicros;
-  final bool microsActive;
   final bool fullscreen;
   final VoidCallback onToggleFullscreen;
   final double bearing;
   final VoidCallback onResetNorth;
+
+  /// Abre el menú principal de la app (la barra inferior ya no existe).
+  final VoidCallback? onOpenMenu;
+
+  /// Vuelve a Inicio (rama de primer nivel sin barra inferior).
+  final VoidCallback? onBack;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -278,8 +282,6 @@ class LiveMapControls extends ConsumerWidget {
         JourneyMapControls(
           onZoomIn: onZoomIn,
           onZoomOut: onZoomOut,
-          onOpenMicros: onOpenMicros,
-          microsActive: microsActive,
           tracking: tracking,
           onFollowChanged: (value) =>
               ref.read(followLocationProvider.notifier).state = value,
@@ -287,6 +289,8 @@ class LiveMapControls extends ConsumerWidget {
           onToggleFullscreen: onToggleFullscreen,
           bearing: bearing,
           onResetNorth: onResetNorth,
+          onOpenMenu: onOpenMenu,
+          onBack: onBack,
         ),
       ],
     );

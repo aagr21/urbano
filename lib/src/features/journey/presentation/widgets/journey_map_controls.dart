@@ -2,34 +2,28 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
-import '../../../../core/animation/motion.dart';
 import '../../../../core/location/location_fab.dart';
-import '../../../../core/utils/extensions.dart';
 import '../../../../core/widgets/map_tile_button.dart';
 import 'journey_map_button.dart';
 
-/// Columna de controles a la derecha del mapa: zoom, ubicación (con
-/// estados), micros, brillo del mapa y pantalla completa.
+/// Columna de controles a la derecha del mapa: zoom, ubicación, brillo del
+/// mapa y pantalla completa.
 class JourneyMapControls extends StatelessWidget {
   const JourneyMapControls({
     super.key,
     required this.onZoomIn,
     required this.onZoomOut,
-    required this.onOpenMicros,
-    required this.microsActive,
     required this.tracking,
     required this.onFollowChanged,
     required this.fullscreen,
     required this.onToggleFullscreen,
     this.bearing = 0,
     this.onResetNorth,
+    this.onOpenMenu,
+    this.onBack,
   });
   final VoidCallback onZoomIn;
   final VoidCallback onZoomOut;
-  final VoidCallback onOpenMicros;
-
-  /// `true` cuando hay micros con recorrido dibujado en el mapa.
-  final bool microsActive;
 
   /// `true` mientras la cámara sigue la ubicación del usuario.
   final bool tracking;
@@ -40,12 +34,39 @@ class JourneyMapControls extends StatelessWidget {
   final VoidCallback onToggleFullscreen;
   final double bearing;
   final VoidCallback? onResetNorth;
+
+  /// Abre el menú principal; `null` lo omite (pruebas de la sola columna de
+  /// herramientas del mapa).
+  final VoidCallback? onOpenMenu;
+
+  /// Vuelve a Inicio desde la rama Viaje; `null` lo omite (pruebas de la sola
+  /// columna de herramientas).
+  final VoidCallback? onBack;
+
   @override
   Widget build(BuildContext context) {
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.end,
       children: [
+        if (onBack != null) ...[
+          MapCircleButton(
+            key: const ValueKey('journey-back-button'),
+            icon: Icons.arrow_back_rounded,
+            tooltip: 'Volver al inicio',
+            onTap: onBack!,
+          ),
+          const SizedBox(height: 10),
+        ],
+        if (onOpenMenu != null) ...[
+          MapCircleButton(
+            key: const ValueKey('journey-menu-button'),
+            icon: Icons.menu_rounded,
+            tooltip: 'Menú',
+            onTap: onOpenMenu!,
+          ),
+          const SizedBox(height: 10),
+        ],
         if (bearing.abs() > 0.5) ...[
           MapCircleButton(
             icon: Icons.explore_rounded,
@@ -69,8 +90,6 @@ class JourneyMapControls extends StatelessWidget {
         const SizedBox(height: 10),
         LocationFab(following: tracking, onFollowChanged: onFollowChanged),
         const SizedBox(height: 10),
-        _MicrosButton(active: microsActive, onTap: onOpenMicros),
-        const SizedBox(height: 10),
         // Selector de capa del mapa (independiente del tema de la app): cambia
         // solo el fondo del mapa. El ícono es chrome de la app, se pinta con el
         // tema de la app.
@@ -90,50 +109,4 @@ class JourneyMapControls extends StatelessWidget {
   }
 
   static void _noop() {}
-}
-
-/// Botón de micros: abre el menú de líneas y muestra un punto indicador
-/// mientras haya recorridos dibujados sobre el mapa. El punto entra con un
-/// pequeño rebote (0.2 → 1, `easeOutBack`) para marcar el cambio de estado.
-class _MicrosButton extends StatelessWidget {
-  const _MicrosButton({required this.active, required this.onTap});
-  final bool active;
-  final VoidCallback onTap;
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.colors;
-    return Stack(
-      clipBehavior: Clip.none,
-      children: [
-        MapCircleButton(
-          icon: Icons.directions_bus_rounded,
-          tooltip: 'Micros',
-          onTap: onTap,
-        ),
-        if (active)
-          Positioned(
-            top: 3,
-            right: 3,
-            child: IgnorePointer(
-              child: TweenAnimationBuilder<double>(
-                tween: Tween(begin: 0.2, end: 1),
-                duration: Motion.transition,
-                curve: Curves.easeOutBack,
-                builder: (context, scale, child) =>
-                    Transform.scale(scale: scale, child: child),
-                child: Container(
-                  width: 10,
-                  height: 10,
-                  decoration: BoxDecoration(
-                    color: colors.primary,
-                    shape: BoxShape.circle,
-                    border: Border.all(color: colors.surface, width: 2),
-                  ),
-                ),
-              ),
-            ),
-          ),
-      ],
-    );
-  }
 }
