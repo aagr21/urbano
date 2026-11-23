@@ -95,10 +95,15 @@ jobs:
       - name: e2e
         run: npm run test:e2e
 
+  # Smoke test contra el backend desplegado en Vercel.
+  # Es continue-on-error porque un backend caído (DB sin configurar, deploy
+  # en curso, Vercel cold-start) no debe romper el CI de un push — el smoke
+  # es una señal de salud, no una puerta de calidad del código.
   production-smoke:
     name: Producción (smoke)
     if: github.event_name == 'push' && github.ref == 'refs/heads/master'
     runs-on: ubuntu-latest
+    continue-on-error: true
     defaults:
       run:
         working-directory: backend
