@@ -57,15 +57,13 @@ void main() {
     }
   });
 
-  for (final dark in [false, true]) {
-    // En CI no existe la fuente MaterialIcons local; los íconos se pintan
-    // como cuadrados Ahm y el golden nunca coincide. Este test es un scratch
-    // de revisión visual — el comentario del archivo indica que se borra al final.
-    final isCI = Platform.environment['CI'] == 'true';
-    testWidgets(
-      'home ${dark ? 'dark' : 'light'}',
-      skip: isCI, // Golden test requiere fuentes locales (MaterialIcons).
-      (tester) async {
+  // En CI no existe la fuente MaterialIcons local; los íconos se pintan
+  // como cuadrados Ahm y el golden nunca coincide. Este test es un scratch
+  // de revisión visual — el comentario del archivo indica que se borra al final.
+  // Los golden tests se skippean completamente en CI.
+  if (Platform.environment['CI'] != 'true') {
+    for (final dark in [false, true]) {
+      testWidgets('home ${dark ? 'dark' : 'light'}', (tester) async {
         tester.view.physicalSize = const Size(1080, 2340);
         tester.view.devicePixelRatio = 2.75;
         addTearDown(tester.view.reset);
@@ -137,7 +135,7 @@ void main() {
           ),
         );
         await tester.pump(const Duration(seconds: 1));
-      },
-    );
+      });
+    }
   }
 }
