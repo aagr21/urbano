@@ -1,6 +1,6 @@
 import 'dart:math' as math;
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../../../../core/location/location_fab.dart';
 import '../../../../core/widgets/map_tile_button.dart';

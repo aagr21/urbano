@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Contraste WCAG 2.x entre dos colores opacos (razón 1:1 – 21:1).
 ///

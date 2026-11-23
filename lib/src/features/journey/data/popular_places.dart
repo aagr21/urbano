@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Hito o lugar de interés común en Santa Cruz de la Sierra.
 class SantaCruzPoi {

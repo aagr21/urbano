@@ -1,6 +1,6 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:latlong2/latlong.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:urbano/src/core/map/endpoint_drag_detector.dart';
 import 'package:urbano/src/core/map/map_projection.dart';
 import 'package:urbano/src/core/map/map_types.dart';

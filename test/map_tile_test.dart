@@ -1,7 +1,7 @@
 import 'dart:convert';
 
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:urbano/src/core/map/google_tiles_session.dart';
 import 'package:urbano/src/core/map/map_styles.dart';
 import 'package:urbano/src/core/map/map_tile.dart';

@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Helpers de [BuildContext] usados en las pantallas.
 extension BuildContextX on BuildContext {

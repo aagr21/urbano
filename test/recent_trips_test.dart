@@ -1,7 +1,7 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:urbano/src/core/location/location_service.dart';
 import 'package:urbano/src/core/theme/app_theme.dart';
 import 'package:urbano/src/features/home/presentation/widgets/recent_trips.dart';

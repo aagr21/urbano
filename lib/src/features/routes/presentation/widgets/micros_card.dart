@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../../../../core/animation/motion.dart';
 import '../../../../core/theme/app_colors.dart';
@@ -190,142 +190,27 @@ class MicroCard extends StatelessWidget {
                                   ),
                                 const SizedBox(height: 6),
                                 // Extremos de ruta: origen → destino
-                                // (mismo formato que el detalle del recorrido)
+                                // Si el backend devuelve keyStops, usa las
+                                // primeras/últimas paradas reales.
+                                // Si no (backend sin actualizar), muestra un
+                                // fallback con la cobertura de la ruta.
                                 if (route.keyStops != null &&
                                     route.keyStops!.length >= 2)
-                                  Row(
-                                    children: [
-                                      // Origen
-                                      Expanded(
-                                        child: Container(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 8,
-                                            vertical: 5,
-                                          ),
-                                          decoration: BoxDecoration(
-                                            color: AppColors.tint(
-                                              accent,
-                                              dark
-                                                  ? HtmlDesignTokens.slate700
-                                                  : HtmlDesignTokens.slate50,
-                                              0.08,
-                                            ),
-                                            borderRadius: BorderRadius.circular(
-                                              AppRadius.pill,
-                                            ),
-                                            border: Border.all(
-                                              color: AppColors.tint(
-                                                accent,
-                                                dark
-                                                    ? HtmlDesignTokens.slate600
-                                                    : HtmlDesignTokens.slate200,
-                                                0.35,
-                                              ),
-                                            ),
-                                          ),
-                                          child: Row(
-                                            children: [
-                                              Icon(
-                                                Icons.trip_origin_rounded,
-                                                size: 14,
-                                                color: accent,
-                                              ),
-                                              const SizedBox(width: 4),
-                                              Expanded(
-                                                child: Text(
-                                                  _shortStopName(
-                                                    route.keyStops!.first,
-                                                  ),
-                                                  maxLines: 1,
-                                                  overflow:
-                                                      TextOverflow.ellipsis,
-                                                  style: text.labelSmall
-                                                      ?.copyWith(
-                                                        fontSize: 10,
-                                                        fontWeight:
-                                                            FontWeight.w600,
-                                                        color: dark
-                                                            ? HtmlDesignTokens
-                                                                  .slate200
-                                                            : HtmlDesignTokens
-                                                                  .slate700,
-                                                      ),
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                      ),
-                                      // Flecha de avance
-                                      Icon(
-                                        Icons.double_arrow_rounded,
-                                        size: 16,
-                                        color: accent.withValues(alpha: 0.55),
-                                      ),
-                                      const SizedBox(width: 6),
-                                      // Destino
-                                      Expanded(
-                                        child: Container(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 8,
-                                            vertical: 5,
-                                          ),
-                                          decoration: BoxDecoration(
-                                            color: AppColors.tint(
-                                              accent,
-                                              dark
-                                                  ? HtmlDesignTokens.slate700
-                                                  : HtmlDesignTokens.slate50,
-                                              0.08,
-                                            ),
-                                            borderRadius: BorderRadius.circular(
-                                              AppRadius.pill,
-                                            ),
-                                            border: Border.all(
-                                              color: AppColors.tint(
-                                                accent,
-                                                dark
-                                                    ? HtmlDesignTokens.slate600
-                                                    : HtmlDesignTokens.slate200,
-                                                0.35,
-                                              ),
-                                            ),
-                                          ),
-                                          child: Row(
-                                            children: [
-                                              Icon(
-                                                Icons
-                                                    .location_searching_rounded,
-                                                size: 14,
-                                                color: accent,
-                                              ),
-                                              const SizedBox(width: 4),
-                                              Expanded(
-                                                child: Text(
-                                                  _shortStopName(
-                                                    route.keyStops!.last,
-                                                  ),
-                                                  maxLines: 1,
-                                                  overflow:
-                                                      TextOverflow.ellipsis,
-                                                  style: text.labelSmall
-                                                      ?.copyWith(
-                                                        fontSize: 10,
-                                                        fontWeight:
-                                                            FontWeight.w600,
-                                                        color: dark
-                                                            ? HtmlDesignTokens
-                                                                  .slate200
-                                                            : HtmlDesignTokens
-                                                                  .slate700,
-                                                      ),
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                      ),
-                                    ],
+                                  _buildEndpointsRow(
+                                    context,
+                                    text,
+                                    accent,
+                                    dark,
+                                    route.keyStops!.first,
+                                    route.keyStops!.last,
+                                  )
+                                else
+                                  _buildFallbackCoverageRow(
+                                    context,
+                                    text,
+                                    accent,
+                                    dark,
+                                    route.stopCount,
                                   ),
                               ],
                             ),
@@ -424,6 +309,150 @@ class MicroCard extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+
+  /// Fallback cuando el backend no devuelve keyStops: muestra la cobertura
+  /// de la ruta ("242 paradas · Ida y vuelta") para que la tarjeta no quede vacía.
+  static Widget _buildFallbackCoverageRow(
+    BuildContext context,
+    TextTheme text,
+    Color accent,
+    bool dark,
+    int stopCount,
+  ) {
+    return Row(
+      children: [
+        Icon(Icons.route_rounded, size: 14, color: accent),
+        const SizedBox(width: 4),
+        Text(
+          '$stopCount paradas',
+          style: text.labelSmall?.copyWith(
+            fontSize: 10,
+            fontWeight: FontWeight.w600,
+            color: dark ? HtmlDesignTokens.slate300 : HtmlDesignTokens.slate600,
+          ),
+        ),
+        const SizedBox(width: 6),
+        Icon(
+          Icons.swap_horiz_rounded,
+          size: 12,
+          color: accent.withValues(alpha: 0.45),
+        ),
+        const SizedBox(width: 4),
+        Text(
+          'Ida y vuelta',
+          style: text.labelSmall?.copyWith(
+            fontSize: 10,
+            fontWeight: FontWeight.w600,
+            color: dark ? HtmlDesignTokens.slate400 : HtmlDesignTokens.slate500,
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// Extremos de ruta: origen → destino (cuando el backend devuelve keyStops).
+  static Widget _buildEndpointsRow(
+    BuildContext context,
+    TextTheme text,
+    Color accent,
+    bool dark,
+    String origin,
+    String destination,
+  ) {
+    return Row(
+      children: [
+        // Origen
+        Expanded(
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+            decoration: BoxDecoration(
+              color: AppColors.tint(
+                accent,
+                dark ? HtmlDesignTokens.slate700 : HtmlDesignTokens.slate50,
+                0.08,
+              ),
+              borderRadius: BorderRadius.circular(AppRadius.pill),
+              border: Border.all(
+                color: AppColors.tint(
+                  accent,
+                  dark ? HtmlDesignTokens.slate600 : HtmlDesignTokens.slate200,
+                  0.35,
+                ),
+              ),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.trip_origin_rounded, size: 14, color: accent),
+                const SizedBox(width: 4),
+                Expanded(
+                  child: Text(
+                    _shortStopName(origin),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: text.labelSmall?.copyWith(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w600,
+                      color: dark
+                          ? HtmlDesignTokens.slate200
+                          : HtmlDesignTokens.slate700,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        // Flecha de avance
+        Icon(
+          Icons.double_arrow_rounded,
+          size: 16,
+          color: accent.withValues(alpha: 0.55),
+        ),
+        const SizedBox(width: 6),
+        // Destino
+        Expanded(
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+            decoration: BoxDecoration(
+              color: AppColors.tint(
+                accent,
+                dark ? HtmlDesignTokens.slate700 : HtmlDesignTokens.slate50,
+                0.08,
+              ),
+              borderRadius: BorderRadius.circular(AppRadius.pill),
+              border: Border.all(
+                color: AppColors.tint(
+                  accent,
+                  dark ? HtmlDesignTokens.slate600 : HtmlDesignTokens.slate200,
+                  0.35,
+                ),
+              ),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.location_searching_rounded, size: 14, color: accent),
+                const SizedBox(width: 4),
+                Expanded(
+                  child: Text(
+                    _shortStopName(destination),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: text.labelSmall?.copyWith(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w600,
+                      color: dark
+                          ? HtmlDesignTokens.slate200
+                          : HtmlDesignTokens.slate700,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
     );
   }
 

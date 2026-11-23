@@ -8,7 +8,7 @@
 /// `Color(0xFF...)`. Si el HTML cambia un color, solo se actualiza aquí.
 library;
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Paleta fija del diseño HTML de Urbano.
 ///

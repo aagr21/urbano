@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Indicador de ruta minimalista: dos puntos conectados por una línea vertical.
 ///

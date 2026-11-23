@@ -1,6 +1,6 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:urbano/src/core/theme/app_theme.dart';
 import 'package:urbano/src/features/routes/data/route_models.dart';
 import 'package:urbano/src/features/routes/data/route_repository.dart';
@@ -8,19 +8,26 @@ import 'package:urbano/src/features/routes/presentation/micros_screen.dart';
 
 import 'helpers/fake_route_repository.dart';
 
-RouteSummary _route(String id, {List<String>? keyStops}) => RouteSummary(
-  id: id,
-  shortName: id,
-  longName: 'Micro $id',
-  color: '7F8C8D',
-  textColor: 'FFFFFF',
-  description: 'Transporte publico urbano de micros',
-  type: 3,
-  directionsCount: 2,
-  stopCount: 84,
-  tripCount: 2,
-  keyStops: keyStops ?? ['El Mechero', 'Centro'],
-);
+/// Sentinel para omitir keyStops en el helper de prueba.
+const _noKeyStops = Object();
+
+RouteSummary _route(String id, {Object? keyStops = _defaultKeyStops}) {
+  return RouteSummary(
+    id: id,
+    shortName: id,
+    longName: 'Micro $id',
+    color: '7F8C8D',
+    textColor: 'FFFFFF',
+    description: 'Transporte publico urbano de micros',
+    type: 3,
+    directionsCount: 2,
+    stopCount: 84,
+    tripCount: 2,
+    keyStops: keyStops == _noKeyStops ? null : keyStops as List<String>?,
+  );
+}
+
+const List<String> _defaultKeyStops = ['El Mechero', 'Centro'];
 
 Future<FakeRouteRepository> _pumpCatalog(
   WidgetTester tester,
@@ -82,6 +89,17 @@ void main() {
     expect(find.text('Centro'), findsAtLeast(1));
     // La flecha de avance entre extremos.
     expect(find.byIcon(Icons.double_arrow_rounded), findsAtLeast(1));
+  });
+
+  testWidgets('sin keyStops muestra fallback con paradas', (tester) async {
+    await _pumpCatalog(tester, [_route('101', keyStops: _noKeyStops)]);
+
+    // El longName se muestra.
+    expect(find.text('Micro 101'), findsAtLeast(1));
+    // El fallback muestra la cantidad de paradas.
+    expect(find.textContaining('paradas'), findsAtLeast(1));
+    // No hay flecha de extremos sin keyStops.
+    expect(find.byIcon(Icons.double_arrow_rounded), findsNothing);
   });
 
   testWidgets('el buscador filtra por numeral y limpiar devuelve todo', (
