@@ -1,20 +1,26 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { DataSource } from 'typeorm';
+import { Optional } from '@nestjs/common';
 
 /**
  * Ajustes de esquema que TypeORM no modela bien:
  *  - tipomod de columnas espaciales (geography(Point,4326) / geometry(LineString,4326))
  *  - índices GIST espaciales, GIN pg_trgm para búsqueda y B-tree de apoyo
  *
- * Todo idempotente (se ejecuta en cada arranque).
+ * Todo idempotente (se ejecuta en cada arranque). Si no hay DataSource
+ * (entorno sin DB), se salta silenciosamente.
  */
 @Injectable()
 export class DatabaseSetupService implements OnModuleInit {
   private readonly logger = new Logger(DatabaseSetupService.name);
 
-  constructor(private readonly dataSource: DataSource) {}
+  constructor(@Optional() private readonly dataSource?: DataSource) {}
 
   async onModuleInit(): Promise<void> {
+    if (!this.dataSource) {
+      this.logger.warn('No hay base de datos configurada; saltando setup de esquema');
+      return;
+    }
     await this.ensureExtensions();
     await this.ensureComplaintsTables();
     await this.ensureSpatialTypmods();
@@ -22,7 +28,7 @@ export class DatabaseSetupService implements OnModuleInit {
   }
 
   private async ensureComplaintsTables(): Promise<void> {
-    await this.dataSource.query(`
+    await this.dataSource!.query(`
       CREATE TABLE IF NOT EXISTS complaint (
         id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
         route_id varchar(128) NOT NULL,
@@ -33,13 +39,13 @@ export class DatabaseSetupService implements OnModuleInit {
         created_at timestamptz NOT NULL DEFAULT now()
       )
     `);
-    await this.dataSource.query(
+    await this.dataSource!.query(
       'CREATE INDEX IF NOT EXISTS idx_complaint_status_created ON complaint (status, created_at)'
     );
     // Capa social (likes + comentarios). En dev TypeORM los crea por
     // synchronize; aquí se replican para que una base de producción sin
     // synchronize tampoco se quede sin las tablas del feed.
-    await this.dataSource.query(`
+    await this.dataSource!.query(`
       CREATE TABLE IF NOT EXISTS complaint_like (
         complaint_id uuid NOT NULL,
         device_key varchar(64) NOT NULL,
@@ -47,7 +53,7 @@ export class DatabaseSetupService implements OnModuleInit {
         PRIMARY KEY (complaint_id, device_key)
       )
     `);
-    await this.dataSource.query(`
+    await this.dataSource!.query(`
       CREATE TABLE IF NOT EXISTS complaint_comment (
         id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
         complaint_id uuid NOT NULL,
@@ -58,10 +64,10 @@ export class DatabaseSetupService implements OnModuleInit {
         created_at timestamptz NOT NULL DEFAULT now()
       )
     `);
-    await this.dataSource.query(
+    await this.dataSource!.query(
       'CREATE INDEX IF NOT EXISTS idx_like_complaint ON complaint_like (complaint_id)'
     );
-    await this.dataSource.query(
+    await this.dataSource!.query(
       'CREATE INDEX IF NOT EXISTS idx_comment_complaint ON complaint_comment (complaint_id, created_at)'
     );
   }
@@ -74,7 +80,7 @@ export class DatabaseSetupService implements OnModuleInit {
    */
   private async ensureExtensions(): Promise<void> {
     try {
-      await this.dataSource.query('CREATE EXTENSION IF NOT EXISTS pg_trgm');
+      await this.dataSource!.query('CREATE EXTENSION IF NOT EXISTS pg_trgm');
     } catch (error: unknown) {
       // Base gestionada sin privilegios de superusuario: si la extensión ya
       // fue creada por el operador, seguir; si no, índices GIN fallarán y
@@ -95,7 +101,7 @@ export class DatabaseSetupService implements OnModuleInit {
     column: string,
     target: string
   ): Promise<void> {
-    const rows: Array<{ current: string | null }> = await this.dataSource.query(
+    const rows: Array<{ current: string | null }> = await this.dataSource!.query(
       `SELECT pg_catalog.format_type(a.atttypid, a.atttypmod) AS current
        FROM pg_catalog.pg_attribute a
        WHERE a.attrelid = to_regclass($1)
@@ -113,7 +119,7 @@ export class DatabaseSetupService implements OnModuleInit {
     this.logger.log(
       `Ajustando ${table}.${column}: ${rows[0].current} → ${target}`
     );
-    await this.dataSource.query(
+    await this.dataSource!.query(
       `ALTER TABLE "${table}" ALTER COLUMN "${column}" TYPE ${target} USING "${column}"::${target}`
     );
   }
@@ -140,7 +146,7 @@ export class DatabaseSetupService implements OnModuleInit {
     ];
     for (const statement of statements) {
       try {
-        await this.dataSource.query(statement);
+        await this.dataSource!.query(statement);
       } catch (error: unknown) {
         // IF NOT EXISTS no es atómico: si dos procesos crean el mismo índice a la
         // vez, Postgres puede lanzar unique_violation en pg_class. Es seguro

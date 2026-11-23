@@ -25,7 +25,9 @@ const toNumber = ({ value }: { value: unknown }): unknown => {
 
 /**
  * Variables de entorno requeridas por la aplicación, validadas al arrancar.
- * Si alguna falta o es inválida el proceso no arranca (fail-fast).
+ * Las variables de base de datos son opcionales: en entornos sin DB
+ * (p. ej. Vercel sin Postgres configurada) la app arranca y responde
+ * los endpoints que no necesitan persistencia.
  */
 export class EnvironmentVariables {
   @IsOptional()
@@ -33,35 +35,43 @@ export class EnvironmentVariables {
   NODE_ENV?: string;
 
   @Transform(toNumber)
+  @IsOptional()
   @IsInt()
   @Min(1)
   @Max(65535)
-  PORT: number;
+  PORT?: number;
 
+  @IsOptional()
   @IsString()
-  GTFS_FILE: string;
+  GTFS_FILE?: string;
 
+  @IsOptional()
   @IsString()
-  DB_HOST: string;
+  DB_HOST?: string;
 
   @Transform(toNumber)
+  @IsOptional()
   @IsInt()
   @Min(1)
   @Max(65535)
-  DB_PORT: number;
+  DB_PORT?: number;
 
+  @IsOptional()
   @IsString()
-  DB_USERNAME: string;
+  DB_USERNAME?: string;
 
+  @IsOptional()
   @IsString()
-  DB_PASSWORD: string;
+  DB_PASSWORD?: string;
 
+  @IsOptional()
   @IsString()
-  DB_DATABASE: string;
+  DB_DATABASE?: string;
 
   @Transform(toBoolean)
+  @IsOptional()
   @IsBoolean()
-  DB_SYNCHRONIZE: boolean;
+  DB_SYNCHRONIZE?: boolean;
 
   @Transform(toNumber)
   @IsOptional()
@@ -78,7 +88,14 @@ export class EnvironmentVariables {
 export function validateEnvironment(
   config: Record<string, unknown>
 ): EnvironmentVariables {
-  const validated = plainToInstance(EnvironmentVariables, config, {
+  // En Vercel serverless, config puede ser un objeto vacío si dotenv
+  // no encontró .env y no fusionó process.env. Usar process.env como
+  // respaldo garantiza que las variables lleguen al validador.
+  const merged: Record<string, unknown> = {
+    ...process.env,
+    ...config,
+  };
+  const validated = plainToInstance(EnvironmentVariables, merged, {
     enableImplicitConversion: false,
   });
   const errors = validateSync(validated, { skipMissingProperties: false });

@@ -20,6 +20,9 @@ import { ComplaintsModule } from './modules/complaints/complaints.module';
 @Module({
   imports: [
     AppConfigModule,
+    // TypeORM se conecta solo si hay DB_HOST configurada.
+    // En Vercel sin Postgres, la app arranca igual y responde
+    // /health y los endpoints que no necesitan persistencia.
     TypeOrmModule.forRootAsync({
       inject: [AppConfigService],
       useFactory: (config: AppConfigService) => buildTypeOrmOptions(config),
