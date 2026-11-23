@@ -50,16 +50,26 @@ enum MicroRouteToggleOutcome {
 /// Desacoplado del `State` de la pantalla: el estado es dato puro y en la
 /// pantalla queda solo el cableado (GlobalKey del mapa, hoja, panel abierto).
 class JourneyPlannerController extends Notifier<JourneyPlannerState> {
+  /// Constructor que permite inyectar fábricas de timer (útil para tests con
+  /// `FakeAsync`). En producción se usan los valores por defecto.
+  JourneyPlannerController({
+    TimerFactory? originTimerFactory,
+    TimerFactory? destinationTimerFactory,
+  }) : _replanOriginDebouncer = Debouncer(
+         delay: JourneyPlannerTiming.replanDebounce,
+         timerFactory: originTimerFactory,
+       ),
+       _replanDestinationDebouncer = Debouncer(
+         delay: JourneyPlannerTiming.replanDebounce,
+         timerFactory: destinationTimerFactory,
+       );
+
   /// Un debounce POR EXTREMO: compartir uno solo hacía que soltar el
   /// destino poco después del origen CANCELARA el cambio del origen (el
   /// marcador se quedaba en el punto soltado, pero el viaje se planificaba
   /// con el punto viejo).
-  late final Debouncer _replanOriginDebouncer = Debouncer(
-    delay: JourneyPlannerTiming.replanDebounce,
-  );
-  late final Debouncer _replanDestinationDebouncer = Debouncer(
-    delay: JourneyPlannerTiming.replanDebounce,
-  );
+  late final Debouncer _replanOriginDebouncer;
+  late final Debouncer _replanDestinationDebouncer;
 
   /// Momento del ÚLTIMO movimiento de cámara por GESTO del usuario.
   ///

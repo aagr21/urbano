@@ -14,6 +14,8 @@ export interface RouteSummary {
   tripCount: number;
   /** Imagen del itinerario (micros.csv) o null si no hay. */
   imageUrl: string | null;
+  /** Nombres de las primeras paradas clave de la ruta (máximo 3). */
+  keyStops: string[];
 }
 
 export interface RouteDirectionInfo {

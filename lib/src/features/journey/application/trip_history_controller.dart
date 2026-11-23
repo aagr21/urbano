@@ -62,8 +62,9 @@ class TripHistoryController extends AsyncNotifier<List<TripHistoryEntry>> {
 
   final TripHistoryStore? _store;
 
-  /// Fila máxima que guarda el home.
-  static const int maxEntries = 6;
+  /// Fila máxima que guarda el home. La hoja «Ver todos» pagina de 8 en 8,
+  /// así que el historial puede crecer holgadamente por encima de una página.
+  static const int maxEntries = 30;
 
   TripHistoryStore get _resolvedStore =>
       _store ?? SharedPreferencesTripHistoryStore();
@@ -99,6 +100,14 @@ class TripHistoryController extends AsyncNotifier<List<TripHistoryEntry>> {
       entry,
       ...current.where((saved) => saved.key != entry.key),
     ]);
+    state = AsyncData(next);
+    await _resolvedStore.save(next);
+  }
+
+  /// Elimina una entrada del historial.
+  Future<void> remove(TripHistoryEntry entry) async {
+    final current = state.valueOrNull ?? await future;
+    final next = current.where((e) => e.key != entry.key).toList();
     state = AsyncData(next);
     await _resolvedStore.save(next);
   }

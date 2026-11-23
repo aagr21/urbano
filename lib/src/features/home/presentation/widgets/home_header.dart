@@ -5,6 +5,7 @@ import '../../../../core/animation/motion.dart';
 import '../../../../core/config/env.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_theme.dart';
+import '../../../../core/theme/html_design_tokens.dart' show HtmlDesignTokens;
 import '../../../../core/theme/typography.dart';
 import '../../../../core/utils/extensions.dart';
 import '../../../../core/utils/location.dart';
@@ -39,15 +40,18 @@ class HomeHeader extends StatelessWidget {
     final text = context.text;
     final topInset = MediaQuery.paddingOf(context).top;
     final dark = Theme.of(context).brightness == Brightness.dark;
-    // En oscuro el aqua de marca se apaga al secundario del tema: el mismo
-    // tono brillante del modo claro se leía como neón sobre el grafito.
-    final aqua = dark ? colors.secondary : AppColors.aqua;
+
+    // Colores fijos del HTML para el wordmark en claro.
+    const wordmarkColorLight = HtmlDesignTokens.darkWordmark;
+    const wordmarkDot1 = HtmlDesignTokens.emerald500;
+    const wordmarkDot2 = HtmlDesignTokens.emerald200;
+    final wordmarkColor = dark ? colors.onSurface : wordmarkColorLight;
+    final dotColor1 = dark ? colors.secondary : wordmarkDot1;
+    final dotColor2 = dark ? colors.onPrimaryContainer : wordmarkDot2;
 
     return Stack(
       children: [
-        // Anillos de la ciudad de fondo: la marca se mueve sola en cuanto
-        // abre la app, pero a esta opacidad se lee como textura, no como
-        // dibujo.
+        // Anillos de la ciudad de fondo.
         Positioned.fill(
           child: IgnorePointer(
             child: Opacity(
@@ -58,24 +62,18 @@ class HomeHeader extends StatelessWidget {
         ),
         Column(
           children: [
-            // El área del sistema queda sobre el lienzo (mint + anillos) y la
-            // banda oficial arranca debajo, como una franja blanca a sangre:
-            // el reloj y los íconos no caen sobre el blanco de la franja.
             SizedBox(height: topInset),
             const _OfficialBand(),
             Padding(
               padding: const EdgeInsets.fromLTRB(
                 AppSpace.lg + AppSpace.xs,
-                AppSpace.lg,
+                AppSpace.xxl,
                 AppSpace.lg + AppSpace.xs,
                 0,
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  // La marca va centrada en el ancho de la cabecera y el menú
-                  // flota a la derecha, como en la referencia: no comparten
-                  // fila, así el wordmark no se descentra al abrir el menú.
                   Stack(
                     alignment: Alignment.topCenter,
                     clipBehavior: Clip.none,
@@ -83,26 +81,22 @@ class HomeHeader extends StatelessWidget {
                       Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Row(
-                            mainAxisSize: MainAxisSize.min,
-                            crossAxisAlignment: CrossAxisAlignment.end,
-                            children: [
-                              Flexible(
-                                child: ShaderMask(
-                                  shaderCallback: (bounds) => LinearGradient(
-                                    colors: [
-                                      colors.primary,
-                                      aqua,
-                                      colors.primary,
-                                    ],
-                                  ).createShader(bounds),
+                          // Wordmark con color fijo del HTML en claro.
+                          Transform.scale(
+                            scale: 1.5,
+                            alignment: Alignment.bottomCenter,
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              children: [
+                                Flexible(
                                   child: Text(
                                     Env.appName,
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
                                     style: AppTypography.wordmark(
                                       text.headlineMedium?.copyWith(
-                                        color: colors.primary,
+                                        color: wordmarkColor,
                                         fontSize: 34,
                                         height: 1,
                                         letterSpacing: -1.1,
@@ -110,31 +104,33 @@ class HomeHeader extends StatelessWidget {
                                     ),
                                   ),
                                 ),
-                              ),
-                              Padding(
-                                padding: const EdgeInsets.only(
-                                  left: 2,
-                                  bottom: 7,
-                                ),
-                                child: Container(
-                                  width: 7,
-                                  height: 7,
-                                  decoration: BoxDecoration(
-                                    gradient: LinearGradient(
-                                      colors: [aqua, colors.primary],
-                                    ),
-                                    shape: BoxShape.circle,
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: aqua.withValues(alpha: 0.5),
-                                        blurRadius: 8,
-                                        spreadRadius: 1,
+                                Padding(
+                                  padding: const EdgeInsets.only(
+                                    left: 2,
+                                    bottom: 7,
+                                  ),
+                                  child: Container(
+                                    width: 8,
+                                    height: 8,
+                                    decoration: BoxDecoration(
+                                      gradient: LinearGradient(
+                                        colors: [dotColor1, dotColor2],
                                       ),
-                                    ],
+                                      shape: BoxShape.circle,
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: dotColor1.withValues(
+                                            alpha: 0.6,
+                                          ),
+                                          blurRadius: 10,
+                                          spreadRadius: 1,
+                                        ),
+                                      ],
+                                    ),
                                   ),
                                 ),
-                              ),
-                            ],
+                              ],
+                            ),
                           ),
                           const SizedBox(height: 2),
                           Text(
@@ -142,7 +138,7 @@ class HomeHeader extends StatelessWidget {
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             textAlign: TextAlign.center,
-                            style: text.labelMedium?.copyWith(
+                            style: text.bodySmall?.copyWith(
                               color: colors.onSurfaceVariant,
                               fontWeight: FontWeight.w500,
                             ),
@@ -187,20 +183,27 @@ class _OfficialBand extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.colors;
     final dark = Theme.of(context).brightness == Brightness.dark;
-    // Franja casi blanca: en claro es el blanco de las tarjetas teñido apenas
-    // de aqua (la referencia no la pinta blanca pura); en oscuro sigue la
-    // superficie del tema, nunca una losa clara.
-    final fill = dark
+    // Franja de papel: un blanco apenas teñido de aqua que se disuelve hacia
+    // abajo, para que la banda oficial no corte el lienzo con una losa dura.
+    // En oscuro sigue la superficie del tema, nunca una franja clara.
+    final fillTop = dark
         ? colors.surface
-        : AppColors.tint(AppColors.aqua, colors.surface, 0.04);
+        : AppColors.tint(AppColors.aqua, colors.surface, 0.09);
+    final fillBottom = dark
+        ? colors.surfaceContainerLow
+        : AppColors.tint(AppColors.aqua, colors.surface, 0.02);
     final hairline = dark
         ? AppColors.lineDark
-        : colors.outlineVariant.withValues(alpha: 0.7);
+        : colors.primary.withValues(alpha: 0.14);
 
     return DecoratedBox(
       key: const ValueKey('home-official-band'),
       decoration: BoxDecoration(
-        color: fill,
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [fillTop, fillBottom],
+        ),
         border: Border(bottom: BorderSide(color: hairline)),
       ),
       child: Padding(
@@ -316,7 +319,6 @@ class _OfficialPill extends StatelessWidget {
             style: text.labelSmall?.copyWith(
               color: ink,
               fontWeight: FontWeight.w700,
-              letterSpacing: 0.2,
             ),
           ),
         ],
@@ -325,8 +327,7 @@ class _OfficialPill extends StatelessWidget {
   }
 }
 
-/// Botón redondo del menú: una hoja blanca (o de superficie en oscuro) con
-/// sombra suave, como en la referencia.
+/// Botón del menú: estilo del HTML (blanco con sombra suave, bordes redondeados).
 class _MenuButton extends StatelessWidget {
   const _MenuButton({super.key, required this.onTap});
 
@@ -336,75 +337,41 @@ class _MenuButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.colors;
     final dark = Theme.of(context).brightness == Brightness.dark;
-    final radius = BorderRadius.circular(AppRadius.pill);
-    // En oscuro el botón sigue el lienzo: ícono y filete blancos, sin una
-    // pastilla clara que compita con la marca.
-    final iconInk = colors.onSurface;
+    final radius = BorderRadius.circular(AppRadius.md);
+    final bg = dark ? colors.surface.withValues(alpha: 0.9) : Colors.white;
+    final iconInk = dark ? colors.onSurface : HtmlDesignTokens.slate600;
 
     return PressScale(
-      scale: 0.92,
-      child: DecoratedBox(
+      scale: 0.95,
+      child: Container(
+        width: 44,
+        height: 44,
         decoration: BoxDecoration(
+          color: bg,
           borderRadius: radius,
-          boxShadow: dark
-              ? [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.35),
-                    blurRadius: 18,
-                    offset: const Offset(0, 5),
-                  ),
-                  BoxShadow(
-                    color: colors.primary.withValues(alpha: 0.2),
-                    blurRadius: 20,
-                    offset: const Offset(0, 4),
-                  ),
-                ]
-              : [
-                  ...AppTheme.softShadow(opacity: 0.07, blur: 16, dy: 6),
-                  BoxShadow(
-                    color: colors.primary.withValues(alpha: 0.15),
-                    blurRadius: 16,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
+          border: Border.all(
+            color: dark ? AppColors.lineDark : HtmlDesignTokens.slate100,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: dark
+                  ? Colors.black.withValues(alpha: 0.25)
+                  : Colors.black.withValues(alpha: 0.06),
+              blurRadius: 16,
+              offset: const Offset(0, 4),
+            ),
+          ],
         ),
         child: Material(
           color: Colors.transparent,
-          shape: const CircleBorder(),
-          clipBehavior: Clip.antiAlias,
           child: InkWell(
             onTap: onTap,
-            customBorder: const CircleBorder(),
+            borderRadius: radius,
             splashColor: iconInk.withValues(alpha: 0.08),
-            child: Container(
-              width: 48,
-              height: 48,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: dark
-                      ? [
-                          colors.surface,
-                          AppColors.tint(colors.primary, colors.surface, 0.10),
-                        ]
-                      : [
-                          colors.surface,
-                          AppColors.tint(AppColors.aqua, colors.surface, 0.08),
-                        ],
-                ),
-                border: Border.all(
-                  color: dark
-                      ? AppColors.lineStrongDark
-                      : colors.primary.withValues(alpha: 0.15),
-                ),
-              ),
-              child: Center(
-                child: Tooltip(
-                  message: 'Menú',
-                  child: Icon(Icons.menu_rounded, size: 22, color: iconInk),
-                ),
+            child: Center(
+              child: Tooltip(
+                message: 'Menú',
+                child: _HamburgerIcon(color: iconInk),
               ),
             ),
           ),
@@ -414,7 +381,45 @@ class _MenuButton extends StatelessWidget {
   }
 }
 
-/// «Tu ubicación ›»: una píldora blanca centrada bajo la marca.
+/// Ícono de hamburguesa del HTML: tres líneas redondeadas.
+class _HamburgerIcon extends StatelessWidget {
+  const _HamburgerIcon({required this.color});
+
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return const SizedBox(
+      width: 20,
+      height: 14,
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        spacing: 3,
+        children: [_Line(), _Line(), _Line()],
+      ),
+    );
+  }
+}
+
+class _Line extends StatelessWidget {
+  const _Line();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 20,
+      height: 2.5,
+      decoration: BoxDecoration(
+        color: Theme.of(context).brightness == Brightness.dark
+            ? context.colors.onSurface
+            : HtmlDesignTokens.slate800,
+        borderRadius: BorderRadius.circular(999),
+      ),
+    );
+  }
+}
+
+/// «Tu ubicación ›»: estilo del HTML (glass-pill con punto esmeralda).
 ///
 /// El estado de permisos se cuenta con el ícono y la etiqueta, y se toca para
 /// activar o refrescar. Sin ubicación la píldora invita («Usar mi ubicación»);
@@ -425,36 +430,45 @@ class _LocationPill extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.colors;
+    final text = context.text;
     final dark = Theme.of(context).brightness == Brightness.dark;
     final location = ref.watch(myLocationProvider);
 
-    final ({IconData icon, String label, VoidCallback? onTap}) state = location
+    // Colores del HTML: glass-pill blanco con borde esmeralda.
+    final bg = dark
+        ? Colors.white.withValues(alpha: 0.08)
+        : Colors.white.withValues(alpha: 0.82);
+    final border = dark
+        ? colors.primary.withValues(alpha: 0.2)
+        : HtmlDesignTokens.emerald100;
+    final ink = dark ? colors.onSurface : HtmlDesignTokens.slate700;
+    const dotColor = HtmlDesignTokens.emerald500;
+
+    final ({String label, VoidCallback? onTap, bool live}) state = location
         .when(
-          loading: () => (
-            icon: Icons.location_searching_rounded,
-            label: 'Buscando ubicación…',
-            onTap: null,
-          ),
+          loading: () =>
+              (label: 'Buscando ubicación…', onTap: null, live: false),
           error: (error, _) => (
-            icon: Icons.location_off_rounded,
             label: error is LocationFailure
                 ? error.friendlyMessage
                 : 'Ubicación no disponible',
             onTap: () => ref.invalidate(myLocationProvider),
+            live: false,
           ),
           data: (position) => position == null
               ? (
-                  icon: Icons.near_me_rounded,
                   label: 'Usar mi ubicación',
                   onTap: () => _activate(context, ref),
+                  live: false,
                 )
               : (
-                  icon: Icons.location_on_rounded,
                   label: 'Tu ubicación',
                   onTap: () => ref.invalidate(myLocationProvider),
+                  live: true,
                 ),
         );
 
+    const radius = BorderRadius.all(Radius.circular(AppRadius.pill));
     final content = Padding(
       padding: const EdgeInsets.symmetric(
         horizontal: AppSpace.md + 2,
@@ -463,15 +477,30 @@ class _LocationPill extends ConsumerWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(state.icon, size: 18, color: colors.primary),
+          Container(
+            width: 7,
+            height: 7,
+            decoration: BoxDecoration(
+              color: dotColor,
+              shape: BoxShape.circle,
+              boxShadow: state.live
+                  ? [
+                      BoxShadow(
+                        color: dotColor.withValues(alpha: 0.5),
+                        blurRadius: 4,
+                      ),
+                    ]
+                  : null,
+            ),
+          ),
           const SizedBox(width: AppSpace.xs + 2),
           Flexible(
             child: Text(
               state.label,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: context.text.labelLarge?.copyWith(
-                color: colors.onSurface,
+              style: text.labelMedium?.copyWith(
+                color: ink,
                 fontWeight: FontWeight.w600,
               ),
             ),
@@ -480,31 +509,30 @@ class _LocationPill extends ConsumerWidget {
             const SizedBox(width: AppSpace.xs),
             Icon(
               Icons.chevron_right_rounded,
-              size: 19,
-              color: colors.onSurfaceVariant,
+              size: 18,
+              color: dark ? colors.onSurfaceVariant : HtmlDesignTokens.slate400,
             ),
           ],
         ],
       ),
     );
 
-    final radius = BorderRadius.circular(AppRadius.pill);
-    final shell = DecoratedBox(
+    final shell = Container(
       decoration: BoxDecoration(
-        color: colors.surface,
+        color: bg,
         borderRadius: radius,
-        border: Border.all(
-          color: dark
-              ? AppColors.lineDark
-              : colors.outlineVariant.withValues(alpha: 0.8),
-        ),
-        boxShadow: dark
-            ? null
-            : AppTheme.softShadow(opacity: 0.05, blur: 14, dy: 4),
+        border: Border.all(color: border),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: dark ? 0.15 : 0.04),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Material(
         color: Colors.transparent,
-        shape: RoundedRectangleBorder(borderRadius: radius),
+        shape: const RoundedRectangleBorder(borderRadius: radius),
         clipBehavior: Clip.antiAlias,
         child: state.onTap == null
             ? content

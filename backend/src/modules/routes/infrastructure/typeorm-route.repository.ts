@@ -34,31 +34,77 @@ export class TypeOrmRouteRepository implements RouteRepositoryPort {
   ) {}
 
   async findAll(query: RouteQuery): Promise<RoutePage> {
-    const qb = this.dataSource.createQueryBuilder(Route, 'r');
+    // Consulta SQL directa para incluir paradas clave (keyStops) sin
+    // modificar la entidad Route ni la importación GTFS.
+    const sortColumn = NATURAL_SHORT_NAME_SORTS.has(query.sort)
+      ? ROUTE_NATURAL_ORDER_COLUMNS.map((col) => `${col} ASC`).join(', ')
+      : `${SORT_COLUMNS[query.sort] ?? 'r.route_short_name'} ASC`;
 
-    if (NATURAL_SHORT_NAME_SORTS.has(query.sort)) {
-      // "60 ROJO" se ordena junto al 60 y desempata por sufijo alfabético.
-      qb.orderBy(ROUTE_NATURAL_ORDER_COLUMNS[0], 'ASC');
-      for (const column of ROUTE_NATURAL_ORDER_COLUMNS.slice(1)) {
-        qb.addOrderBy(column, 'ASC');
-      }
-    } else {
-      qb.orderBy(SORT_COLUMNS[query.sort] ?? 'r.route_short_name', 'ASC');
-    }
-    qb.addOrderBy('r.route_id', 'ASC')
-      .skip((query.page - 1) * query.limit)
-      .take(query.limit);
+    const offset = (query.page - 1) * query.limit;
 
-    if (query.q && query.q.trim() !== '') {
-      const like = `%${query.q.trim()}%`;
-      qb.where(
-        '(LOWER(r.route_short_name) LIKE :like OR LOWER(r.route_long_name) LIKE :like)',
-        { like: like.toLowerCase() },
-      );
-    }
+    const likePattern = query.q && query.q.trim() !== ''
+      ? `AND (LOWER(r.route_short_name) LIKE '%${query.q.trim().toLowerCase()}%' OR LOWER(r.route_long_name) LIKE '%${query.q.trim().toLowerCase()}%')`
+      : '';
 
-    const [rows, total] = await qb.getManyAndCount();
-    return { items: rows.map(toSummary), total };
+    // Total sin paginación
+    const totalResult = await this.dataSource.query(`
+      SELECT COUNT(*)::int AS total FROM route r
+      WHERE 1=1 ${likePattern}
+    `);
+    const total = Number(totalResult[0]?.total ?? 0);
+
+    // Items con paradas clave — las primeras 3 paradas distintas por
+    // orden de secuencia de la dirección 0 (ida).
+    // jsonb_agg con LIMIT en la consulta externa no funciona en PG,
+    // así que usamos un array slice en Node.
+    const rows = await this.dataSource.query(`
+      SELECT r.route_id AS "id",
+             r.route_short_name AS "shortName",
+             r.route_long_name AS "longName",
+             r.route_color AS "color",
+             r.route_text_color AS "textColor",
+             r.route_desc AS "description",
+             r.route_type AS "type",
+             r.directions AS "directions",
+             r.stop_count AS "stopCount",
+             r.trip_count AS "tripCount",
+             r.image_url AS "imageUrl",
+             (SELECT jsonb_agg(sub.stop_name ORDER BY sub.first_seq)
+              FROM (
+                SELECT s.stop_name,
+                       MIN(st.stop_sequence) AS first_seq
+                FROM trip t
+                JOIN stop_time st ON st.trip_id = t.trip_id
+                JOIN stop s ON s.stop_id = st.stop_id
+                WHERE t.route_id = r.route_id
+                  AND t.direction_id = 0
+                GROUP BY s.stop_name
+              ) sub
+             ) AS "keyStops"
+      FROM route r
+      WHERE 1=1 ${likePattern}
+      ORDER BY ${sortColumn}, r.route_id ASC
+      LIMIT $1 OFFSET $2
+    `, [query.limit, offset]);
+
+    return {
+      items: rows.map((row: any) => ({
+        id: row.id,
+        shortName: row.shortName,
+        longName: row.longName,
+        color: row.color,
+        textColor: row.textColor,
+        description: row.description,
+        type: row.type,
+        directions: row.directions,
+        stopCount: row.stopCount,
+        tripCount: row.tripCount,
+        imageUrl: row.imageUrl,
+        // jsonb_agg devuelve todas las paradas; cortamos a 3 en Node.
+        keyStops: (row.keyStops ?? []).slice(0, 3),
+      })),
+      total,
+    };
   }
 
   async findById(id: string): Promise<RouteDetailRecord | null> {
@@ -218,5 +264,6 @@ function toSummary(route: Route): RouteSummary {
     stopCount: route.stopCount,
     tripCount: route.tripCount,
     imageUrl: route.imageUrl,
+    keyStops: [],
   };
 }

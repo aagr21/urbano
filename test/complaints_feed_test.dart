@@ -8,6 +8,7 @@ import 'package:urbano/src/core/theme/app_theme.dart';
 import 'package:urbano/src/features/complaints/application/complaints_feed_controller.dart';
 import 'package:urbano/src/features/complaints/application/passenger_controller.dart';
 import 'package:urbano/src/features/complaints/data/complaint_repository.dart';
+import 'package:urbano/src/features/complaints/domain/complaint_models.dart';
 import 'package:urbano/src/features/complaints/presentation/complaint_detail_screen.dart';
 import 'package:urbano/src/features/complaints/presentation/complaints_screen.dart';
 import 'package:urbano/src/features/complaints/presentation/widgets/complaint_chips.dart';

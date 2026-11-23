@@ -11,13 +11,13 @@ import '../../../core/map/map.dart';
 import '../../../core/utils/extensions.dart';
 import '../../../core/utils/location.dart';
 import '../../../core/utils/time_formatters.dart';
-import '../../../core/widgets/urbano_menu.dart';
 import '../../routes/data/route_models.dart';
 import '../application/trip_history_controller.dart';
 import 'journey_planner_controller.dart';
 import 'journey_providers.dart';
 import 'journey_results_view.dart';
 import 'widgets/journey_live_map.dart';
+import 'widgets/journey_loading_overlay.dart';
 import 'widgets/journey_map_chips.dart';
 import 'widgets/journey_micros_sheet.dart';
 import 'widgets/journey_place_picker_sheet.dart';
@@ -26,7 +26,6 @@ import 'widgets/journey_planner_close_button.dart';
 import 'widgets/journey_planner_trigger.dart';
 import 'widgets/journey_result_map.dart';
 import 'widgets/journey_results_sheet.dart';
-import 'widgets/journey_status_panel.dart';
 
 /// Pantalla única **Viaje + Mapa**: un mapa didáctico a pantalla completa
 /// (UN solo `JourneyResultMap` montado, nunca se crea/destruye la vista
@@ -411,10 +410,9 @@ class _JourneyPlannerScreenState extends ConsumerState<JourneyPlannerScreen> {
     // resultados) solo para mover la cámara. Lo que de verdad depende del GPS
     // vive en los dos `Consumer` acotados de abajo: [LiveMapLayer] y
     // [LiveMapControls].
-    // Pantalla completa del mapa: oculta los paneles flotantes y deja solo
-    // el mapa con sus controles (la barra del shell la esconde UrbanoShell).
+    // La barra del sistema no la decide esta pantalla: el mapa ocupa el
+    // cuerpo entero y los paneles flotan encima.
     final mediaQuery = MediaQuery.of(context);
-    final fullscreen = ref.watch(mapFullscreenProvider);
     final planner = ref.watch(journeyPlannerControllerProvider);
     // Vista de resultados: todo lo derivado del viaje (consulta efectiva,
     // caché con su regla de frescura, selección acotada, opción del mapa,
@@ -423,7 +421,7 @@ class _JourneyPlannerScreenState extends ConsumerState<JourneyPlannerScreen> {
     // dentro de `build` (impl. y spec: `journey_results_view.dart`).
     final results = ref.watch(journeyResultsProvider);
     final query = results.query;
-    final result = results.result;
+    final _ = results.result; // solo se usa showStatusPanel/replanning
     final cached = results.options;
     final hasResults = results.hasResults;
     final bare = results.bare;
@@ -433,13 +431,18 @@ class _JourneyPlannerScreenState extends ConsumerState<JourneyPlannerScreen> {
     final mapOption = results.mapOption;
     final mapOrigin = results.mapOrigin;
     final mapDestination = results.mapDestination;
+    final showStatusPanel =
+        planner.submitted && planner.ready && (!hasResults || replanning);
+    // El sheet de resultados desaparece mientras el backend calcula (primera
+    // búsqueda o recálculo) para que el overlay de carga sea el protagonista.
+    final sheetVisible = hasResults && !(showStatusPanel && query != null);
     return Scaffold(
       // El mapa decide su tile (estilo y fondo) mirando el provider propio;
       // todo lo que flota sobre él (tarjeta de extremos, chips, controles,
       // hoja de resultados, panel de estado) usa siempre el tema de la app.
       body: LayoutBuilder(
         builder: (context, constraints) {
-          final sheetTop = hasResults
+          final sheetTop = sheetVisible
               ? _sheetExtent * constraints.maxHeight
               : 0.0;
           // Reserva de mapa arriba: solo hace falta cuando el panel está
@@ -451,7 +454,7 @@ class _JourneyPlannerScreenState extends ConsumerState<JourneyPlannerScreen> {
           // quedaba DETRÁS de la hoja (que ocupa ~352 px al abrirse): se veían
           // otras paradas en vez del punto marcado. Se acota al 60% del mapa
           // para que subir la hoja hasta el tope no degenere el encuadre.
-          final mapBottomPad = hasResults
+          final mapBottomPad = sheetVisible
               ? math.min(sheetTop + 12.0, constraints.maxHeight * 0.6)
               : 140.0;
           // Borde inferior seguro: la pantalla se dibuja edge-to-edge y el
@@ -464,9 +467,7 @@ class _JourneyPlannerScreenState extends ConsumerState<JourneyPlannerScreen> {
           // Los controles del mapa quedan anclados ABAJO siempre: abrir el
           // panel de origen/destino NO los mueve (el panel cabe encima del
           // mapa); con resultados, la hoja de resultados los sube.
-          final controlsBottom = hasResults ? sheetTop + 12.0 : bottomBase;
-          final showStatusPanel =
-              planner.submitted && planner.ready && (!hasResults || replanning);
+          final controlsBottom = sheetVisible ? sheetTop + 12.0 : bottomBase;
           return Stack(
             children: [
               // 1. Mapa a pantalla completa (SIEMPRE montado).
@@ -500,95 +501,94 @@ class _JourneyPlannerScreenState extends ConsumerState<JourneyPlannerScreen> {
                 ),
               ),
               // 2. Tarjeta origen→destino + chips de estado del mapa.
-              if (!fullscreen)
-                Positioned(
-                  top: MediaQuery.of(context).padding.top + 8,
-                  left: 16,
-                  right: 16,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      // Panel desplegable de origen/destino: aparece y se
-                      // oculta con una animación de despliegue vertical
-                      // (tamaño + flojedad + desvanecido).
-                      AnimatedSwitcher(
-                        duration: Motion.settle,
-                        reverseDuration: Motion.release,
-                        switchInCurve: Curves.easeOutCubic,
-                        switchOutCurve: Curves.easeInCubic,
-                        transitionBuilder: (child, animation) => SizeTransition(
-                          sizeFactor: animation,
-                          alignment: Alignment.topCenter,
-                          child: FadeTransition(
-                            opacity: animation,
-                            child: SlideTransition(
-                              position: Tween(
-                                begin: const Offset(0, -0.06),
-                                end: Offset.zero,
-                              ).animate(animation),
-                              child: child,
-                            ),
+              Positioned(
+                top: MediaQuery.of(context).padding.top + 8,
+                left: 16,
+                right: 16,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Panel desplegable de origen/destino: aparece y se
+                    // oculta con una animación de despliegue vertical
+                    // (tamaño + flojedad + desvanecido).
+                    AnimatedSwitcher(
+                      duration: Motion.settle,
+                      reverseDuration: Motion.release,
+                      switchInCurve: Curves.easeOutCubic,
+                      switchOutCurve: Curves.easeInCubic,
+                      transitionBuilder: (child, animation) => SizeTransition(
+                        sizeFactor: animation,
+                        alignment: Alignment.topCenter,
+                        child: FadeTransition(
+                          opacity: animation,
+                          child: SlideTransition(
+                            position: Tween(
+                              begin: const Offset(0, -0.06),
+                              end: Offset.zero,
+                            ).animate(animation),
+                            child: child,
                           ),
                         ),
-                        child: _panelOpen
-                            ? Padding(
-                                key: const ValueKey('planner-panel-open'),
-                                padding: const EdgeInsets.only(bottom: 8),
-                                child: Column(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    JourneyPlannerCard(
-                                      origin: planner.origin,
-                                      destination: planner.destination,
-                                      time: planner.time,
-                                      ready: planner.ready,
-                                      hasResults: hasResults,
-                                      onSwap: _swap,
-                                      onPickOrigin: () =>
-                                          _pickPlace(isOrigin: true),
-                                      onPickDestination: () =>
-                                          _pickPlace(isOrigin: false),
-                                      onPickOriginOnMap: () =>
-                                          _pickFromMap(isOrigin: true),
-                                      onPickDestinationOnMap: () =>
-                                          _pickFromMap(isOrigin: false),
-                                      onPickTime: _pickTime,
-                                      onSubmit: _submit,
-                                      onClear: _clear,
-                                    ),
-                                    const SizedBox(height: 8),
-                                    JourneyPlannerCloseButton(
-                                      key: const ValueKey('planner-close'),
-                                      onTap: _togglePanel,
-                                    ),
-                                  ],
-                                ),
-                              )
-                            : const SizedBox.shrink(
-                                key: ValueKey('planner-panel-closed'),
+                      ),
+                      child: _panelOpen
+                          ? Padding(
+                              key: const ValueKey('planner-panel-open'),
+                              padding: const EdgeInsets.only(bottom: 8),
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  JourneyPlannerCard(
+                                    origin: planner.origin,
+                                    destination: planner.destination,
+                                    time: planner.time,
+                                    ready: planner.ready,
+                                    hasResults: hasResults,
+                                    onSwap: _swap,
+                                    onPickOrigin: () =>
+                                        _pickPlace(isOrigin: true),
+                                    onPickDestination: () =>
+                                        _pickPlace(isOrigin: false),
+                                    onPickOriginOnMap: () =>
+                                        _pickFromMap(isOrigin: true),
+                                    onPickDestinationOnMap: () =>
+                                        _pickFromMap(isOrigin: false),
+                                    onPickTime: _pickTime,
+                                    onSubmit: _submit,
+                                    onClear: _clear,
+                                  ),
+                                  const SizedBox(height: 8),
+                                  JourneyPlannerCloseButton(
+                                    key: const ValueKey('planner-close'),
+                                    onTap: _togglePanel,
+                                  ),
+                                ],
                               ),
-                      ),
-                      JourneyMapChips(
-                        hasResults: hasResults,
-                        bare: bare,
-                        selectedIndex: selectedIndex,
-                        replanning: replanning,
-                        refreshFailed: refreshFailed,
-                        loadingRoutes: planner.loadingRoutes,
-                        onRetryRefresh: () => ref
-                            .read(journeyResultsProvider.notifier)
-                            .retryRefresh(),
-                      ),
-                    ],
-                  ),
+                            )
+                          : const SizedBox.shrink(
+                              key: ValueKey('planner-panel-closed'),
+                            ),
+                    ),
+                    JourneyMapChips(
+                      hasResults: hasResults,
+                      bare: bare,
+                      selectedIndex: selectedIndex,
+                      replanning: replanning,
+                      refreshFailed: refreshFailed,
+                      loadingRoutes: planner.loadingRoutes,
+                      onRetryRefresh: () => ref
+                          .read(journeyResultsProvider.notifier)
+                          .retryRefresh(),
+                    ),
+                  ],
                 ),
-              // 3. Controles a la derecha (zoom, ubicación, micros, full).
+              ),
+              // 3. Controles a la derecha (volver, zoom, ubicación, capa).
               AnimatedPositioned(
                 duration: Motion.fade,
                 curve: Curves.easeOutCubic,
                 right: 16,
-                bottom: fullscreen ? bottomBase : controlsBottom,
+                bottom: controlsBottom,
                 child: LiveMapControls(
                   onZoomIn: () => _journeyMapKey.currentState?.zoomIn(),
                   onZoomOut: () => _journeyMapKey.currentState?.zoomOut(),
@@ -597,17 +597,13 @@ class _JourneyPlannerScreenState extends ConsumerState<JourneyPlannerScreen> {
                     _journeyMapKey.currentState?.resetNorth();
                     if (mounted) setState(() => _mapBearing = 0);
                   },
-                  fullscreen: fullscreen,
-                  onToggleFullscreen: () =>
-                      ref.read(mapFullscreenProvider.notifier).state =
-                          !fullscreen,
-                  onOpenMenu: () =>
-                      showUrbanoMenu(context, current: UrbanoSection.journey),
                   onBack: () => context.go('/'),
                 ),
               ),
-              // 4. Hoja de resultados (cuando hay un viaje planificado).
-              if (hasResults && !fullscreen)
+              // 4. Hoja de resultados (cuando hay un viaje planificado y no
+              //    se está recalculando: durante la carga el sheet anterior
+              //    desaparece para que el overlay sea el protagonista).
+              if (sheetVisible)
                 Positioned.fill(
                   child: JourneyResultsSheet(
                     controller: _sheetController,
@@ -622,29 +618,23 @@ class _JourneyPlannerScreenState extends ConsumerState<JourneyPlannerScreen> {
                     onClear: _clear,
                   ),
                 ),
-              // 5. Zona inferior izquierda: estado de la consulta (si procede)
-              //    y la píldora que abre/cierra el panel de origen y destino.
-              if (!fullscreen && !_microsOnly)
+              // 5. Overlay de carga a pantalla completa (cuando el backend
+              //    está calculando el viaje: primera búsqueda o recálculo).
+              if (showStatusPanel && query != null)
+                const Positioned.fill(child: JourneyLoadingOverlay()),
+              // 6. Zona inferior izquierda: la píldora que abre/cierra
+              //    el panel de origen y destino.
+              if (!_microsOnly)
                 AnimatedPositioned(
                   duration: Motion.fade,
                   curve: Curves.easeOutCubic,
                   left: 16,
                   right: 76,
-                  bottom: hasResults ? sheetTop + 12 : bottomBase,
+                  bottom: sheetVisible ? sheetTop + 12 : bottomBase,
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      if (showStatusPanel && query != null) ...[
-                        JourneyStatusPanel(
-                          query: query,
-                          result: result!,
-                          endpointsTooClose: planner.endpointsTooClose,
-                          endpointsDistanceM: planner.endpointsDistanceM,
-                          forceLoading: replanning,
-                        ),
-                        const SizedBox(height: 12),
-                      ],
                       JourneyPlannerTrigger(
                         originLabel: planner.origin?.label,
                         destinationLabel: planner.destination?.label,

@@ -1,17 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../../../core/animation/motion.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_theme.dart';
+import '../../../../core/theme/html_design_tokens.dart' show HtmlDesignTokens;
 import '../../../../core/utils/extensions.dart';
 import '../../../../core/utils/location.dart';
 import '../../../../core/utils/time_formatters.dart';
-import '../../../journey/application/journey_planner_controller.dart';
 import '../../../journey/application/journey_providers.dart';
 import '../../../journey/application/trip_history_controller.dart';
 import '../../../journey/data/trip_history.dart';
+import '../../../journey/domain/journey_place.dart';
+import '../../../journey/presentation/widgets/journey_destination_sheet.dart';
+import 'recent_trips_all_sheet.dart';
+import 'recent_trips_route_indicator.dart';
 
 /// «Tus viajes recientes»: los últimos destinos planificados.
 ///
@@ -49,9 +52,20 @@ class RecentTrips extends ConsumerWidget {
 
     final colors = context.colors;
     final text = context.text;
+    final dark = Theme.of(context).brightness == Brightness.dark;
     final softInk = colors.onSurfaceVariant;
     final visible = history.take(visibleOnHome).toList(growable: false);
     final hidden = history.length - visible.length;
+
+    // Colores del HTML: tarjeta blanca con borde esmeralda.
+    final cardBg = dark ? colors.surface : HtmlDesignTokens.whiteBlue;
+    final headerBg = dark
+        ? colors.primary.withValues(alpha: 0.12)
+        : HtmlDesignTokens.emerald50;
+    final headerInk = dark
+        ? colors.onPrimaryContainer
+        : HtmlDesignTokens.emerald600;
+    final dividerColor = dark ? AppColors.lineDark : HtmlDesignTokens.slate100;
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(
@@ -61,6 +75,8 @@ class RecentTrips extends ConsumerWidget {
         AppSpace.xxl,
       ),
       child: _HistoryPanel(
+        cardBg: cardBg,
+        borderColor: dark ? AppColors.lineDark : HtmlDesignTokens.emerald50,
         children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(
@@ -71,10 +87,21 @@ class RecentTrips extends ConsumerWidget {
             ),
             child: Row(
               children: [
+                Container(
+                  width: 24,
+                  height: 24,
+                  decoration: BoxDecoration(
+                    color: headerBg,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    Icons.schedule_rounded,
+                    size: 14,
+                    color: headerInk,
+                  ),
+                ),
+                const SizedBox(width: AppSpace.sm),
                 Expanded(
-                  // El rótulo comparte fila con la píldora: se encoge en vez de
-                  // cortarse (con letra grande o pantalla angosta) — nunca
-                  // «Tus viajes reci…».
                   child: FittedBox(
                     fit: BoxFit.scaleDown,
                     alignment: Alignment.centerLeft,
@@ -83,8 +110,8 @@ class RecentTrips extends ConsumerWidget {
                       maxLines: 1,
                       style: text.labelSmall?.copyWith(
                         color: softInk,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 1.1,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0.8,
                       ),
                     ),
                   ),
@@ -92,7 +119,6 @@ class RecentTrips extends ConsumerWidget {
                 if (hidden > 0)
                   _SeeAllButton(
                     key: const ValueKey('recent-trips-see-all'),
-                    hiddenCount: hidden,
                     onTap: () => _openAll(context, ref, history),
                   ),
               ],
@@ -101,6 +127,7 @@ class RecentTrips extends ConsumerWidget {
           _HistoryRows(
             entries: visible,
             keyPrefix: 'recent-trip-',
+            dividerColor: dividerColor,
             onSelect: (entry) => _replan(context, ref, entry),
           ),
         ],
@@ -118,7 +145,7 @@ class RecentTrips extends ConsumerWidget {
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
-      builder: (sheetContext) => _AllTripsSheet(
+      builder: (sheetContext) => AllTripsSheet(
         entries: history,
         onSelect: (entry) {
           Navigator.of(sheetContext).pop();
@@ -128,85 +155,91 @@ class RecentTrips extends ConsumerWidget {
     );
   }
 
-  /// Vuelve a planificar el destino guardado.
-  void _replan(BuildContext context, WidgetRef ref, TripHistoryEntry entry) {
-    final planner = ref.read(journeyPlannerControllerProvider.notifier);
-    planner.setPlace(
-      JourneyPlacePoi(
-        name: entry.label,
-        lat: entry.lat,
-        lon: entry.lon,
-        subtitle: entry.subtitle,
-      ),
-      isOrigin: false,
+  /// Abre el sheet de destino con el viaje reciente pre-llenado.
+  ///
+  /// En lugar de navegar directamente a `/journey`, se abre la hoja modal
+  /// (igual que el tile "Viajes") para que el usuario revise o ajuste los
+  /// extremos antes de planificar. El origen se pre-llena con la ubicación
+  /// conocida si está disponible.
+  Future<void> _replan(
+    BuildContext context,
+    WidgetRef ref,
+    TripHistoryEntry entry,
+  ) async {
+    // Pre-llena el destino con el viaje reciente.
+    final destination = JourneyPlacePoi(
+      name: entry.label,
+      lat: entry.lat,
+      lon: entry.lon,
+      subtitle: entry.subtitle,
     );
     // Sin origen, el viaje no se puede calcular: si ya hay ubicación conocida
     // (sin abrir el GPS otra vez), se usa como punto de partida. Se prefiere la
     // última conocida porque `myLocationProvider` es `autoDispose` y la
     // cabecera —su único oyente en Inicio— ya puede estar fuera del pliegue.
-    final state = ref.read(journeyPlannerControllerProvider);
-    if (state.origin == null) {
-      final position =
-          ref.read(lastKnownLocationProvider) ??
-          ref.read(myLocationProvider).valueOrNull;
-      if (position != null) {
-        planner.setPlace(
-          JourneyPlaceLocation(lat: position.latitude, lon: position.longitude),
-          isOrigin: true,
-        );
-      }
+    JourneyPlace? origin;
+    final position =
+        ref.read(lastKnownLocationProvider) ??
+        ref.read(myLocationProvider).valueOrNull;
+    if (position != null) {
+      origin = JourneyPlaceLocation(
+        lat: position.latitude,
+        lon: position.longitude,
+      );
     }
-    ref.read(pendingPlannerPanelProvider.notifier).state = true;
-    context.go('/journey');
+    await showJourneyDestinationSheet(
+      context: context,
+      ref: ref,
+      initialOrigin: origin,
+      initialDestination: destination,
+    );
   }
 }
 
-/// Tarjeta del historial: grafito con filete claro.
+/// Tarjeta del historial: estilo del HTML (blanca con borde esmeralda).
 ///
-/// El historial se separa del lienzo por el borde y el contraste del texto
-/// blanco, no por una losa clara. La usan la portada y la hoja «Ver todos»,
-/// así las dos se leen como el mismo bloque.
+/// La usan la portada y la hoja «Ver todos», así las dos se leen como el
+/// mismo bloque.
 class _HistoryPanel extends StatelessWidget {
-  const _HistoryPanel({required this.children});
+  const _HistoryPanel({
+    required this.children,
+    required this.cardBg,
+    required this.borderColor,
+  });
 
   final List<Widget> children;
+  final Color cardBg;
+  final Color borderColor;
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.colors;
     final radius = BorderRadius.circular(AppRadius.lg);
     final dark = Theme.of(context).brightness == Brightness.dark;
-    final hairline = dark
-        ? AppColors.lineDark
-        : colors.outlineVariant.withValues(alpha: 0.7);
 
     return DecoratedBox(
       decoration: BoxDecoration(
+        color: cardBg,
         borderRadius: radius,
+        border: Border.all(color: borderColor),
         boxShadow: dark
             ? [
                 BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.32),
+                  color: Colors.black.withValues(alpha: 0.2),
                   blurRadius: 18,
                   offset: const Offset(0, 8),
                 ),
               ]
-            : AppTheme.softShadow(opacity: 0.05, blur: 18),
+            : [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.04),
+                  blurRadius: 18,
+                  offset: const Offset(0, 6),
+                ),
+              ],
       ),
-      child: Material(
-        color: colors.surface,
-        borderRadius: radius,
-        clipBehavior: Clip.antiAlias,
-        child: Container(
-          decoration: BoxDecoration(
-            borderRadius: radius,
-            border: Border.all(color: hairline),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: children,
-          ),
-        ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: children,
       ),
     );
   }
@@ -217,26 +250,17 @@ class _HistoryRows extends StatelessWidget {
   const _HistoryRows({
     required this.entries,
     required this.keyPrefix,
+    required this.dividerColor,
     required this.onSelect,
   });
 
   final List<TripHistoryEntry> entries;
-
-  /// Distingue las filas de la portada (`recent-trip-`) de las de la hoja
-  /// (`recent-trip-all-`): la hoja se abre encima de la portada y las dos
-  /// listas conviven montadas.
   final String keyPrefix;
-
+  final Color dividerColor;
   final ValueChanged<TripHistoryEntry> onSelect;
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.colors;
-    final dark = Theme.of(context).brightness == Brightness.dark;
-    final hairline = dark
-        ? AppColors.lineDark
-        : colors.outlineVariant.withValues(alpha: 0.7);
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -246,7 +270,7 @@ class _HistoryRows extends StatelessWidget {
               height: 1,
               indent: 64,
               endIndent: AppSpace.lg,
-              color: hairline,
+              color: dividerColor,
             ),
           Reveal(
             key: ValueKey('$keyPrefix${entries[i].key}'),
@@ -263,75 +287,50 @@ class _HistoryRows extends StatelessWidget {
   }
 }
 
-/// «Ver todos»: píldora de acción del rótulo de la portada.
+/// «Ver todos»: píldora de acción del rótulo, estilo del HTML.
 ///
-/// Usa el par `primaryContainer`/`onPrimaryContainer` del tema (menta con tinta
-/// profunda en claro, verde hondo con tinta luminosa en oscuro), así se lee en
-/// los dos modos sin volver a medir el contraste. El número de viajes que
-/// quedan fuera se dice en el globo del ícono.
+/// Usa el par teal del HTML en claro y el tema en oscuro.
 class _SeeAllButton extends StatelessWidget {
-  const _SeeAllButton({
-    super.key,
-    required this.hiddenCount,
-    required this.onTap,
-  });
+  const _SeeAllButton({super.key, required this.onTap});
 
-  final int hiddenCount;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
-    final ink = colors.onPrimaryContainer;
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    final bg = dark ? colors.primaryContainer : HtmlDesignTokens.emerald100mid;
+    final ink = dark ? colors.onPrimaryContainer : HtmlDesignTokens.teal700;
     final radius = BorderRadius.circular(AppRadius.pill);
 
     return PressScale(
       scale: 0.94,
-      child: Material(
-        color: colors.primaryContainer,
-        borderRadius: radius,
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: radius,
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(
-              AppSpace.md,
-              AppSpace.xs + 1,
-              AppSpace.sm + 1,
-              AppSpace.xs + 1,
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  'Ver todos',
-                  style: context.text.labelMedium?.copyWith(
-                    color: ink,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-                const SizedBox(width: AppSpace.xs + 1),
-                Container(
-                  constraints: const BoxConstraints(minWidth: 18),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: AppSpace.xs,
-                    vertical: 1,
-                  ),
-                  decoration: BoxDecoration(
-                    color: ink.withValues(alpha: 0.14),
-                    borderRadius: BorderRadius.circular(AppRadius.pill),
-                  ),
-                  child: Text(
-                    '$hiddenCount',
-                    textAlign: TextAlign.center,
-                    style: context.text.labelSmall?.copyWith(
+      child: Container(
+        decoration: BoxDecoration(color: bg, borderRadius: radius),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: onTap,
+            borderRadius: radius,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpace.md,
+                vertical: AppSpace.xs + 1,
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'Ver todos',
+                    style: context.text.labelMedium?.copyWith(
                       color: ink,
-                      fontWeight: FontWeight.w800,
+                      fontWeight: FontWeight.w700,
                     ),
                   ),
-                ),
-              ],
+                  const SizedBox(width: 4),
+                  Icon(Icons.arrow_forward_rounded, size: 16, color: ink),
+                ],
+              ),
             ),
           ),
         ),
@@ -340,93 +339,9 @@ class _SeeAllButton extends StatelessWidget {
   }
 }
 
-/// Hoja «Ver todos»: el historial completo, con el mismo bloque agrupado de la
-/// portada. Tocar una fila cierra la hoja y replanifica ese destino.
-class _AllTripsSheet extends StatelessWidget {
-  const _AllTripsSheet({required this.entries, required this.onSelect});
-
-  final List<TripHistoryEntry> entries;
-  final ValueChanged<TripHistoryEntry> onSelect;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.colors;
-    final text = context.text;
-    final dark = Theme.of(context).brightness == Brightness.dark;
-    final fill = AppColors.tint(colors.primary, colors.surface, 0.12);
-    final iconInk = dark
-        ? colors.onSurface
-        : AppColors.legible(colors.primary, fill);
-
-    return SafeArea(
-      top: false,
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(
-          AppSpace.lg,
-          0,
-          AppSpace.lg,
-          AppSpace.lg,
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Row(
-              children: [
-                Container(
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    color: fill,
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(Icons.history_rounded, size: 21, color: iconInk),
-                ),
-                const SizedBox(width: AppSpace.md),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        'Tus viajes recientes',
-                        style: text.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w800,
-                          color: colors.onSurface,
-                        ),
-                      ),
-                      const SizedBox(height: 1),
-                      Text(
-                        entries.length == 1
-                            ? '1 destino guardado'
-                            : '${entries.length} destinos guardados',
-                        style: text.bodySmall?.copyWith(
-                          color: colors.onSurfaceVariant,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: AppSpace.lg),
-            _HistoryPanel(
-              children: [
-                _HistoryRows(
-                  entries: entries,
-                  keyPrefix: 'recent-trip-all-',
-                  onSelect: onSelect,
-                ),
-                const SizedBox(height: AppSpace.xs),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
+/// Fila individual del historial: estilo del HTML.
+///
+/// Indicador de ruta, etiqueta y píldora de duración.
 class _TripRow extends StatelessWidget {
   const _TripRow({required this.entry, required this.onTap});
 
@@ -440,79 +355,92 @@ class _TripRow extends StatelessWidget {
     final dark = Theme.of(context).brightness == Brightness.dark;
     final titleInk = colors.onSurface;
     final subInk = colors.onSurfaceVariant;
-    final fill = AppColors.tint(colors.primary, colors.surface, 0.12);
-    final iconInk = dark
-        ? colors.onSurface
-        : AppColors.legible(colors.primary, fill);
-    final pillFill = dark ? AppColors.lineDark : colors.surfaceContainerHigh;
-    final pillInk = dark
-        ? colors.onSurface
-        : AppColors.legible(colors.onSurfaceVariant, pillFill);
 
-    return InkWell(
-      onTap: onTap,
-      splashColor: titleInk.withValues(alpha: 0.06),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(
-          AppSpace.lg,
-          AppSpace.sm + 2,
-          AppSpace.md,
-          AppSpace.sm + 2,
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(color: fill, shape: BoxShape.circle),
-              child: Icon(Icons.place_rounded, size: 21, color: iconInk),
-            ),
-            const SizedBox(width: AppSpace.md),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    entry.label,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: text.titleSmall?.copyWith(
-                      fontWeight: FontWeight.w700,
-                      color: titleInk,
-                    ),
-                  ),
-                  if (entry.subtitle != null) ...[
-                    const SizedBox(height: 1),
-                    Text(
-                      entry.subtitle!,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: text.bodySmall?.copyWith(color: subInk),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-            const SizedBox(width: AppSpace.sm),
-            Container(
-              padding: const EdgeInsets.symmetric(
-                horizontal: AppSpace.sm + 2,
-                vertical: AppSpace.xs + 1,
-              ),
-              decoration: BoxDecoration(
-                color: pillFill,
-                borderRadius: BorderRadius.circular(AppRadius.pill),
-              ),
-              child: Text(
-                _trailing(entry),
-                style: text.labelSmall?.copyWith(
-                  color: pillInk,
-                  fontWeight: FontWeight.w700,
+    // Píldora de duración: estilo del HTML (gris claro con ícono).
+    final pillFill = dark
+        ? colors.onSurface.withValues(alpha: 0.1)
+        : HtmlDesignTokens.slate100;
+    final pillInk = dark ? colors.onSurface : HtmlDesignTokens.slate500;
+
+    return PressScale(
+      scale: 0.97,
+      child: InkWell(
+        onTap: onTap,
+        splashColor: titleInk.withValues(alpha: 0.06),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(
+            AppSpace.lg,
+            AppSpace.sm + 2,
+            AppSpace.md,
+            AppSpace.sm + 2,
+          ),
+          child: Row(
+            children: [
+              SizedBox(
+                width: 40,
+                height: 40,
+                child: RouteDotIndicator(
+                  ink: titleInk,
+                  lineColor: subInk.withValues(alpha: 0.3),
                 ),
               ),
-            ),
-          ],
+              const SizedBox(width: AppSpace.md),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      entry.label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: text.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w700,
+                        color: titleInk,
+                      ),
+                    ),
+                    if (entry.subtitle != null) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        entry.subtitle!,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: text.bodySmall?.copyWith(
+                          color: subInk,
+                          fontWeight: FontWeight.w400,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              const SizedBox(width: AppSpace.sm),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpace.sm + 2,
+                  vertical: AppSpace.xs + 1,
+                ),
+                decoration: BoxDecoration(
+                  color: pillFill,
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.schedule_rounded, size: 12, color: pillInk),
+                    const SizedBox(width: 4),
+                    Text(
+                      _trailing(entry),
+                      style: text.labelSmall?.copyWith(
+                        color: pillInk,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

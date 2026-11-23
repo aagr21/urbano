@@ -32,15 +32,6 @@ final journeyProvider = FutureProvider.autoDispose
           );
     });
 
-/// Modo **pantalla completa** del mapa de `/journey`.
-///
-/// `true` oculta los paneles flotantes (origen/destino, chips, hoja de
-/// resultados y píldora), dejando solo el mapa con sus controles. Vive en un
-/// provider (no en el `State` de la pantalla) porque lo lee el `State` del
-/// planeador y también la columna de controles: así la pantalla completa es
-/// real, de punta a punta.
-final mapFullscreenProvider = StateProvider<bool>((_) => false);
-
 /// Intento pendiente de abrir el **panel de micros** desde otra pantalla.
 ///
 /// El listado completo de líneas ya no tiene ruta propia: la pestaña «Rutas»

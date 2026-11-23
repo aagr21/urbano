@@ -11,7 +11,6 @@ import 'package:urbano/src/features/home/data/stats.dart';
 import 'package:urbano/src/features/home/presentation/home_providers.dart';
 import 'package:urbano/src/features/home/presentation/home_screen.dart';
 import 'package:urbano/src/features/home/presentation/widgets/home_header.dart';
-import 'package:urbano/src/features/journey/application/journey_planner_controller.dart';
 import 'package:urbano/src/features/journey/application/trip_history_controller.dart';
 import 'package:urbano/src/features/journey/data/trip_history.dart';
 import 'package:urbano/src/features/journey/presentation/journey_planner_screen.dart';
@@ -80,14 +79,11 @@ List<Override> _overrides({TripHistoryStore? history}) => [
 /// Abre el menú principal desde el botón de la rama que se está viendo.
 ///
 /// El shell mantiene las tres ramas montadas, así que el árbol puede tener
-/// hasta tres botones de menú a la vez: `.hitTestable()` deja solo el de la
-/// rama visible (el resto está bajo el `IndexedStack`).
+/// varios botones de menú a la vez: `.hitTestable()` deja solo el de la rama
+/// visible (el resto está bajo el `IndexedStack`). La rama Viaje ya no tiene
+/// menú: su vuelta al inicio es la flecha `journey-back-button`.
 Future<void> _openMenu(WidgetTester tester) async {
-  for (final key in const [
-    'home-menu-button',
-    'journey-menu-button',
-    'complaints-menu-button',
-  ]) {
+  for (final key in const ['home-menu-button', 'complaints-menu-button']) {
     final finder = find.byKey(ValueKey(key)).hitTestable();
     if (finder.evaluate().isEmpty) continue;
     await tester.tap(finder);
@@ -99,6 +95,13 @@ Future<void> _openMenu(WidgetTester tester) async {
 
 /// Cambia de sección por el menú (la barra inferior ya no existe).
 Future<void> _goTo(WidgetTester tester, String section) async {
+  // Viaje no tiene menú: se sale por su flecha de volver a Inicio antes de
+  // abrir el menú de la portada.
+  final back = find.byKey(const ValueKey('journey-back-button')).hitTestable();
+  if (back.evaluate().isNotEmpty) {
+    await tester.tap(back);
+    await tester.pumpAndSettle();
+  }
   await _openMenu(tester);
   await tester.tap(find.byKey(ValueKey('menu-item-$section')));
   await tester.pumpAndSettle();
@@ -201,7 +204,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 400));
   });
 
-  testWidgets('los cuatro accesos comparten el relleno plano del historial', (
+  testWidgets('los cuatro accesos pintan su acento sin cristal', (
     tester,
   ) async {
     await tester.pumpWidget(
@@ -213,10 +216,10 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 500));
 
-    // Un solo color de tarjeta para todos: el mismo `surface` de «Tus viajes
-    // recientes». El acento vive en la píldora, el punto y la ilustración,
-    // nunca en el relleno de la tarjeta.
-    final surface = AppTheme.dark().colorScheme.surface;
+    // Cada tarjeta pinta su acento como degradado tonal sobre la superficie
+    // del tema, con borde sutil y sombra. La guarda ya no exige un color
+    // plano: el degradado es justamente lo que da profundidad, y el borde
+    // confirma que el acento sigue ahí.
     for (final key in const [
       'home-tile-micros',
       'home-tile-journey',
@@ -224,23 +227,35 @@ void main() {
       'home-tile-complaints',
     ]) {
       final tile = find.byKey(ValueKey(key));
-      final material = tester.widget<Material>(
-        find.descendant(of: tile, matching: find.byType(Material)).first,
-      );
+
+      // No hay BackdropFilter — nada de cristal en los accesos.
       expect(
-        material.color,
-        surface,
-        reason: '$key debe usar el mismo relleno',
+        find.descendant(of: tile, matching: find.byType(BackdropFilter)),
+        findsNothing,
+        reason: '$key no debe tener BackdropFilter',
       );
 
-      final card = tester.widget<Container>(
+      // El primer Container es la superficie con el degradado del acento.
+      final surfaceContainer = tester.widget<Container>(
         find.descendant(of: tile, matching: find.byType(Container)).first,
       );
-      final decoration = card.decoration! as BoxDecoration;
+      final decoration = surfaceContainer.decoration! as BoxDecoration;
       expect(
         decoration.gradient,
-        isNull,
-        reason: '$key no debe mezclar colores en el fondo',
+        isA<LinearGradient>(),
+        reason: '$key debe tener un degradado tonal',
+      );
+      expect(
+        (decoration.gradient! as LinearGradient).colors.length,
+        greaterThanOrEqualTo(2),
+        reason: '$key debe mezclar dos pasos del acento',
+      );
+
+      // El borde sutil confirma el acento visible.
+      expect(
+        decoration.border,
+        isNotNull,
+        reason: '$key debe tener borde de acento',
       );
     }
 
@@ -346,16 +361,16 @@ void main() {
     // `push` agrega una página: el lugar real está en `state.uri`, no en la
     // configuración base del shell.
     expect(router.state.uri.path, '/micros');
-    expect(find.text('Todas las líneas de Santa Cruz'), findsOneWidget);
-    expect(find.text('Busca por número o nombre'), findsOneWidget);
+    expect(find.text('Red Urbana de Micros'), findsOneWidget);
+    expect(find.textContaining('Busca por número'), findsOneWidget);
     expect(
       find.byKey(const ValueKey('micros-card-101 ANGOSTURA')),
       findsOneWidget,
     );
-    expect(find.text('Ver detalles'), findsOneWidget);
+    expect(find.text('Ver recorrido'), findsOneWidget);
 
     // Cada tarjeta lleva al detalle de la línea.
-    await tester.tap(find.text('Ver detalles'));
+    await tester.tap(find.text('Ver recorrido'));
     await tester.pumpAndSettle();
     expect(router.state.uri.path, '/routes/101%20ANGOSTURA');
     expect(find.text('101 ANGOSTURA'), findsWidgets);
@@ -396,9 +411,9 @@ void main() {
         router.routerDelegate.currentConfiguration.uri.path,
         isNot('/journey'),
       );
-      expect(find.text('Punto de partida'), findsOneWidget);
+      expect(find.text('Origen'), findsOneWidget);
       expect(find.text('Destino'), findsOneWidget);
-      expect(find.text('Planificar viaje'), findsOneWidget);
+      expect(find.text('Planificar viaje'), findsNWidgets(2)); // título + botón
     },
   );
 
@@ -437,8 +452,8 @@ void main() {
     await tester.pump(const Duration(milliseconds: 400));
     expect(router.state.uri.path, '/micros');
 
-    // La flecha de la AppBar vuelve: el catálogo se empuja sobre el shell.
-    await tester.tap(find.byTooltip('Volver').hitTestable());
+    // La flecha del header vuelve: el catálogo se empuja sobre el shell.
+    await tester.tap(find.byIcon(Icons.chevron_left_rounded).hitTestable());
     await tester.pumpAndSettle();
     expect(router.state.uri.path, '/');
     expect(find.byType(MicrosScreen), findsNothing);
@@ -522,7 +537,7 @@ void main() {
   });
 
   testWidgets(
-    'el historial del home muestra el último viaje y lo reabre en Viaje',
+    'el historial del home muestra el último viaje y abre el sheet de destino',
     (tester) async {
       final store = MemoryTripHistoryStore([
         TripHistoryEntry(
@@ -568,21 +583,16 @@ void main() {
       expect(find.text('Plaza 24 de Septiembre'), findsOneWidget);
       expect(find.text('8 min'), findsOneWidget);
 
-      // Tocar la fila vuelve a planificar: destino puesto, panel abierto y la
-      // rama Viaje visible.
+      // Tocar la fila abre el sheet de destino modal (no navega a /journey).
       await tester.ensureVisible(find.text('Plaza 24 de Septiembre'));
       await tester.pump(const Duration(milliseconds: 200));
       await tester.tap(find.text('Plaza 24 de Septiembre'));
-      await tester.pump();
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 120));
-      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pumpAndSettle();
 
-      expect(router.routerDelegate.currentConfiguration.uri.path, '/journey');
-      final planner = container.read(journeyPlannerControllerProvider);
-      expect(planner.destination?.label, 'Plaza 24 de Septiembre');
-      expect(planner.origin?.label, 'Mi ubicación');
-      expect(find.byKey(const ValueKey('planner-panel-open')), findsOneWidget);
+      // No navega a /journey: el sheet se abre en la portada.
+      expect(router.routerDelegate.currentConfiguration.uri.path, '/');
+      // El sheet de destino aparece con el destino pre-llenado.
+      expect(find.text('Plaza 24 de Septiembre'), findsWidgets);
     },
   );
 }

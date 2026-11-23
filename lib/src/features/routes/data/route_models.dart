@@ -14,6 +14,7 @@ class RouteSummary {
     required this.stopCount,
     required this.tripCount,
     this.imageUrl,
+    this.keyStops,
   });
 
   factory RouteSummary.fromJson(Map<String, dynamic> json) => RouteSummary(
@@ -28,6 +29,7 @@ class RouteSummary {
     stopCount: (json['stopCount'] as num?)?.toInt() ?? 0,
     tripCount: (json['tripCount'] as num?)?.toInt() ?? 0,
     imageUrl: json['imageUrl'] as String?,
+    keyStops: _parseStringList(json['keyStops']),
   );
 
   final String id;
@@ -47,6 +49,14 @@ class RouteSummary {
 
   /// Imagen del itinerario (micros.csv en el backend) o null si no hay.
   final String? imageUrl;
+
+  /// Nombres de las primeras paradas clave de la ruta (máximo 3).
+  final List<String>? keyStops;
+
+  static List<String>? _parseStringList(dynamic value) {
+    if (value is List) return value.whereType<String>().toList();
+    return null;
+  }
 
   static int _directionsCount(dynamic directions) {
     if (directions is num) return directions.toInt();

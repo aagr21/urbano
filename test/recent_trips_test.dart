@@ -5,7 +5,6 @@ import 'package:go_router/go_router.dart';
 import 'package:urbano/src/core/location/location_service.dart';
 import 'package:urbano/src/core/theme/app_theme.dart';
 import 'package:urbano/src/features/home/presentation/widgets/recent_trips.dart';
-import 'package:urbano/src/features/journey/application/journey_planner_controller.dart';
 import 'package:urbano/src/features/journey/application/trip_history_controller.dart';
 import 'package:urbano/src/features/journey/data/trip_history.dart';
 
@@ -84,8 +83,8 @@ void main() {
       expect(seeAll, findsOneWidget);
       expect(
         find.descendant(of: seeAll, matching: find.text('2')),
-        findsOneWidget,
-        reason: 'el globo dice cuántos viajes quedan fuera',
+        findsNothing,
+        reason: 'la píldora «Ver todos» no lleva número',
       );
     });
 
@@ -132,32 +131,142 @@ void main() {
       );
     });
 
-    testWidgets('tocar una fila de la hoja la cierra y replanifica el viaje', (
-      tester,
-    ) async {
-      final entries = _entries(5);
-      final router = await _pumpHome(tester, entries);
+    testWidgets('con más de 8 viajes la hoja pagina de 8 en 8', (tester) async {
+      final entries = _entries(10);
+      await _pumpHome(tester, entries);
 
       await tester.tap(find.byKey(const ValueKey('recent-trips-see-all')));
       await tester.pumpAndSettle();
 
-      final target = find.byKey(ValueKey('recent-trip-all-${entries[3].key}'));
-      await tester.ensureVisible(target);
+      expect(find.text('10 destinos guardados'), findsOneWidget);
+      expect(find.text('Página 1 de 2'), findsOneWidget);
+      for (var i = 0; i < 8; i++) {
+        expect(
+          find.byKey(ValueKey('recent-trip-all-${entries[i].key}')),
+          findsOneWidget,
+          reason: 'la primera página muestra los 8 más recientes',
+        );
+      }
+      expect(
+        find.byKey(ValueKey('recent-trip-all-${entries[8].key}')),
+        findsNothing,
+      );
+      expect(
+        find.byKey(ValueKey('recent-trip-all-${entries[9].key}')),
+        findsNothing,
+      );
+
+      final next = find.byKey(const ValueKey('recent-trips-next-page'));
+      await tester.ensureVisible(next);
       await tester.pumpAndSettle();
-      await tester.tap(target);
+      await tester.tap(next);
       await tester.pumpAndSettle();
 
-      expect(router.routerDelegate.currentConfiguration.uri.path, '/journey');
+      expect(find.text('Página 2 de 2'), findsOneWidget);
+      for (var i = 0; i < 8; i++) {
+        expect(
+          find.byKey(ValueKey('recent-trip-all-${entries[i].key}')),
+          findsNothing,
+        );
+      }
       expect(
-        find.text('5 destinos guardados'),
-        findsNothing,
-        reason: 'la hoja se cerró al elegir el destino',
+        find.byKey(ValueKey('recent-trip-all-${entries[8].key}')),
+        findsOneWidget,
       );
-      final container = ProviderScope.containerOf(
-        tester.element(find.text('viaje')),
+      expect(
+        find.byKey(ValueKey('recent-trip-all-${entries[9].key}')),
+        findsOneWidget,
       );
-      final planner = container.read(journeyPlannerControllerProvider);
-      expect(planner.destination?.label, 'Destino 3');
+
+      final prev = find.byKey(const ValueKey('recent-trips-prev-page'));
+      await tester.ensureVisible(prev);
+      await tester.pumpAndSettle();
+      await tester.tap(prev);
+      await tester.pumpAndSettle();
+      expect(find.text('Página 1 de 2'), findsOneWidget);
+      expect(
+        find.byKey(ValueKey('recent-trip-all-${entries[0].key}')),
+        findsOneWidget,
+      );
     });
+
+    testWidgets('el buscador filtra por destino y reinicia la página', (
+      tester,
+    ) async {
+      final entries = _entries(12);
+      await _pumpHome(tester, entries);
+
+      await tester.tap(find.byKey(const ValueKey('recent-trips-see-all')));
+      await tester.pumpAndSettle();
+      final next = find.byKey(const ValueKey('recent-trips-next-page'));
+      await tester.ensureVisible(next);
+      await tester.pumpAndSettle();
+      await tester.tap(next);
+      await tester.pumpAndSettle();
+      expect(find.text('Página 2 de 2'), findsOneWidget);
+
+      await tester.enterText(
+        find.byKey(const ValueKey('recent-trips-search')),
+        'Destino 1',
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Página 2 de 2'), findsNothing);
+      for (final i in [1, 10, 11]) {
+        expect(
+          find.byKey(ValueKey('recent-trip-all-${entries[i].key}')),
+          findsOneWidget,
+          reason: 'coinciden los destinos que contienen "Destino 1"',
+        );
+      }
+      expect(
+        find.byKey(ValueKey('recent-trip-all-${entries[0].key}')),
+        findsNothing,
+      );
+
+      await tester.tap(find.byKey(const ValueKey('recent-trips-clear-search')));
+      await tester.pumpAndSettle();
+      expect(find.text('Página 1 de 2'), findsOneWidget);
+      expect(
+        find.byKey(ValueKey('recent-trip-all-${entries[0].key}')),
+        findsOneWidget,
+      );
+
+      await tester.enterText(
+        find.byKey(const ValueKey('recent-trips-search')),
+        'zzz',
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Sin destinos para «zzz»'), findsOneWidget);
+    });
+
+    testWidgets(
+      'tocar una fila de la hoja la cierra y abre el sheet de destino',
+      (tester) async {
+        final entries = _entries(5);
+        await _pumpHome(tester, entries);
+
+        await tester.tap(find.byKey(const ValueKey('recent-trips-see-all')));
+        await tester.pumpAndSettle();
+
+        final target = find.byKey(
+          ValueKey('recent-trip-all-${entries[3].key}'),
+        );
+        await tester.ensureVisible(target);
+        await tester.pumpAndSettle();
+        await tester.tap(target);
+        await tester.pumpAndSettle();
+
+        // La hoja «Ver todos» se cierra y se abre el sheet de destino modal
+        // (no navega a /journey).
+        expect(
+          find.text('5 destinos guardados'),
+          findsNothing,
+          reason: 'la hoja «Ver todos» se cerró al elegir el destino',
+        );
+        // El sheet de destino aparece con el destino pre-llenado.
+        expect(find.text('Destino 3'), findsWidgets);
+      },
+    );
   });
 }

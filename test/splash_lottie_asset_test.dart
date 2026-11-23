@@ -3,15 +3,14 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lottie/lottie.dart';
 
-/// Guardias del Lottie de la splash NATIVA de Android (`assets/lottie/splash.json`).
+/// Guardias del Lottie de la splash (`assets/lottie/splash.json`).
 ///
-/// El mismo archivo lo reproduce la splash nativa (`SplashActivity`, con
-/// `com.airbnb.android:lottie`) y sirve de fuente al frame 0 estático del
-/// `LaunchScreen` de iOS. No se monta dentro de Flutter (la portada de Dart se
-/// pinta con `_RingsPainter`/`_Dial`/`_Loader` en todas las plataformas), así que
-/// este test es la única red que decodifica el JSON de verdad: si no parsee, en
-/// Android cae al guardia `sin-composicion` (arranque sin animación) y el PNG de
-/// iOS sale mal.
+/// Ya no se usa en Android (la splash nativa pinta con Canvas puro en Kotlin),
+/// pero sigue siendo la fuente del frame 0 estático del `LaunchScreen` de iOS
+/// (generado por `tools/make-ios-splash-frame0.sh`). No se monta dentro de
+/// Flutter (la portada de Dart se pinta con `_RingsPainter`/`_Dial`/`_Loader`
+/// en todas las plataformas), así que este test es la única red que decodifica
+/// el JSON: si no parsee, el PNG de iOS sale mal.
 void main() {
   // `ensureInitialized` fija el binding que el motor Dart de Lottie puede
   // necesitar al decodificar la composición.
@@ -39,7 +38,8 @@ void main() {
     expect(composition.durationFrames, closeTo(45, 0.5));
     expect(composition.frameRate, closeTo(30, 0.5));
     // El dial de carga enriquecido: pista + cabeza coral + estela aqua + texto
-    // "Cargando" + barra + anillos de la ciudad (6 capas), ya no el autobús.
-    expect(composition.layers.length, 6);
+    // "Cargando" + barra + anillos trazándose + avenidas + paradas + micro con
+    // estela + pie de ciudad (11 capas).
+    expect(composition.layers.length, 11);
   });
 }

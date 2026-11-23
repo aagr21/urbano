@@ -10,6 +10,7 @@ import '../../../../core/widgets/urbano_map.dart';
 import '../../data/journey_models.dart';
 import '../../data/journey_repository.dart';
 import '../journey_markers.dart';
+import './journey_option_card.dart';
 
 part 'journey_result_map_legend.dart';
 
@@ -357,6 +358,12 @@ class JourneyResultMapState extends State<JourneyResultMap> {
   ) {
     final polylines = <MapPolyline>[];
 
+    // Colores alternativos para distinguir líneas con el mismo color GTFS
+    // cuando hay transbordo entre ellas (dibujo en el mapa).
+    final legAltColors = JourneyOptionCard.alternativeRouteColorsForLegs(
+      option.legs,
+    );
+
     // Tramos de caminata: geometría trazada por la red viaria (motor OTP)
     // cuando existe; si no, línea recta entre extremos conocidos (fallback,
     // y único modo cuando el backend usa el planner interno sin OTP). En
@@ -420,11 +427,13 @@ class JourneyResultMapState extends State<JourneyResultMap> {
     for (final leg in option.busLegs) {
       final path = leg.mapPoints;
       if (path == null || path.isEmpty) continue;
+      final legIndex = option.legs.indexOf(leg);
+      final colorHex = legAltColors[legIndex] ?? leg.routeColor;
       polylines.add(
         MapPolyline(
           points: path,
           width: 6,
-          color: AppColors.fromHex(leg.routeColor).withValues(alpha: 0.92),
+          color: AppColors.fromHex(colorHex).withValues(alpha: 0.92),
           outline: true,
         ),
       );
@@ -569,6 +578,12 @@ class JourneyResultMapState extends State<JourneyResultMap> {
     final busLegs = option.busLegs;
     final markers = <MapMarker>[];
 
+    // Colores alternativos para distinguir líneas con el mismo color GTFS
+    // cuando hay transbordo entre ellas (insignias en el mapa).
+    final legAltColors = JourneyOptionCard.alternativeRouteColorsForLegs(
+      option.legs,
+    );
+
     // Insignia de cada micro sobre el punto medio de su tramo: dice qué
     // ruta es con el color de su propia línea (identidad = shortName).
     for (var i = 0; i < busLegs.length; i++) {
@@ -578,7 +593,9 @@ class JourneyResultMapState extends State<JourneyResultMap> {
       if (path == null || path.isEmpty || name == null || name.isEmpty) {
         continue;
       }
-      final color = AppColors.fromHex(leg.routeColor);
+      final legIndex = option.legs.indexOf(leg);
+      final colorHex = legAltColors[legIndex] ?? leg.routeColor;
+      final color = AppColors.fromHex(colorHex);
       final label = name.trim();
       markers.add(
         MapMarker(
@@ -588,8 +605,7 @@ class JourneyResultMapState extends State<JourneyResultMap> {
           // caché con un badge de otro color/texto.
           width: routeBadgeWidth(label),
           height: 24,
-          iconKey:
-              'route-badge-${leg.routeId ?? label}-$label-${leg.routeColor ?? ''}',
+          iconKey: 'route-badge-${leg.routeId ?? label}-$label-$colorHex',
           child: MapRouteBadge(
             key: ValueKey('journey-map-route-$i'),
             label: label,

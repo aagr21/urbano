@@ -119,19 +119,27 @@ class MapLegend extends StatelessWidget {
       );
     }
 
+    // Colores alternativos para distinguir líneas con el mismo color GTFS
+    // cuando hay transbordo entre ellas (leyenda del mapa).
+    final legAltColors = JourneyOptionCard.alternativeRouteColorsForLegs(
+      option.legs,
+    );
+
     // Un micro por ruta (varios tramos de la misma línea = una fila).
     final busRows = <Widget>[];
     final seen = <String>{};
     for (final leg in option.busLegs) {
       final name = leg.routeShortName?.trim() ?? '';
       if (name.isEmpty) continue;
-      final key = '${leg.routeId ?? ''}|$name|${leg.routeColor ?? ''}';
+      final legIndex = option.legs.indexOf(leg);
+      final colorHex = legAltColors[legIndex] ?? leg.routeColor ?? '';
+      final key = '${leg.routeId ?? ''}|$name|$colorHex';
       if (!seen.add(key)) continue;
       if (busRows.isNotEmpty) busRows.add(const SizedBox(height: 4));
       busRows.add(
         bar(
-          AppColors.fromHex(leg.routeColor),
-          'Micro $name',
+          AppColors.fromHex(colorHex),
+          'Línea $name',
           icon: Icons.directions_bus_rounded,
         ),
       );

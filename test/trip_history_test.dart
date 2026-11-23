@@ -156,7 +156,8 @@ void main() {
       final container = await _container(store);
       final controller = container.read(tripHistoryControllerProvider.notifier);
 
-      for (var i = 0; i < TripHistoryController.maxEntries + 3; i++) {
+      const recorded = TripHistoryController.maxEntries + 3;
+      for (var i = 0; i < recorded; i++) {
         await controller.record(
           destination: _poi('Lugar $i'),
           at: DateTime(2026, 11).add(Duration(minutes: i)),
@@ -165,7 +166,11 @@ void main() {
 
       final saved = container.read(tripHistoryControllerProvider).valueOrNull;
       expect(saved, hasLength(TripHistoryController.maxEntries));
-      expect(saved!.first.label, 'Lugar 8', reason: 'el último gana');
+      expect(
+        saved!.first.label,
+        'Lugar ${recorded - 1}',
+        reason: 'el último gana',
+      );
       expect(
         saved.any((e) => e.label == 'Lugar 0'),
         isFalse,

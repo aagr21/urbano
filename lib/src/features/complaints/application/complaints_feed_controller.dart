@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../routes/data/route_models.dart';
 import '../../routes/data/route_repository.dart';
 import '../data/complaint_repository.dart';
+import '../domain/complaint_models.dart';
 import 'passenger_controller.dart';
 
 /// Catálogo completo de micros (se paginas), usado para poner nombre y color a

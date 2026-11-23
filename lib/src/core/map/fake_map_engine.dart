@@ -224,6 +224,7 @@ class FakeMapEngineState extends State<FakeMapEngine> implements MapEngineHost {
             child: Stack(
               fit: StackFit.expand,
               children: [
+                // 1) Polilíneas de ruta.
                 CustomPaint(
                   painter: _PolylinePainter(
                     polylines: scene.polylines,
@@ -231,6 +232,7 @@ class FakeMapEngineState extends State<FakeMapEngine> implements MapEngineHost {
                     viewport: size,
                   ),
                 ),
+                // 2) Pulsos y marcadores normales (encima de todo).
                 for (final pulse in scene.pulses)
                   _buildPulse(pulse, camera, size),
                 for (final marker in scene.markers)

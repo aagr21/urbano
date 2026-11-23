@@ -152,9 +152,10 @@ Backend (`backend/src/modules/<feature>/{domain,application,infrastructure,prese
   indexes are created idempotently at startup (`DatabaseSetupService`).
 
 Flutter app: Riverpod for state, `go_router` (three sections: Inicio · Viaje · Denuncias —
-**sin barra inferior**: la navegación vive en el menú de cada cabecera, `showUrbanoMenu`
-en `core/widgets/urbano_menu.dart`, con el botón `home-menu-button` / `journey-menu-button`
-en la columna de controles del mapa / `complaints-menu-button`; el shell monta las tres
+**sin barra inferior**: la navegación vive en el menú de la cabecera, `showUrbanoMenu`
+en `core/widgets/urbano_menu.dart`, con el botón `home-menu-button` / `complaints-menu-button`;
+la rama Viaje no tiene menú ni botón de pantalla completa, su vuelta al inicio es la flecha
+`journey-back-button` de la columna de controles del mapa; el shell monta las tres
 ramas con `StatefulShellRoute.indexedStack` y solo funde el cuerpo al cambiar de sección).
 La antigua
 pestaña Rutas ahora vive como el panel izquierdo de micros en `/journey`, con per-direction
@@ -177,7 +178,8 @@ platform view; the merged map/result-sheet design is deliberate (see README).
   placa blanca para que su trazo negro no se pierda), una cabecera de marca sobre el lienzo
   (wordmark centrado + lema + botón de menú flotando a la derecha y la píldora «Tu ubicación»; el
   buscador de rutas se retiró, así que Inicio no tiene `TextField`), cuatro
-  cuadros **compactos** en retícula 2 × 2 con píldora, punto, ilustración plana
+  cuadros **compactos** en retícula 2 × 2 con píldora, ilustración plana sobre
+  placa tonal y una sola flecha circular de acción
   (`home_action_illustrations.dart`) y bajada (`home_action_tiles.dart`: Micros · Viajes · Lugares ·
   Denuncias), la barra `¿A dónde vas?` (`destination_bar.dart`, cuya etiqueta
   `Marca tu destino y listo` siguen tocando los tests) y `recent_trips.dart`, una sola tarjeta
@@ -185,16 +187,19 @@ platform view; the merged map/result-sheet design is deliberate (see README).
   recientes: el banner «Santa Cruz en movimiento», la tirilla «Tus micros» y el mini mapa se
   retiraron para que cabecera, accesos, destino e historial quepan sin scroll; el catálogo completo
   vive en el panel de Viaje (acceso **Micros**) y el mapa, en `/journey`. Los cuatro cuadros usan
-  una ilustración de 84 × 48 y tipografía `titleSmall`/`labelSmall`: no los agrandes sin volver a
-  medir el alto de la portada.
+  una ilustración de 104 × 64 sobre placa de 108 × 64, y tipografía
+  `titleSmall`/`labelSmall`; no los agrandes sin volver a medir el alto de la
+  portada. «¿A dónde vas?» es el CTA primario con tinta contrastada; los cuatro
+  accesos se mantienen visualmente secundarios.
   El historial se alimenta de `tripHistoryControllerProvider`
   (`journey/application/trip_history_controller.dart` + `journey/data/trip_history.dart`):
   `SharedPreferences` bajo `urbano.trips.recent`, dedupe por `label|lat|lon`, máximo
-  `maxEntries = 6`, orden por `lastUsed`; el planeador lo anota desde su listener de
+  `maxEntries = 30`, orden por `lastUsed`; el planeador lo anota desde su listener de
   `journeyResultsProvider` cuando llega una respuesta fresca. La portada lista solo
   `RecentTrips.visibleOnHome = 3` filas; cuando hay más, el rótulo lleva la píldora
-  «Ver todos» (con el número de los que quedan fuera) en la esquina superior derecha y abre
-  la hoja con el historial completo (`recent-trip-all-*`, misma tarjeta agrupada). Sin
+  «Ver todos» (sin número) en la esquina superior derecha y abre
+  la hoja con el historial completo (`recent-trip-all-*`, misma tarjeta agrupada),
+  que lleva un buscador con lupa y pagina de 10 en 10 cuando hay más de 10 viajes. Sin
   historial la sección no ocupa
   espacio; tocar una fila repone el destino, usa `lastKnownLocationProvider` (o
   `myLocationProvider`, que la tarjeta mantiene vivo) como origen si falta, abre

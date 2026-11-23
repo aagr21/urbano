@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -6,6 +8,7 @@ import '../../../../core/animation/motion.dart';
 import '../../../../core/router/app_router.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_theme.dart';
+import '../../../../core/theme/html_design_tokens.dart' show HtmlDesignTokens;
 import '../../../../core/utils/extensions.dart';
 import '../../../journey/application/journey_planner_controller.dart';
 import '../../../journey/application/journey_providers.dart';
@@ -14,12 +17,14 @@ import 'home_action_illustrations.dart';
 
 /// Los cuatro accesos de la portada en una retícula de 2 × 2.
 ///
-/// Es el bloque que abre la referencia: cada cuadro lleva una píldora con su
-/// categoría, un punto de color, una ilustración propia y el nombre con su
-/// bajada. Los cuadros son deliberadamente compactos: la portada tiene que
-/// mostrar también «¿A dónde vas?» y los viajes recientes sin scroll, así que
-/// la ilustración, los espacios y la tipografía van por debajo del tamaño de
-/// una tarjeta de contenido. Los cuatro son destinos reales de la app:
+/// Cada cuadro es una tarjeta con degradado tonal de su acento, una placa con
+/// la ilustración propia (que flota y cuyo halo respira), una píldora con la
+/// categoría y el nombre con su bajada. Los cuadros son deliberadamente
+/// compactos: la portada tiene que mostrar también «¿A dónde vas?» y los viajes
+/// recientes sin scroll, así que la ilustración, los espacios y la tipografía
+/// van por debajo del tamaño de una tarjeta de contenido.
+///
+/// Los cuatro son destinos reales de la app:
 ///
 /// - **Micros** abre el catálogo completo en su propia pantalla (`/micros`).
 /// - **Viajes** abre el sheet de origen/destino con destinos recientes.
@@ -64,11 +69,21 @@ class HomeActionTiles extends ConsumerWidget {
                 Expanded(
                   child: _ActionTile(
                     key: const ValueKey('home-tile-micros'),
-                    badge: 'Líneas en vivo',
+                    badge: 'En vivo',
+                    badgeBg: HtmlDesignTokens.rose50,
+                    badgeInk: HtmlDesignTokens.redMaterial,
                     art: HomeActionArt.micros,
                     title: 'Micros',
                     subtitle: 'Rutas y frecuencias',
-                    accent: AppColors.accentDeep,
+                    bgGradient: const [
+                      HtmlDesignTokens.orange50,
+                      HtmlDesignTokens.white,
+                      HtmlDesignTokens.yellow50,
+                    ],
+                    borderColor: HtmlDesignTokens.orange100,
+                    arrowHoverBg: HtmlDesignTokens.rose50,
+                    arrowHoverInk: HtmlDesignTokens.redMaterial,
+                    live: true,
                     onTap: () => UrbanoRoutes.openMicrosCatalog(context),
                   ),
                 ),
@@ -77,10 +92,20 @@ class HomeActionTiles extends ConsumerWidget {
                   child: _ActionTile(
                     key: const ValueKey('home-tile-journey'),
                     badge: 'Planificador',
+                    badgeBg: HtmlDesignTokens.cyan50,
+                    badgeInk: HtmlDesignTokens.microDarker,
                     art: HomeActionArt.journey,
                     title: 'Viajes',
                     subtitle: 'Planifica tu trayecto',
-                    accent: AppColors.primaryDark,
+                    phaseOffset: 0.25,
+                    bgGradient: const [
+                      HtmlDesignTokens.cyan50,
+                      HtmlDesignTokens.white,
+                      HtmlDesignTokens.cyan50,
+                    ],
+                    borderColor: HtmlDesignTokens.cyan100,
+                    arrowHoverBg: HtmlDesignTokens.cyan50,
+                    arrowHoverInk: HtmlDesignTokens.microDark,
                     onTap: openJourneySheet,
                   ),
                 ),
@@ -96,10 +121,20 @@ class HomeActionTiles extends ConsumerWidget {
                   child: _ActionTile(
                     key: const ValueKey('home-tile-places'),
                     badge: 'Puntos clave',
+                    badgeBg: HtmlDesignTokens.green50,
+                    badgeInk: HtmlDesignTokens.greenDark,
                     art: HomeActionArt.places,
                     title: 'Lugares',
                     subtitle: 'Paradas y puntos',
-                    accent: AppColors.aquaDeep,
+                    phaseOffset: 0.5,
+                    bgGradient: const [
+                      HtmlDesignTokens.green50,
+                      HtmlDesignTokens.white,
+                      HtmlDesignTokens.cyan50,
+                    ],
+                    borderColor: HtmlDesignTokens.green100,
+                    arrowHoverBg: HtmlDesignTokens.green50,
+                    arrowHoverInk: HtmlDesignTokens.greenDark,
                     onTap: openPlaces,
                   ),
                 ),
@@ -107,11 +142,21 @@ class HomeActionTiles extends ConsumerWidget {
                 Expanded(
                   child: _ActionTile(
                     key: const ValueKey('home-tile-complaints'),
-                    badge: 'Atención ciudadana',
+                    badge: 'Atención',
+                    badgeBg: HtmlDesignTokens.rose50Light,
+                    badgeInk: HtmlDesignTokens.redDark,
                     art: HomeActionArt.complaints,
                     title: 'Denuncias',
                     subtitle: 'Reclamos y alertas',
-                    accent: AppColors.accent,
+                    phaseOffset: 0.75,
+                    bgGradient: const [
+                      HtmlDesignTokens.rose50Light,
+                      HtmlDesignTokens.white,
+                      HtmlDesignTokens.orange50,
+                    ],
+                    borderColor: HtmlDesignTokens.red50,
+                    arrowHoverBg: HtmlDesignTokens.rose50,
+                    arrowHoverInk: HtmlDesignTokens.redDark,
                     onTap: () => context.go('/complaints'),
                   ),
                 ),
@@ -128,127 +173,156 @@ class _ActionTile extends StatelessWidget {
   const _ActionTile({
     super.key,
     required this.badge,
+    required this.badgeBg,
+    required this.badgeInk,
     required this.art,
     required this.title,
     required this.subtitle,
     required this.onTap,
-    this.accent = AppColors.primary,
-  });
+    required this.bgGradient,
+    required this.borderColor,
+    required this.arrowHoverBg,
+    required this.arrowHoverInk,
+    this.phaseOffset = 0,
+    this.live = false,
+  }) : liveDotColor = HtmlDesignTokens.redMaterial;
 
   final String badge;
+  final Color badgeBg;
+  final Color badgeInk;
   final HomeActionArt art;
   final String title;
   final String subtitle;
   final VoidCallback onTap;
 
-  /// Acento del punto y de la píldora. La tinta de la píldora se mide contra
-  /// el relleno realmente pintado, no contra el tema.
-  final Color accent;
+  /// Degradado de fondo de la tarjeta, fijo desde el HTML.
+  final List<Color> bgGradient;
+
+  /// Color del borde de la tarjeta.
+  final Color borderColor;
+
+  /// Colores del botón de acción al pasar el dedo.
+  final Color arrowHoverBg;
+  final Color arrowHoverInk;
+
+  /// Desfase de la flotación ambiente (`0..1`).
+  final double phaseOffset;
+
+  /// Punto vivo en la píldora.
+  final bool live;
+
+  /// Color del punto vivo.
+  final Color liveDotColor;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
     final text = context.text;
     final dark = Theme.of(context).brightness == Brightness.dark;
-    // En oscuro la tarjeta sigue siendo grafito: el blanco entra por las
-    // letras, los íconos y el filete del borde, no por una superficie clara
-    // que convertiría la portada en otra app.
     final ink = colors.onSurface;
     final inkSoft = colors.onSurfaceVariant;
-    final fill = AppColors.tint(accent, colors.surface, 0.12);
-    final badgeInk = AppColors.legible(accent, fill);
     final radius = BorderRadius.circular(AppRadius.lg);
-    // Todos los accesos comparten el mismo relleno plano que «Tus viajes
-    // recientes»: el color de la tarjeta es uno solo (surface) y el acento
-    // vive únicamente en la píldora, el punto y la ilustración. Nada de
-    // degradados ni tintes distintos por tarjeta.
-    final hairline = dark
-        ? AppColors.lineDark
-        : colors.outlineVariant.withValues(alpha: 0.7);
+
+    // Los fondos son fijos del HTML en claro; en oscuro se adaptan al tema.
+    final bgColors = dark
+        ? [
+            AppColors.tint(colors.primary, colors.surface, 0.18),
+            colors.surface,
+            AppColors.tint(colors.primary, colors.surface, 0.08),
+          ]
+        : bgGradient;
+    final border = dark ? colors.primary.withValues(alpha: 0.2) : borderColor;
+
+    // Placa tonal de la ilustración.
+    final plateFill = dark
+        ? Colors.white.withValues(alpha: 0.055)
+        : colors.surface.withValues(alpha: 0.66);
 
     return PressScale(
       scale: 0.97,
-      child: DecoratedBox(
+      child: Container(
         decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: bgColors,
+          ),
           borderRadius: radius,
-          boxShadow: dark
-              ? [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.32),
-                    blurRadius: 18,
-                    offset: const Offset(0, 8),
-                  ),
-                ]
-              : AppTheme.softShadow(opacity: 0.05, blur: 18),
+          border: Border.all(color: border, width: 0.9),
+          boxShadow: [
+            BoxShadow(
+              color: dark
+                  ? Colors.black.withValues(alpha: 0.12)
+                  : borderColor.withValues(alpha: 0.25),
+              blurRadius: 18,
+              offset: const Offset(0, 6),
+            ),
+          ],
         ),
         child: Material(
-          color: colors.surface,
-          borderRadius: radius,
-          clipBehavior: Clip.antiAlias,
+          color: Colors.transparent,
           child: InkWell(
             onTap: onTap,
             splashColor: ink.withValues(alpha: 0.06),
             highlightColor: ink.withValues(alpha: 0.04),
             borderRadius: radius,
-            child: Container(
+            child: Padding(
               padding: const EdgeInsets.fromLTRB(
                 AppSpace.md,
                 AppSpace.sm + 2,
                 AppSpace.md,
                 AppSpace.sm + 2,
               ),
-              decoration: BoxDecoration(
-                borderRadius: radius,
-                border: Border.all(color: hairline, width: 1.2),
-              ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(
                     children: [
-                      Expanded(
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: AppSpace.sm,
-                            vertical: 2,
-                          ),
-                          decoration: BoxDecoration(
-                            color: fill,
-                            borderRadius: BorderRadius.circular(AppRadius.pill),
-                          ),
-                          // La etiqueta más larga («Atención ciudadana») no
-                          // cabe a ancho de móvil con la fuente de los tests:
-                          // se encoge en vez de desbordar la píldora.
-                          child: FittedBox(
-                            fit: BoxFit.scaleDown,
-                            alignment: Alignment.centerLeft,
-                            child: Text(
-                              badge,
-                              maxLines: 1,
-                              style: text.labelSmall?.copyWith(
-                                color: badgeInk,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                          ),
+                      Flexible(
+                        child: _Badge(
+                          label: badge,
+                          fill: badgeBg,
+                          ink: badgeInk,
+                          live: live,
+                          liveDotColor: liveDotColor,
                         ),
                       ),
                       const SizedBox(width: AppSpace.sm),
                       Container(
-                        width: 7,
-                        height: 7,
+                        width: 24,
+                        height: 24,
                         decoration: BoxDecoration(
-                          color: accent,
+                          color: dark
+                              ? colors.surface.withValues(alpha: 0.9)
+                              : Colors.white.withValues(alpha: 0.9),
                           shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color: dark
+                                  ? Colors.black.withValues(alpha: 0.1)
+                                  : Colors.black.withValues(alpha: 0.06),
+                              blurRadius: 8,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: Icon(
+                          Icons.arrow_outward_rounded,
+                          size: 14,
+                          color: dark
+                              ? colors.onSurface
+                              : HtmlDesignTokens.slate400,
                         ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: AppSpace.xs),
+                  const SizedBox(height: AppSpace.xs + 2),
                   Center(
-                    child: HomeActionIllustration(
-                      art,
-                      size: const Size(84, 48),
+                    child: _ArtStage(
+                      art: art,
+                      dark: dark,
+                      plateFill: plateFill,
+                      phaseOffset: phaseOffset,
                     ),
                   ),
                   const SizedBox(height: 6),
@@ -257,9 +331,9 @@ class _ActionTile extends StatelessWidget {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: text.titleSmall?.copyWith(
-                      fontSize: 15,
+                      fontSize: 15.5,
                       fontWeight: FontWeight.w800,
-                      letterSpacing: -0.2,
+                      letterSpacing: -0.15,
                       color: ink,
                     ),
                   ),
@@ -268,7 +342,11 @@ class _ActionTile extends StatelessWidget {
                     subtitle,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: text.labelSmall?.copyWith(color: inkSoft),
+                    style: text.bodySmall?.copyWith(
+                      fontSize: 11.5,
+                      color: inkSoft,
+                      fontWeight: FontWeight.w500,
+                    ),
                   ),
                 ],
               ),
@@ -276,6 +354,130 @@ class _ActionTile extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// Píldora de categoría de un acceso.
+///
+/// Solo «En vivo» lleva punto vivo: ahí el dato se mueve de verdad.
+class _Badge extends StatelessWidget {
+  const _Badge({
+    required this.label,
+    required this.fill,
+    required this.ink,
+    required this.live,
+    required this.liveDotColor,
+  });
+
+  final String label;
+  final Color fill;
+  final Color ink;
+  final bool live;
+  final Color liveDotColor;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: EdgeInsets.fromLTRB(live ? 6 : AppSpace.sm, 2, AppSpace.sm, 2),
+      decoration: BoxDecoration(
+        color: fill,
+        borderRadius: BorderRadius.circular(AppRadius.pill),
+        border: Border.all(color: ink.withValues(alpha: 0.32), width: 0.8),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (live) ...[
+            LiveDot(color: liveDotColor, size: 5),
+            const SizedBox(width: 4),
+          ],
+          Flexible(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: context.text.labelSmall?.copyWith(
+                color: ink,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Placa tonal con la ilustración del acceso.
+///
+/// La pieza flota un par de píxeles y el halo respira con la misma onda:
+/// es el único movimiento de la tarjeta y va desfasado entre las cuatro
+/// para que la retícula no lata al unísono. Con «reducir animaciones» se
+/// queda quieta en su estado de reposo.
+class _ArtStage extends StatelessWidget {
+  const _ArtStage({
+    required this.art,
+    required this.dark,
+    required this.plateFill,
+    required this.phaseOffset,
+  });
+
+  final HomeActionArt art;
+  final bool dark;
+  final Color plateFill;
+  final double phaseOffset;
+
+  @override
+  Widget build(BuildContext context) {
+    final reduced = Motion.reduced(context);
+    final colors = context.colors;
+    return Ambient(
+      period: const Duration(milliseconds: 3200),
+      builder: (context, t, phase, _) {
+        final p = (phase + phaseOffset) % 1;
+        final wave = math.sin(p * 2 * math.pi);
+        final bob = reduced ? 0.0 : wave * 2.2;
+        final breath = reduced ? 0.5 : 0.5 + 0.5 * wave;
+
+        return Container(
+          height: 60,
+          width: 106,
+          decoration: BoxDecoration(
+            color: plateFill,
+            borderRadius: BorderRadius.circular(AppRadius.md),
+            border: Border.all(
+              color: colors.primary.withValues(alpha: dark ? 0.22 : 0.14),
+            ),
+          ),
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              // Halo que respira sobre la placa.
+              Opacity(
+                opacity: (0.30 + 0.55 * breath).clamp(0.0, 1.0),
+                child: Container(
+                  width: 82,
+                  height: 46,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: RadialGradient(
+                      colors: [
+                        colors.primary.withValues(alpha: dark ? 0.32 : 0.22),
+                        colors.primary.withValues(alpha: 0),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              Transform.translate(
+                offset: Offset(0, -bob),
+                child: HomeActionIllustration(art, size: const Size(92, 54)),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 }

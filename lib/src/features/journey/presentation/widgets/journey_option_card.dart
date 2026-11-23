@@ -33,6 +33,10 @@ class JourneyOptionCard extends StatelessWidget {
     final text = context.text;
     final isDirect = option.type == JourneyType.direct;
 
+    // Colores de ruta que se repiten entre micros: asignar color alternativo
+    // para que no se confundan dos líneas distintas con el mismo color GTFS.
+    final legAltColors = alternativeRouteColorsForLegs(option.legs);
+
     return Reveal(
       index: index,
       stagger: const Duration(milliseconds: 70),
@@ -46,12 +50,21 @@ class JourneyOptionCard extends StatelessWidget {
           decoration: BoxDecoration(
             color: colors.surface,
             borderRadius: AppRadius.card,
-            // iOS: seleccionada lleva acento; en reposo nada de bordes ni sombra.
-            border: selected
-                ? Border.all(color: colors.primary, width: 1.6)
-                : expanded
-                ? Border.all(color: colors.primary.withValues(alpha: 0.5))
-                : null,
+            border: Border.all(
+              color: selected
+                  ? colors.primary
+                  : expanded
+                  ? colors.primary.withValues(alpha: 0.5)
+                  : colors.outlineVariant,
+              width: selected ? 1.6 : 1.0,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.08),
+                blurRadius: 4,
+                offset: const Offset(0, 2),
+              ),
+            ],
           ),
           child: Material(
             type: MaterialType.transparency,
@@ -169,67 +182,62 @@ class JourneyOptionCard extends StatelessWidget {
                       ],
                     ),
                     const SizedBox(height: 12),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      crossAxisAlignment: WrapCrossAlignment.center,
-                      children: [
-                        if (selected)
-                          MetaChip(
-                            icon: Icons.map_rounded,
-                            label: 'En el mapa',
-                            color: colors.primary,
-                            background: colors.primary.withValues(alpha: 0.1),
-                          ),
-                        MetaChip(
-                          icon: Icons.payments_outlined,
-                          label: isDirect
-                              ? 'Bs 3.50 · 1 pasaje'
-                              : 'Bs 7.00 · 2 pasajes',
-                          color: isDirect ? AppColors.success : colors.tertiary,
-                          background:
-                              (isDirect ? AppColors.success : colors.tertiary)
-                                  .withValues(alpha: 0.1),
-                        ),
-                        for (final leg in option.legs)
-                          if (leg.isBus)
-                            RouteBadge(
-                              label:
-                                  leg.routeShortName ?? leg.routeId ?? 'Micro',
-                              colorHex: leg.routeColor ?? '64748B',
-                              size: RouteBadgeSize.small,
-                            )
-                          else if (leg.isWalk)
-                            MetaChip(
-                              icon: Icons.directions_walk_rounded,
-                              label: Fmt.distance(
-                                leg.distanceMeters?.toDouble(),
-                              ),
+                    // Línea(s) que vas a tomar.
+                    SizedBox(
+                      width: double.infinity,
+                      child: Wrap(
+                        spacing: 6,
+                        runSpacing: 4,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          Text(
+                            'Línea${option.legs.where((l) => l.isBus).length > 1 ? 's que vas a tomar' : ' que vas a tomar'}:',
+                            style: text.labelSmall?.copyWith(
+                              color: colors.onSurfaceVariant,
+                              fontWeight: FontWeight.w700,
                             ),
-                      ],
+                          ),
+                          const SizedBox(width: 4),
+                          for (var i = 0; i < option.legs.length; i++)
+                            if (option.legs[i].isBus)
+                              _LineBadge(
+                                leg: option.legs[i],
+                                alternativeColor: legAltColors[i],
+                              ),
+                        ],
+                      ),
                     ),
-                    AnimatedSize(
-                      duration: Motion.morph,
-                      curve: Curves.easeOutCubic,
-                      alignment: Alignment.topCenter,
-                      child: expanded
-                          ? Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const SizedBox(height: 14),
-                                const Divider(height: 1),
-                                const SizedBox(height: 12),
-                                Text(
-                                  'Tu viaje paso a paso',
-                                  style: text.labelMedium?.copyWith(
-                                    color: colors.onSurfaceVariant,
-                                  ),
-                                ),
-                                const SizedBox(height: 8),
-                                _Timeline(option: option),
-                              ],
-                            )
-                          : const SizedBox(width: double.infinity, height: 0),
+                    const SizedBox(height: 12),
+                    // Instrucciones paso a paso: caminata, micro, transbordo...
+                    Text(
+                      'Pasos del viaje:',
+                      style: text.labelSmall?.copyWith(
+                        color: colors.onSurfaceVariant,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    for (var i = 0; i < option.legs.length; i++)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: _LegTile(
+                          leg: option.legs[i],
+                          option: option,
+                          index: i,
+                          alternativeColor: legAltColors[i],
+                        ),
+                      ),
+                    const SizedBox(height: 12),
+                    // Solo el coste del pasaje.
+                    MetaChip(
+                      icon: Icons.payments_outlined,
+                      label: isDirect
+                          ? 'Bs 3.50 · 1 pasaje'
+                          : 'Bs 7.00 · 2 pasajes',
+                      color: isDirect ? AppColors.success : colors.tertiary,
+                      background:
+                          (isDirect ? AppColors.success : colors.tertiary)
+                              .withValues(alpha: 0.1),
                     ),
                   ],
                 ),
@@ -247,201 +255,258 @@ class JourneyOptionCard extends StatelessWidget {
     final total = to + from;
     return total > 0 ? 'caminando ${Fmt.distance(total.toDouble())}' : '';
   }
+
+  /// Calcula colores alternativos para piernas de bus que comparten el mismo
+  /// color GTFS, para que no se confundan dos líneas distintas con igual color.
+  /// Devuelve un mapa: índice en [legs] → color alternativo (hex sin #).
+  static Map<int, String> alternativeRouteColorsForLegs(List<JourneyLeg> legs) {
+    final busLegs = legs.where((l) => l.isBus).toList();
+    final colorCounts = <String, int>{};
+    for (final leg in busLegs) {
+      final c = leg.routeColor ?? '64748B';
+      colorCounts[c] = (colorCounts[c] ?? 0) + 1;
+    }
+    final repeatedColors = colorCounts.entries
+        .where((e) => e.value > 1)
+        .map((e) => e.key)
+        .toSet();
+    final alternativeColors = _alternativeRouteColors();
+    int altIndex = 0;
+    final legAltColors = <int, String>{};
+    for (var i = 0; i < busLegs.length; i++) {
+      final leg = busLegs[i];
+      final c = leg.routeColor ?? '64748B';
+      if (repeatedColors.contains(c)) {
+        legAltColors[legs.indexOf(leg)] =
+            alternativeColors[altIndex % alternativeColors.length];
+        altIndex++;
+      }
+    }
+    return legAltColors;
+  }
+
+  /// Paleta de colores alternativos para distinguir líneas con el mismo
+  /// color GTFS cuando hay transbordo entre ellas.
+  static List<String> _alternativeRouteColors() => const [
+    'E53935', // rojo
+    '1E88E5', // azul
+    '43A047', // verde
+    'FB8C00', // naranja
+    '8E24AA', // púrpura
+    'D81B60', // rosa
+    '00ACC1', // cian
+    '7CB342', // verde claro
+    'FDD835', // amarillo
+    '6D4C41', // marrón
+  ];
 }
 
-/// Timeline vertical de los tramos (walk / bus / transbordo).
-class _Timeline extends StatelessWidget {
-  const _Timeline({required this.option});
+/// Píldora de una línea del viaje: «Línea 101» sobre el color GTFS de la
+/// ruta, con el ícono del micro. El número/nombre solo no dice nada a quien
+/// no conoce el sistema; la palabra «Línea» lo hace obvio.
+class _LineBadge extends StatelessWidget {
+  const _LineBadge({required this.leg, this.alternativeColor});
 
-  final JourneyOption option;
+  final JourneyLeg leg;
+  final String? alternativeColor;
 
   @override
   Widget build(BuildContext context) {
-    final legs = option.legs;
-
-    return Column(
-      children: [
-        for (var i = 0; i < legs.length; i++)
-          IntrinsicHeight(
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                SizedBox(
-                  width: 34,
-                  child: Column(
-                    children: [
-                      // Cada segmento toma el color del tramo que representa:
-                      // la línea cambia sola cuando hay transbordo, igual que
-                      // en un diagrama de red.
-                      if (i > 0)
-                        Expanded(child: _LegRail(color: _legTint(legs[i - 1]))),
-                      _LegDot(leg: legs[i]),
-                      if (i < legs.length - 1)
-                        Expanded(child: _LegRail(color: _legTint(legs[i]))),
-                    ],
-                  ),
-                ),
-                Expanded(
-                  child: _LegTile(leg: legs[i], option: option),
-                ),
-              ],
+    final background = AppColors.fromHex(
+      alternativeColor ?? leg.routeColor ?? '64748B',
+    );
+    // El color de la línea es arbitrario (hay casi blancos y casi negros):
+    // la tinta sale de `onColor`, nunca fija en blanco.
+    final foreground = AppColors.onColor(background);
+    final name = (leg.routeShortName ?? leg.routeId ?? '').trim();
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(AppRadius.sm),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.directions_bus_rounded, size: 10, color: foreground),
+          const SizedBox(width: 3),
+          Flexible(
+            child: Text(
+              name,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: foreground,
+                fontWeight: FontWeight.w700,
+                fontSize: 10,
+              ),
             ),
           ),
-      ],
+        ],
+      ),
     );
   }
 }
 
 /// Tinte del tramo: gris para caminar, coral para transbordar y el color GTFS
-/// de la línea para el bus.
-Color _legTint(JourneyLeg leg) => switch (leg.kind) {
-  JourneyLegKind.walk => const Color(0xFF64748B),
-  JourneyLegKind.transfer => AppColors.accent,
-  JourneyLegKind.bus => AppColors.fromHex(leg.routeColor),
-};
-
-/// Segmento de riel: la caja la fija el `Expanded` del padre (altura apretada),
-/// así que el pintado en fracción **no mueve el layout** — el riel se dibuja de
-/// arriba abajo al expandir la tarjeta, como un diagrama de red que se traza.
-class _LegRail extends StatelessWidget {
-  const _LegRail({required this.color});
-
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    final stroke = AppColors.legible(color, context.colors.surface);
-    // Con «reducir animaciones» el Ambient arranca en reposo (t = 1): el riel
-    // sale entero sin necesidad de un ramo aparte.
-    return Ambient(
-      period: Motion.slow,
-      cycles: 1,
-      builder: (context, t, phase, _) => SizedBox(
-        width: 3,
-        child: CustomPaint(
-          painter: _RailPainter(
-            color: stroke,
-            fraction: Curves.easeOutCubic.transform(t),
-          ),
-        ),
+/// de la línea para el bus. Si se pasa `alternativeColor`, se usa en lugar del
+/// color GTFS (sirve para distinguir dos líneas con el mismo color).
+Color _legTint(JourneyLeg leg, {String? alternativeColor}) =>
+    switch (leg.kind) {
+      JourneyLegKind.walk => const Color(0xFF64748B),
+      JourneyLegKind.transfer => AppColors.accent,
+      JourneyLegKind.bus => AppColors.fromHex(
+        alternativeColor ?? leg.routeColor ?? '64748B',
       ),
-    );
-  }
-}
-
-class _RailPainter extends CustomPainter {
-  const _RailPainter({required this.color, required this.fraction});
-
-  final Color color;
-
-  /// 0..1 del tramo ya trazado.
-  final double fraction;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    if (size.isEmpty) return;
-    const radius = Radius.circular(1.5);
-    // Guía fantasma de todo el tramo y, encima, la parte recorrida.
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(Offset.zero & size, radius),
-      Paint()..color = color.withValues(alpha: 0.22),
-    );
-    final drawn = size.height * fraction;
-    if (drawn < 1) return;
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(Rect.fromLTWH(0, 0, size.width, drawn), radius),
-      Paint()..color = color,
-    );
-  }
-
-  @override
-  bool shouldRepaint(covariant _RailPainter old) =>
-      old.color != color || old.fraction != fraction;
-}
-
-class _LegDot extends StatelessWidget {
-  const _LegDot({required this.leg});
-
-  final JourneyLeg leg;
-
-  @override
-  Widget build(BuildContext context) {
-    final color = _legTint(leg);
-    final icon = switch (leg.kind) {
-      JourneyLegKind.walk => Icons.directions_walk_rounded,
-      JourneyLegKind.transfer => Icons.swap_horiz_rounded,
-      JourneyLegKind.bus => Icons.directions_bus_rounded,
     };
 
-    return Container(
-      width: 28,
-      height: 28,
-      margin: const EdgeInsets.symmetric(vertical: 4),
-      decoration: BoxDecoration(
-        color: color,
-        shape: BoxShape.circle,
-        border: Border.all(color: Colors.white, width: 3),
-        boxShadow: [
-          BoxShadow(color: color.withValues(alpha: 0.4), blurRadius: 6),
-        ],
-      ),
-      // El relleno puede ser el color de una línea del GTFS (`F1C40F` es casi
-      // blanco): el ícono lo elige `onColor`, no queda fijo en blanco.
-      child: Icon(icon, size: 15, color: AppColors.onColor(color)),
-    );
-  }
-}
-
+/// Un paso del itinerario, redactado como instrucción, con su número.
 class _LegTile extends StatelessWidget {
-  const _LegTile({required this.leg, required this.option});
+  const _LegTile({
+    required this.leg,
+    required this.option,
+    required this.index,
+    this.alternativeColor,
+  });
 
   final JourneyLeg leg;
   final JourneyOption option;
+  final int index;
+  final String? alternativeColor;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
     final text = context.text;
+    final tint = AppColors.legible(
+      _legTint(leg, alternativeColor: alternativeColor),
+      colors.surface,
+      minContrast: 3,
+    );
+    final isLast = index == option.legs.length - 1;
 
-    final title = switch (leg.kind) {
-      JourneyLegKind.walk => 'Caminar ${Fmt.duration(leg.durationMinutes)}',
-      JourneyLegKind.transfer => 'Transbordo',
-      JourneyLegKind.bus => 'Micro ${leg.routeShortName ?? leg.routeId ?? ''}',
-    };
+    final IconData icon;
+    Widget titleWidget;
+    String? subtitle;
 
-    final String subtitle;
     switch (leg.kind) {
       case JourneyLegKind.walk:
-        subtitle = Fmt.distance(leg.distanceMeters?.toDouble());
+        icon = Icons.directions_walk_rounded;
+        final meters = leg.distanceMeters;
+        final amount = meters != null && meters > 0
+            ? Fmt.distance(meters.toDouble())
+            : Fmt.duration(leg.durationMinutes);
+        titleWidget = Text('Camina $amount', style: _titleStyle(text));
+        if (isLast) {
+          subtitle = 'y llegas a tu destino';
+        } else if (index == 0) {
+          final stop = option.walkToStop?.name.trim() ?? '';
+          subtitle = stop.isEmpty ? 'hasta la parada' : 'hasta «$stop»';
+        } else {
+          subtitle = 'hasta la siguiente parada';
+        }
       case JourneyLegKind.transfer:
-        subtitle =
-            option.legs
-                .takeWhile((l) => l != leg)
-                .where((l) => l.isBus)
-                .isNotEmpty
-            ? 'Cambia de micro aquí'
-            : 'Cambia de micro';
+        icon = Icons.swap_horiz_rounded;
+        final stop = _previousBusStopName();
+        titleWidget = Text(
+          stop.isEmpty ? 'Bájate aquí' : 'Bájate en «$stop»',
+          style: _titleStyle(text),
+        );
+        subtitle = null;
       case JourneyLegKind.bus:
-        subtitle =
-            '${GtfsTime.toHm(leg.departAt)} → ${GtfsTime.toHm(leg.arriveAt)}';
+        icon = Icons.directions_bus_rounded;
+        final routeColorHex = alternativeColor ?? leg.routeColor ?? '64748B';
+        final routeColor = AppColors.fromHex(routeColorHex);
+        final name = (leg.routeShortName ?? leg.routeId ?? '').trim();
+        titleWidget = Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('Sube a la ', style: _titleStyle(text)),
+            Expanded(
+              child: Text(
+                name,
+                style: (_titleStyle(text) ?? const TextStyle()).copyWith(
+                  color: routeColor,
+                  fontWeight: FontWeight.w900,
+                ),
+                overflow: TextOverflow.ellipsis,
+                maxLines: 1,
+              ),
+            ),
+          ],
+        );
+        final to = leg.toStop?.name.trim() ?? '';
+        subtitle = to.isEmpty ? null : 'bájate en «$to»';
     }
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(6, 2, 0, 14),
+      padding: EdgeInsets.fromLTRB(6, 2, 0, isLast ? 2 : 12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(title, style: text.titleSmall?.copyWith(height: 1.3)),
-          const SizedBox(height: 2),
-          Text(
-            subtitle,
-            style: text.bodySmall?.copyWith(
-              color: colors.onSurfaceVariant,
-              height: 1.35,
-            ),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 28,
+                height: 28,
+                margin: const EdgeInsets.only(top: 2),
+                decoration: BoxDecoration(
+                  color: tint,
+                  shape: BoxShape.circle,
+                  border: Border.all(color: colors.surface, width: 3),
+                ),
+                child: Center(
+                  child: Text(
+                    '${index + 1}',
+                    style: text.labelSmall?.copyWith(
+                      color: AppColors.onColor(tint),
+                      fontWeight: FontWeight.w800,
+                      height: 1,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(icon, size: 16, color: tint),
+                        const SizedBox(width: 6),
+                        Flexible(child: titleWidget),
+                      ],
+                    ),
+                    if (subtitle != null) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        subtitle,
+                        style: text.bodySmall?.copyWith(
+                          color: colors.onSurfaceVariant,
+                          height: 1.35,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
           ),
         ],
       ),
     );
+  }
+
+  TextStyle? _titleStyle(TextTheme text) =>
+      text.titleSmall?.copyWith(height: 1.3, fontWeight: FontWeight.w700);
+
+  /// Nombre de la parada donde se cambia: la bajada del último micro anterior.
+  String _previousBusStopName() {
+    for (var i = index - 1; i >= 0; i--) {
+      final prev = option.legs[i];
+      if (prev.isBus) return prev.toStop?.name.trim() ?? '';
+    }
+    return '';
   }
 }

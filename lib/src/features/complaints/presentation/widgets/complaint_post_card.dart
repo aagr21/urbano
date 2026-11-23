@@ -7,7 +7,7 @@ import '../../../../core/theme/app_theme.dart';
 import '../../../../core/utils/extensions.dart';
 import '../../../routes/data/route_models.dart';
 import '../../application/complaints_feed_controller.dart';
-import '../../data/complaint_repository.dart';
+import '../../domain/complaint_models.dart';
 import '../complaint_detail_screen.dart';
 import 'complaint_post_hero.dart';
 import 'like_button.dart';

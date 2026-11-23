@@ -96,17 +96,31 @@ const query = (over: Partial<RouteQuery> = {}): RouteQuery => ({
 
 describe('TypeOrmRouteRepository', () => {
   it('findAll pagina por (page-1)*limit, límite del query y sort válido', async () => {
-    const ds = new FakeDataSource();
-    ds.builder = new FakeQueryBuilder([[row()], 1]);
+    const ds = new FakeDataSource()
+      .next([{ total: 1 }])
+      .next([
+        {
+          id: 'R1',
+          shortName: '7',
+          longName: 'Barrio San Salvador - Centro',
+          color: 'FF0000',
+          textColor: 'FFFFFF',
+          description: null,
+          type: 3,
+          directions: 2,
+          stopCount: 40,
+          tripCount: 12,
+          imageUrl: null,
+          keyStops: [],
+        },
+      ]);
 
     const page = await repo(ds).findAll(query({ page: 3, limit: 10, sort: 'stopCount' }));
 
-    expect(ds.builder.calls).toEqual([
-      { op: 'orderBy', args: ['r.stop_count', 'ASC'] },
-      { op: 'addOrderBy', args: ['r.route_id', 'ASC'] },
-      { op: 'skip', args: [20] },
-      { op: 'take', args: [10] },
-    ]);
+    // Verifica que la consulta SQL usa el sort correcto y los parámetros de paginación
+    expect(ds.queryCalls).toHaveLength(2);
+    expect(ds.queryCalls[1].params).toEqual([10, 20]);
+    expect(ds.queryCalls[1].sql).toContain('r.stop_count ASC');
     expect(page).toEqual({
       items: [
         expect.objectContaining({ id: 'R1', shortName: '7', stopCount: 40 }),
@@ -118,17 +132,15 @@ describe('TypeOrmRouteRepository', () => {
   it.each(['name', 'shortName'] as const)(
     'findAll con sort=%s ordena por número y desempata por sufijo alfabético',
     async (sort) => {
-      const ds = new FakeDataSource();
-      ds.builder = new FakeQueryBuilder([[], 0]);
+      const ds = new FakeDataSource().next([{ total: 0 }]).next([]);
 
       await repo(ds).findAll(query({ sort }));
 
-      expect(ds.builder.calls.slice(0, 4)).toEqual([
-        { op: 'orderBy', args: [ROUTE_NATURAL_ORDER_COLUMNS[0], 'ASC'] },
-        { op: 'addOrderBy', args: [ROUTE_NATURAL_ORDER_COLUMNS[1], 'ASC'] },
-        { op: 'addOrderBy', args: [ROUTE_NATURAL_ORDER_COLUMNS[2], 'ASC'] },
-        { op: 'addOrderBy', args: ['r.route_id', 'ASC'] },
-      ]);
+      // La consulta SQL debe contener las columnas de orden natural
+      const sql = ds.queryCalls[1].sql;
+      expect(sql).toContain(ROUTE_NATURAL_ORDER_COLUMNS[0]);
+      expect(sql).toContain(ROUTE_NATURAL_ORDER_COLUMNS[1]);
+      expect(sql).toContain(ROUTE_NATURAL_ORDER_COLUMNS[2]);
       // "60 ROJO" va junto al 60: primero el prefijo numérico, luego el sufijo.
       expect(ROUTE_NATURAL_ORDER_COLUMNS[0]).toContain(
         "substring(r.route_short_name from '^[0-9]+')",
@@ -140,36 +152,33 @@ describe('TypeOrmRouteRepository', () => {
   );
 
   it('findAll con sort=longName conserva el orden literal (sin clave natural)', async () => {
-    const ds = new FakeDataSource();
-    ds.builder = new FakeQueryBuilder([[], 0]);
+    const ds = new FakeDataSource().next([{ total: 0 }]).next([]);
 
     await repo(ds).findAll(query({ sort: 'longName' }));
 
-    expect(ds.builder.calls.slice(0, 2)).toEqual([
-      { op: 'orderBy', args: ['r.route_long_name', 'ASC'] },
-      { op: 'addOrderBy', args: ['r.route_id', 'ASC'] },
-    ]);
+    const sql = ds.queryCalls[1].sql;
+    expect(sql).toContain('r.route_long_name ASC');
+    expect(sql).not.toContain('substring');
   });
 
   it('findAll con filtro de texto aplica LIKE en minúsculas a short y long name', async () => {
-    const ds = new FakeDataSource();
-    ds.builder = new FakeQueryBuilder([[], 0]);
+    const ds = new FakeDataSource().next([{ total: 0 }]).next([]);
 
     await repo(ds).findAll(query({ q: '  Centro  ' }));
 
-    const where = ds.builder.calls.find((c) => c.op === 'where');
-    expect(where!.args[0]).toContain('LOWER(r.route_short_name) LIKE :like');
-    expect(where!.args[0]).toContain('LOWER(r.route_long_name) LIKE :like');
-    expect(where!.args[1]).toEqual({ like: '%centro%' });
+    const sql = ds.queryCalls[1].sql;
+    expect(sql).toContain("LOWER(r.route_short_name) LIKE '%centro%'");
+    expect(sql).toContain("LOWER(r.route_long_name) LIKE '%centro%'");
   });
 
   it('findAll con q en blanco NO filtra (solo espacios ⇒ sin cláusula where)', async () => {
-    const ds = new FakeDataSource();
-    ds.builder = new FakeQueryBuilder([[], 0]);
+    const ds = new FakeDataSource().next([{ total: 0 }]).next([]);
 
     await repo(ds).findAll(query({ q: '   ' }));
 
-    expect(ds.builder.calls.some((c) => c.op === 'where')).toBe(false);
+    const sql = ds.queryCalls[1].sql;
+    // No debe contener LIKE si q está en blanco
+    expect(sql).not.toContain('LIKE');
   });
 
   it('findById arma detalle con direcciones y shapes agrupados por shapeId', async () => {

@@ -1,5 +1,3 @@
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 
 import '../../../../core/animation/motion.dart';
@@ -11,6 +9,8 @@ import '../../../../core/widgets/route_badge.dart';
 import '../../../../core/widgets/route_photo.dart';
 import '../../../routes/data/route_models.dart';
 import '../../application/micros_catalog.dart';
+import 'journey_direction_chip.dart';
+import 'journey_meta_pill.dart';
 
 // Tarjetas del **panel de micros**: la tarjeta de una línea (con sus botones
 // Ida/Vuelta) y la píldora de recorridos dibujados. Es UI pura por props y
@@ -228,7 +228,7 @@ class JourneyMicroTile extends StatelessWidget {
                                 duration: Motion.settle,
                                 curve: Curves.easeOutBack,
                                 scale: alive ? 1 : 0.5,
-                                child: _ActivePill(
+                                child: ActivePill(
                                   count: activeCount,
                                   tint: tint,
                                   cardBackground: colors.surface,
@@ -324,7 +324,7 @@ class JourneyMicroTile extends StatelessWidget {
                       for (var i = 0; i < directions.length; i++) ...[
                         if (i > 0) const SizedBox(width: 8),
                         Expanded(
-                          child: _DirectionChip(
+                          child: DirectionChip(
                             direction: directions[i],
                             tint: tint,
                             foreground: onTint,
@@ -384,392 +384,13 @@ class _LineMeta extends StatelessWidget {
       spacing: 6,
       runSpacing: 6,
       children: [
-        _MetaPill(
+        MetaPill(
           icon: lines ? Icons.swap_horiz_rounded : Icons.arrow_forward_rounded,
           label: lines ? 'Ida y vuelta' : 'Solo ida',
           fill: fill,
           ink: ink,
         ),
       ],
-    );
-  }
-}
-
-/// Píldora compacta de dato (sentido) con ícono y tinta ya resueltos.
-class _MetaPill extends StatelessWidget {
-  const _MetaPill({
-    required this.icon,
-    required this.label,
-    required this.fill,
-    required this.ink,
-  });
-
-  final IconData icon;
-  final String label;
-  final Color fill;
-  final Color ink;
-
-  @override
-  Widget build(BuildContext context) {
-    final text = context.text;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-      decoration: BoxDecoration(
-        color: fill,
-        borderRadius: BorderRadius.circular(AppRadius.pill),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 12, color: ink),
-          const SizedBox(width: 4),
-          Text(
-            label,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: (text.labelSmall ?? text.bodySmall)?.copyWith(
-              color: ink,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/// Píldora con el número de recorridos activos de una línea.
-class _ActivePill extends StatelessWidget {
-  const _ActivePill({
-    required this.count,
-    required this.tint,
-    required this.cardBackground,
-  });
-
-  final int count;
-  final Color tint;
-
-  /// Color de la tarjeta detrás de la píldora, para calcular el contraste.
-  final Color cardBackground;
-
-  @override
-  Widget build(BuildContext context) {
-    final text = context.text;
-    // El relleno de la píldora es el tinte al 16% sobre la tarjeta: el número
-    // y el ícono contrastan contra **esa mezcla**, no contra la superficie ni
-    // contra el tinte puro (un `2C3E50` sobre una hoja oscura sería ilegible).
-    final background = Color.lerp(cardBackground, tint, 0.16)!;
-    final ink = AppColors.legible(tint, background);
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-      decoration: BoxDecoration(
-        color: background,
-        borderRadius: BorderRadius.circular(AppRadius.pill),
-        border: Border.all(color: ink.withValues(alpha: 0.24)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(Icons.public_rounded, size: 11, color: ink),
-          const SizedBox(width: 3),
-          Text(
-            '$count',
-            style: (text.labelSmall ?? text.bodySmall)?.copyWith(
-              color: ink,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/// Chip botón de una dirección (Ida/Vuelta): forma de píldora; el relleno se
-/// anima hacia el color de la línea, el texto y el icono viran al foreground
-/// calculado por la tarjeta (de forma interpolada) y el check entra con
-/// rebote al dibujarse. Iconos circulares (`arrow_circle`) para el sentido.
-/// Muestra el headsign si el detalle de la línea ya se conoce —y sigue
-/// conociéndose al reabrir el panel, porque vive en la sesión—.
-class _DirectionChip extends StatelessWidget {
-  const _DirectionChip({
-    required this.direction,
-    required this.tint,
-    required this.foreground,
-    required this.active,
-    required this.loading,
-    required this.onTap,
-  });
-
-  final MicroDirection direction;
-  final Color tint;
-
-  /// Texto/íconos sobre el relleno sólido [tint] cuando el chip está activo.
-  /// Sale de `AppColors.onColor`, porque un color de línea claro (`F1C40F`)
-  /// con blanco encima es tan ilegible como un oscuro sobre fondo oscuro.
-  final Color foreground;
-  final bool active;
-
-  /// `true` mientras ESTE recorrido (ida/vuelta) se está cargando: el disco del
-  /// sentido gira como señal de espera en lugar de mostrar su flecha.
-  final bool loading;
-  final VoidCallback? onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.colors;
-    final text = context.text;
-    final headsign = direction.headsign;
-    final radius = BorderRadius.circular(AppRadius.pill);
-    // Relleno "vivo" del chip inactivo: una insinuación del color de la
-    // línea (9%) sobre la superficie, con borde del mismo tinte — el botón
-    // siempre sabe de qué línea es. Activo: relleno sólido con sombra.
-    final inactiveFill = Color.lerp(colors.surface, tint, 0.09)!;
-    final inactiveInk = AppColors.legible(
-      colors.onSurfaceVariant,
-      inactiveFill,
-    );
-    // Disco del ícono: el sentido se pinta en un círculo con el color de la
-    // línea incluso apagado (la tarjeta es un objeto de color, no un formulario).
-    final discFill = active
-        ? foreground.withValues(alpha: 0.2)
-        : Color.lerp(inactiveFill, tint, 0.2)!;
-    final discInk = active
-        ? foreground
-        : AppColors.legible(tint, discFill, minContrast: 3);
-
-    final chip = PressScale(
-      child: AnimatedContainer(
-        duration: Motion.release,
-        curve: Curves.easeOutCubic,
-        height: 40,
-        decoration: BoxDecoration(
-          color: active ? tint : inactiveFill,
-          borderRadius: radius,
-          border: Border.all(
-            color: active ? Colors.transparent : tint.withValues(alpha: 0.35),
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: tint.withValues(alpha: active ? 0.32 : 0),
-              blurRadius: active ? 12 : 0,
-              offset: const Offset(0, 3),
-            ),
-          ],
-        ),
-        child: Material(
-          type: MaterialType.transparency,
-          borderRadius: radius,
-          child: InkWell(
-            onTap: onTap,
-            borderRadius: radius,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 10),
-              // Un solo color interpolado para todo el contenido: texto e
-              // iconos lo heredan, así el cambio ida↔activo no es un salto.
-              child: TweenAnimationBuilder<Color?>(
-                duration: Motion.release,
-                curve: Curves.easeOut,
-                tween: ColorTween(end: active ? foreground : inactiveInk),
-                builder: (_, color, child) => IconTheme(
-                  data: IconThemeData(size: 17, color: color),
-                  child: DefaultTextStyle(
-                    style: DefaultTextStyle.of(context).style
-                        .copyWith(color: color),
-                    child: child!,
-                  ),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    // Disco del sentido: el ícono lleva el color de la línea
-                    // dentro de un círculo (el chip apagado también dice de
-                    // quién es, sin gritar).
-                    AnimatedContainer(
-                      duration: Motion.release,
-                      curve: Curves.easeOutCubic,
-                      width: 22,
-                      height: 22,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: discFill,
-                      ),
-                      child: TweenAnimationBuilder<Color?>(
-                        duration: Motion.release,
-                        curve: Curves.easeOut,
-                        tween: ColorTween(end: discInk),
-                        builder: (_, color, _) => loading
-                            ? _DiscSpinner(color: color ?? discInk)
-                            : Icon(
-                                direction.directionId == 0
-                                    ? Icons.arrow_circle_right_outlined
-                                    : Icons.arrow_circle_left_outlined,
-                                size: 16,
-                                color: color,
-                              ),
-                      ),
-                    ),
-                    const SizedBox(width: 5),
-                    Flexible(
-                      child: Text(
-                        direction.label,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: (text.labelMedium ?? text.bodySmall)?.copyWith(
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: 0.2,
-                        ),
-                      ),
-                    ),
-                    if (headsign.isNotEmpty) ...[
-                      const SizedBox(width: 4),
-                      Flexible(
-                        child: Text(
-                          headsign,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: (text.bodySmall ?? text.labelSmall)?.copyWith(
-                            fontSize: 10.5,
-                            color: active
-                                ? foreground.withValues(alpha: 0.88)
-                                : inactiveInk,
-                          ),
-                        ),
-                      ),
-                    ],
-                    if (active && !loading) ...[
-                      const SizedBox(width: 5),
-                      // El check entra con rebote la primera vez que se
-                      // dibuja (TweenAnimationBuilder arranca en `begin`).
-                      TweenAnimationBuilder<double>(
-                        duration: Motion.morph,
-                        curve: Curves.easeOutBack,
-                        tween: Tween(begin: 0.3, end: 1),
-                        builder: (_, scale, child) =>
-                            Transform.scale(scale: scale, child: child),
-                        child: const Icon(Icons.check_circle_rounded, size: 16),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-
-    // La píldora marca y da tamaño al Stack; el barrido de espera va ENCIMA,
-    // recortado al radio de la píldora e ignorando toques (el InkWell sigue
-    // siendo el dueño del gesto).
-    return Stack(
-      children: [
-        chip,
-        if (loading)
-          Positioned.fill(
-            child: ClipRRect(
-              borderRadius: radius,
-              child: IgnorePointer(child: _ChipShimmer(tint: tint)),
-            ),
-          ),
-      ],
-    );
-  }
-}
-
-/// Giro de carga que reemplaza la flecha del sentido mientras se pide el
-/// recorrido. Va dentro del disco del chip, pintado con la tinta ya resuelta
-/// (contrasta con el relleno del botón, tema claro u oscuro). La rotación la
-/// mueve un [Ambient] —el kit de la casa—, así respeta «reducir animaciones»
-/// (queda quieto) y acota sus vueltas bajo `flutter test` para que
-/// `pumpAndSettle` converja; no es un `CircularProgressIndicator` (su ticker
-/// eterno nunca converge).
-class _DiscSpinner extends StatelessWidget {
-  const _DiscSpinner({required this.color});
-
-  final Color color;
-
-  static const double _size = 14;
-
-  @override
-  Widget build(BuildContext context) {
-    return Ambient(
-      period: const Duration(milliseconds: 850),
-      builder: (context, _, phase, _) => Transform.rotate(
-        angle: phase * 2 * math.pi,
-        child: CustomPaint(
-          size: const Size.square(_size),
-          painter: _SpinnerArcPainter(color: color),
-        ),
-      ),
-    );
-  }
-}
-
-/// Dos arcos opuestos y redondeados: la silueta clásica de «cargando».
-class _SpinnerArcPainter extends CustomPainter {
-  _SpinnerArcPainter({required this.color});
-
-  final Color color;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final stroke = size.width * 0.17;
-    final rect = (Offset.zero & size).deflate(stroke / 2);
-    final paint = Paint()
-      ..color = color
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round
-      ..strokeWidth = stroke;
-    const sweep = math.pi * 0.62;
-    canvas.drawArc(rect, 0, sweep, false, paint);
-    canvas.drawArc(rect, math.pi, sweep, false, paint);
-  }
-
-  // La rotación la aplica el `Transform.rotate` del _DiscSpinner; la geometría
-  // del pintor es fija, así no hay que repintar por frame.
-  @override
-  bool shouldRepaint(_SpinnerArcPainter oldDelegate) =>
-      oldDelegate.color != color;
-}
-
-/// Barrido de espera que recorre el chip mientras se pide SU recorrido. Es el
-/// mismo lenguaje del [LoadingShimmer] de la casa (un destello que entra y sale
-/// por los bordes, leído como «está pasando algo», no como espera muerta), pero
-/// teñido con el color de la línea: una franja clara cruza la píldora de
-/// izquierda a derecha. Lo mueve un [Ambient] —kit sancionado—, así respeta
-/// «reducir animaciones» (banda fuera de escena, quieta) y acota sus vueltas
-/// bajo `flutter test` para que `pumpAndSettle` converja.
-class _ChipShimmer extends StatelessWidget {
-  const _ChipShimmer({required this.tint});
-
-  final Color tint;
-
-  @override
-  Widget build(BuildContext context) {
-    return Ambient(
-      period: const Duration(milliseconds: 1300),
-      builder: (context, _, phase, _) {
-        // Viaja de fuera-del-borde-izquierdo a fuera-del-borde-derecho; en los
-        // extremos la banda está entera fuera, así el reinicio del bucle no
-        // produce salto visible.
-        final cx = -1.6 + 3.2 * phase;
-        return DecoratedBox(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment(cx - 0.5, -0.3),
-              end: Alignment(cx + 0.5, 0.3),
-              colors: [
-                Colors.transparent,
-                Color.lerp(tint, Colors.white, 0.6)!.withValues(alpha: 0.5),
-                Colors.transparent,
-              ],
-              stops: const [0.0, 0.5, 1.0],
-            ),
-          ),
-          child: const SizedBox.expand(),
-        );
-      },
     );
   }
 }

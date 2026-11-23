@@ -5,18 +5,16 @@ import 'package:go_router/go_router.dart';
 import '../../../core/animation/motion.dart';
 import '../../../core/network/api_client.dart';
 import '../../../core/router/app_router.dart';
-import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../core/theme/html_design_tokens.dart' show HtmlDesignTokens;
 import '../../../core/utils/debouncer.dart';
 import '../../../core/utils/extensions.dart';
 import '../../../core/widgets/empty_state.dart';
 import '../../../core/widgets/error_view.dart';
 import '../../../core/widgets/loading_shimmer.dart';
-import '../../../core/widgets/route_badge.dart';
-import '../../../core/widgets/urbano_back_button.dart';
 import '../data/route_models.dart';
 import '../data/route_repository.dart';
-import 'widgets/micro_bus_art.dart';
+import 'widgets/micros_card.dart';
 
 /// **Catálogo completo de micros** en pantalla propia.
 ///
@@ -150,95 +148,765 @@ class _MicrosScreenState extends ConsumerState<MicrosScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.colors;
+    final dark = Theme.of(context).brightness == Brightness.dark;
     return Scaffold(
-      backgroundColor: colors.surfaceContainerLowest,
-      appBar: AppBar(
-        leading: const UrbanoBackButton(),
-        title: const Text('Micros'),
-      ),
+      backgroundColor: dark
+          ? HtmlDesignTokens.slate900
+          : HtmlDesignTokens.slate50,
       body: SafeArea(
-        top: false,
+        bottom: false,
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            _CatalogIntro(total: _total, loading: _loading),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(
-                AppSpace.lg,
-                AppSpace.sm,
-                AppSpace.lg,
-                AppSpace.sm,
-              ),
-              child: _SearchField(
-                controller: _search,
-                onChanged: _onQueryChanged,
-                onClear: () {
-                  _search.clear();
-                  _loadFirstPage();
-                },
-                onSubmitted: (_) {
-                  _debounce.cancel();
-                  _loadFirstPage();
-                },
+            // Custom header con backdrop blur
+            _buildHeader(context),
+            // Contenido scrolleable
+            Expanded(
+              child: CustomScrollView(
+                controller: _scroll,
+                slivers: [
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(
+                        AppSpace.lg,
+                        AppSpace.md,
+                        AppSpace.lg,
+                        0,
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Hero banner
+                          _buildHeroBanner(context),
+                          const SizedBox(height: AppSpace.md),
+                          // Search + filter chips
+                          _buildSearchAndFilters(context),
+                        ],
+                      ),
+                    ),
+                  ),
+                  // Route list
+                  if (_loading)
+                    const SliverToBoxAdapter(child: SkeletonList())
+                  else if (_error != null)
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: const EdgeInsets.all(AppSpace.lg),
+                        child: ErrorView(
+                          error: _error,
+                          onRetry: _loadFirstPage,
+                        ),
+                      ),
+                    )
+                  else if (_routes.isEmpty)
+                    SliverToBoxAdapter(child: _buildEmptyState(context))
+                  else
+                    _buildRouteListSliver(context),
+                ],
               ),
             ),
-            Expanded(child: _body(context)),
           ],
         ),
       ),
     );
   }
 
-  Widget _body(BuildContext context) {
-    if (_loading) {
-      return const SkeletonList();
-    }
-    if (_error != null) {
-      return ErrorView(error: _error, onRetry: _loadFirstPage);
-    }
-    if (_routes.isEmpty) {
-      final query = _search.text.trim();
-      return EmptyState(
-        icon: Icons.directions_bus_outlined,
-        title: query.isEmpty
-            ? 'Todavía no hay líneas'
-            : 'Sin líneas para "$query"',
-        message: query.isEmpty
-            ? 'El catálogo se llena cuando el backend importa el feed GTFS.'
-            : 'Prueba con otro número o nombre de línea.',
-        actionLabel: query.isEmpty ? null : 'Limpiar búsqueda',
-        onAction: query.isEmpty
-            ? null
-            : () {
-                _search.clear();
-                _loadFirstPage();
-              },
-      );
-    }
+  /// Header personalizado: back button, título "Micros" + badge "SCZ",
+  /// botones de mapa y notificaciones.
+  Widget _buildHeader(BuildContext context) {
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    final bg = dark
+        ? HtmlDesignTokens.slate800.withValues(alpha: 0.9)
+        : HtmlDesignTokens.white.withValues(alpha: 0.9);
+    final border = dark
+        ? HtmlDesignTokens.slate700.withValues(alpha: 0.3)
+        : HtmlDesignTokens.slate200.withValues(alpha: 0.5);
 
-    return RefreshIndicator(
-      onRefresh: () => _loadFirstPage(skeleton: false),
-      child: ListView.separated(
-        key: const ValueKey('micros-list'),
-        controller: _scroll,
-        physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.fromLTRB(
-          AppSpace.lg,
-          AppSpace.xs,
-          AppSpace.lg,
-          AppSpace.xxl,
+    return Container(
+      padding: const EdgeInsets.fromLTRB(
+        AppSpace.lg,
+        AppSpace.sm,
+        AppSpace.lg,
+        AppSpace.md,
+      ),
+      decoration: BoxDecoration(
+        color: bg,
+        border: Border(bottom: BorderSide(color: border)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          // Back button
+          PressScale(
+            scale: 0.95,
+            child: InkWell(
+              onTap: () => context.pop(),
+              borderRadius: BorderRadius.circular(20),
+              child: Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: dark
+                      ? HtmlDesignTokens.slate700
+                      : HtmlDesignTokens.white,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: dark
+                        ? HtmlDesignTokens.slate600
+                        : HtmlDesignTokens.slate200.withValues(alpha: 0.7),
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.06),
+                      blurRadius: 4,
+                      offset: const Offset(0, 1),
+                    ),
+                  ],
+                ),
+                child: Icon(
+                  Icons.chevron_left_rounded,
+                  size: 20,
+                  color: dark
+                      ? HtmlDesignTokens.slate300
+                      : HtmlDesignTokens.slate700,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          // Title + subtitle
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Text(
+                      'Micros',
+                      style: context.text.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w800,
+                        color: dark
+                            ? HtmlDesignTokens.white
+                            : HtmlDesignTokens.slate900,
+                        letterSpacing: -0.5,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    // SCZ badge
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 2,
+                      ),
+                      decoration: BoxDecoration(
+                        color: HtmlDesignTokens.emerald100,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: HtmlDesignTokens.emerald200.withValues(
+                            alpha: 0.8,
+                          ),
+                        ),
+                      ),
+                      child: Text(
+                        'SCZ',
+                        style: context.text.labelSmall?.copyWith(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w800,
+                          color: HtmlDesignTokens.emerald800,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 1),
+                Text(
+                  'Santa Cruz de la Sierra',
+                  style: context.text.labelSmall?.copyWith(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: dark
+                        ? HtmlDesignTokens.slate400
+                        : HtmlDesignTokens.slate500,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          // Action buttons
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Map button
+              PressScale(
+                scale: 0.95,
+                child: Container(
+                  width: 40,
+                  height: 40,
+                  margin: const EdgeInsets.only(right: 8),
+                  decoration: BoxDecoration(
+                    color: HtmlDesignTokens.emerald50,
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: HtmlDesignTokens.emerald200.withValues(alpha: 0.6),
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.03),
+                        blurRadius: 2,
+                        offset: const Offset(0, 1),
+                      ),
+                    ],
+                  ),
+                  child: const Icon(
+                    Icons.map_outlined,
+                    size: 20,
+                    color: HtmlDesignTokens.emerald700,
+                  ),
+                ),
+              ),
+              // Notification button
+              PressScale(
+                scale: 0.95,
+                child: Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: dark
+                        ? HtmlDesignTokens.slate700
+                        : HtmlDesignTokens.white,
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: dark
+                          ? HtmlDesignTokens.slate600
+                          : HtmlDesignTokens.slate200.withValues(alpha: 0.7),
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.06),
+                        blurRadius: 4,
+                        offset: const Offset(0, 1),
+                      ),
+                    ],
+                  ),
+                  child: Stack(
+                    children: [
+                      Icon(
+                        Icons.notifications_outlined,
+                        size: 20,
+                        color: dark
+                            ? HtmlDesignTokens.slate300
+                            : HtmlDesignTokens.slate600,
+                      ),
+                      Positioned(
+                        top: 6,
+                        right: 6,
+                        child: Container(
+                          width: 8,
+                          height: 8,
+                          decoration: BoxDecoration(
+                            color: HtmlDesignTokens.emerald500,
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: dark
+                                  ? HtmlDesignTokens.slate700
+                                  : HtmlDesignTokens.white,
+                              width: 2,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Hero banner: gradiente esmeralda, ícono de micro, título,
+  /// contador de líneas activas, tarifa y horario.
+  Widget _buildHeroBanner(BuildContext context) {
+    final text = context.text;
+    return Container(
+      padding: const EdgeInsets.all(AppSpace.md),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(AppRadius.xl),
+        // HTML: from-emerald-800 via-[#064e3b] to-teal-950
+        // Tailwind emerald-800 = #064E3B = HtmlDesignTokens.emerald900
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            HtmlDesignTokens.emerald900,
+            HtmlDesignTokens.emerald900,
+            HtmlDesignTokens.teal950,
+          ],
         ),
-        itemCount: _routes.length + (_loadingMore ? 1 : 0),
-        separatorBuilder: (_, index) => index < _routes.length - 1
-            ? const SizedBox(height: AppSpace.md)
-            : const SizedBox(height: AppSpace.sm),
-        itemBuilder: (context, index) {
-          if (index >= _routes.length) {
-            // Pie de paginación: texto estable (nada de spinners infinitos que
-            // dejen `pumpAndSettle` sin converger en los tests).
+        border: Border.all(
+          color: HtmlDesignTokens.emerald600.withValues(alpha: 0.3),
+        ),
+        // HTML: shadow-floating = 0 12px 30px -4px rgba(6, 78, 59, 0.28)
+        boxShadow: [
+          BoxShadow(
+            color: HtmlDesignTokens.emerald700.withValues(alpha: 0.28),
+            blurRadius: 30,
+            offset: const Offset(0, 12),
+            spreadRadius: -4,
+          ),
+        ],
+      ),
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          // Ambient glow effects
+          Positioned(
+            right: -32,
+            bottom: -40,
+            child: Container(
+              width: 176,
+              height: 176,
+              decoration: BoxDecoration(
+                color: HtmlDesignTokens.emerald400.withValues(alpha: 0.1),
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: HtmlDesignTokens.emerald400.withValues(alpha: 0.05),
+                    blurRadius: 48,
+                  ),
+                ],
+              ),
+            ),
+          ),
+          Positioned(
+            right: 56,
+            top: -24,
+            child: Container(
+              width: 112,
+              height: 112,
+              decoration: BoxDecoration(
+                color: HtmlDesignTokens.teal300.withValues(alpha: 0.15),
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: HtmlDesignTokens.teal300.withValues(alpha: 0.08),
+                    blurRadius: 32,
+                  ),
+                ],
+              ),
+            ),
+          ),
+          // Content
+          Column(
+            children: [
+              Row(
+                children: [
+                  // Bus icon
+                  Container(
+                    width: 44,
+                    height: 44,
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: HtmlDesignTokens.white.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(AppRadius.tile),
+                      border: Border.all(
+                        color: HtmlDesignTokens.white.withValues(alpha: 0.2),
+                      ),
+                    ),
+                    child: const Icon(
+                      Icons.directions_bus_rounded,
+                      size: 24,
+                      color: HtmlDesignTokens.emerald200,
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                  // Title + count
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                'Red Urbana de Micros',
+                                style: text.titleSmall?.copyWith(
+                                  fontWeight: FontWeight.w800,
+                                  color: HtmlDesignTokens.white,
+                                  letterSpacing: -0.3,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                color: HtmlDesignTokens.emerald400.withValues(
+                                  alpha: 0.2,
+                                ),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: HtmlDesignTokens.emerald300.withValues(
+                                    alpha: 0.3,
+                                  ),
+                                ),
+                              ),
+                              child: Text(
+                                '$_total líneas activas',
+                                style: text.labelSmall?.copyWith(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w700,
+                                  color: HtmlDesignTokens.emerald100,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          'Toca cualquier línea para ver su recorrido y paradas',
+                          style: text.labelSmall?.copyWith(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w500,
+                            color: HtmlDesignTokens.emerald100.withValues(
+                              alpha: 0.8,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              // HTML: mt-3 pt-2.5 border-t border-white/10
+              const SizedBox(height: 12),
+              Padding(
+                padding: const EdgeInsets.only(top: 10),
+                child: Divider(
+                  height: 0,
+                  color: HtmlDesignTokens.white.withValues(alpha: 0.1),
+                ),
+              ),
+              const SizedBox(height: 8),
+              // Footer: fare + hours (HTML: flex-wrap gap-2)
+              Wrap(
+                spacing: 8,
+                runSpacing: 6,
+                children: [
+                  // Fare pill — HTML: bg-emerald-500/20 + pulse dot + white bold text
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: HtmlDesignTokens.emerald500.withValues(alpha: 0.2),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: HtmlDesignTokens.emerald400.withValues(
+                          alpha: 0.3,
+                        ),
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          width: 8,
+                          height: 8,
+                          decoration: const BoxDecoration(
+                            color: HtmlDesignTokens.emerald300,
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Tarifa oficial: Bs. 3.50',
+                          style: text.labelSmall?.copyWith(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            color: HtmlDesignTokens.white,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  // Hours pill — HTML: bg-white/10
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: HtmlDesignTokens.white.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: HtmlDesignTokens.white.withValues(alpha: 0.1),
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(
+                          Icons.schedule_rounded,
+                          size: 14,
+                          color: HtmlDesignTokens.emerald300,
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          '05:00 - 23:30',
+                          style: text.labelSmall?.copyWith(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w500,
+                            color: HtmlDesignTokens.emerald100.withValues(
+                              alpha: 0.9,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Búsqueda con chips de filtro horizontales.
+  Widget _buildSearchAndFilters(BuildContext context) {
+    final text = context.text;
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    final ink = dark ? HtmlDesignTokens.slate300 : HtmlDesignTokens.slate800;
+    final softInk = dark
+        ? HtmlDesignTokens.slate400
+        : HtmlDesignTokens.slate400;
+    final hairline = dark
+        ? HtmlDesignTokens.slate600
+        : HtmlDesignTokens.slate200.withValues(alpha: 0.9);
+    final fieldBg = dark ? HtmlDesignTokens.slate800 : HtmlDesignTokens.white;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Search field
+        TextField(
+          controller: _search,
+          onChanged: _onQueryChanged,
+          onSubmitted: (_) {
+            _debounce.cancel();
+            _loadFirstPage();
+          },
+          textInputAction: TextInputAction.search,
+          cursorColor: HtmlDesignTokens.emerald600,
+          style: text.bodyMedium?.copyWith(
+            color: ink,
+            fontWeight: FontWeight.w500,
+          ),
+          decoration: InputDecoration(
+            hintText: 'Busca por número, avenida o zona...',
+            hintStyle: text.bodyMedium?.copyWith(color: softInk),
+            prefixIcon: Icon(Icons.search_rounded, size: 20, color: softInk),
+            prefixIconConstraints: const BoxConstraints(
+              minWidth: 44,
+              minHeight: 44,
+            ),
+            suffixIcon: ValueListenableBuilder<TextEditingValue>(
+              valueListenable: _search,
+              builder: (context, value, _) {
+                if (value.text.isEmpty) {
+                  return IconButton(
+                    icon: Icon(Icons.tune_rounded, size: 16, color: softInk),
+                    onPressed: () {},
+                    padding: const EdgeInsets.all(8),
+                    constraints: const BoxConstraints(),
+                  );
+                }
+                return IconButton(
+                  icon: Icon(Icons.close_rounded, size: 16, color: softInk),
+                  onPressed: () {
+                    _search.clear();
+                    _loadFirstPage();
+                  },
+                  padding: const EdgeInsets.all(8),
+                  constraints: const BoxConstraints(),
+                );
+              },
+            ),
+            filled: true,
+            fillColor: fieldBg,
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: 12,
+            ),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(AppRadius.md),
+              borderSide: BorderSide(color: hairline),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(AppRadius.md),
+              borderSide: BorderSide(color: hairline),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(AppRadius.md),
+              borderSide: const BorderSide(
+                color: HtmlDesignTokens.emerald600,
+                width: 2,
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        // Filter chips
+        SizedBox(
+          height: 32,
+          child: ListView(
+            scrollDirection: Axis.horizontal,
+            shrinkWrap: true,
+            physics: const ClampingScrollPhysics(),
+            children: [
+              _filterChip(context, text, 'Todos', '$_total', true),
+              const SizedBox(width: 8),
+              _filterChip(context, text, '⭐ Favoritos'),
+              const SizedBox(width: 8),
+              _filterChip(context, text, 'Casco Viejo / Centro'),
+              const SizedBox(width: 8),
+              _filterChip(context, text, 'Anillos (1° al 4°)'),
+              const SizedBox(width: 8),
+              _filterChip(context, text, 'Plan 3000'),
+              const SizedBox(width: 8),
+              _filterChip(context, text, 'Villa 1° de Mayo'),
+              const SizedBox(width: 8),
+              _filterChip(context, text, 'Pampa de la Isla'),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _filterChip(
+    BuildContext context,
+    TextTheme text,
+    String label, [
+    String? count,
+    bool isSelected = false,
+  ]) {
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    return PressScale(
+      scale: 0.97,
+      child: InkWell(
+        onTap: () {},
+        borderRadius: BorderRadius.circular(20),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+          decoration: BoxDecoration(
+            color: isSelected
+                ? HtmlDesignTokens.emerald700
+                : (dark ? HtmlDesignTokens.slate700 : HtmlDesignTokens.white),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: isSelected
+                  ? HtmlDesignTokens.emerald800
+                  : (dark
+                        ? HtmlDesignTokens.slate600
+                        : HtmlDesignTokens.slate200.withValues(alpha: 0.9)),
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.03),
+                blurRadius: 2,
+                offset: const Offset(0, 1),
+              ),
+            ],
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                label,
+                style: text.labelSmall?.copyWith(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: isSelected
+                      ? HtmlDesignTokens.white
+                      : (dark
+                            ? HtmlDesignTokens.slate300
+                            : HtmlDesignTokens.slate600),
+                ),
+              ),
+              if (count != null) ...[
+                const SizedBox(width: 6),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 2,
+                  ),
+                  decoration: BoxDecoration(
+                    color: isSelected
+                        ? HtmlDesignTokens.emerald800.withValues(alpha: 0.9)
+                        : HtmlDesignTokens.slate100,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    count,
+                    style: text.labelSmall?.copyWith(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700,
+                      color: isSelected
+                          ? HtmlDesignTokens.emerald100
+                          : HtmlDesignTokens.slate600,
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEmptyState(BuildContext context) {
+    final query = _search.text.trim();
+    return EmptyState(
+      icon: Icons.directions_bus_outlined,
+      title: query.isEmpty
+          ? 'Todavía no hay líneas'
+          : 'Sin líneas para "$query"',
+      message: query.isEmpty
+          ? 'El catálogo se llena cuando el backend importa el feed GTFS.'
+          : 'Prueba con otro número o nombre de línea.',
+      actionLabel: query.isEmpty ? null : 'Limpiar búsqueda',
+      onAction: query.isEmpty
+          ? null
+          : () {
+              _search.clear();
+              _loadFirstPage();
+            },
+    );
+  }
+
+  Widget _buildRouteListSliver(BuildContext context) {
+    return SliverList(
+      delegate: SliverChildBuilderDelegate((context, index) {
+        if (index >= _routes.length) {
+          if (_loadingMore) {
             return Padding(
-              padding: const EdgeInsets.only(top: AppSpace.lg),
+              padding: const EdgeInsets.symmetric(vertical: AppSpace.lg),
               child: Center(
                 child: Text(
                   'Cargando más líneas…',
@@ -249,389 +917,22 @@ class _MicrosScreenState extends ConsumerState<MicrosScreen> {
               ),
             );
           }
-          final route = _routes[index];
-          return Reveal(
-            key: ValueKey('micros-card-${route.id}'),
-            index: index,
-            slide: 8,
-            child: _MicroCard(route: route, onTap: () => _openDetail(route)),
-          );
-        },
-      ),
-    );
-  }
-}
-
-/// Portada del catálogo: una hoja con el color de marca y las cifras vivas.
-class _CatalogIntro extends StatelessWidget {
-  const _CatalogIntro({required this.total, required this.loading});
-
-  final int total;
-  final bool loading;
-
-  @override
-  Widget build(BuildContext context) {
-    final ink = AppColors.onColor(AppColors.primaryDark);
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(
-        AppSpace.lg,
-        AppSpace.sm,
-        AppSpace.lg,
-        0,
-      ),
-      child: Container(
-        padding: const EdgeInsets.fromLTRB(
-          AppSpace.md,
-          AppSpace.md,
-          AppSpace.md,
-          AppSpace.sm,
-        ),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(AppRadius.lg),
-          gradient: const LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [AppColors.primaryDark, AppColors.primary],
+          return null;
+        }
+        final route = _routes[index];
+        return Reveal(
+          key: ValueKey('micros-card-${route.id}'),
+          index: index,
+          slide: 8,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpace.lg,
+              vertical: 6,
+            ),
+            child: MicroCard(route: route, onTap: () => _openDetail(route)),
           ),
-          boxShadow: [
-            BoxShadow(
-              color: AppColors.primaryDark.withValues(alpha: 0.24),
-              blurRadius: 18,
-              offset: const Offset(0, 8),
-            ),
-          ],
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 42,
-              height: 42,
-              decoration: BoxDecoration(
-                color: ink.withValues(alpha: 0.14),
-                borderRadius: BorderRadius.circular(AppRadius.tile),
-                border: Border.all(color: ink.withValues(alpha: 0.22)),
-              ),
-              child: Icon(Icons.directions_bus_rounded, size: 22, color: ink),
-            ),
-            const SizedBox(width: AppSpace.md),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Todas las líneas de Santa Cruz',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: context.text.titleSmall?.copyWith(
-                      color: ink,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    loading
-                        ? 'Cargando el catálogo…'
-                        : '$total líneas · toca una para ver su recorrido',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: context.text.labelSmall?.copyWith(
-                      color: ink.withValues(alpha: 0.86),
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            if (!loading)
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: AppSpace.sm,
-                  vertical: 4,
-                ),
-                decoration: BoxDecoration(
-                  color: ink.withValues(alpha: 0.16),
-                  borderRadius: BorderRadius.circular(AppRadius.pill),
-                ),
-                child: Text(
-                  '$total',
-                  style: context.text.labelMedium?.copyWith(
-                    color: ink,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _SearchField extends StatelessWidget {
-  const _SearchField({
-    required this.controller,
-    required this.onChanged,
-    required this.onClear,
-    required this.onSubmitted,
-  });
-
-  final TextEditingController controller;
-  final ValueChanged<String> onChanged;
-  final VoidCallback onClear;
-  final ValueChanged<String> onSubmitted;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.colors;
-    final text = context.text;
-    final dark = Theme.of(context).brightness == Brightness.dark;
-    // Buscador de grafito con filete e íconos blancos: el relieve lo da el
-    // borde claro, no un relleno blanco.
-    final ink = colors.onSurface;
-    final softInk = colors.onSurfaceVariant;
-    final hairline = dark ? AppColors.lineDark : colors.outlineVariant;
-    return TextField(
-      controller: controller,
-      onChanged: onChanged,
-      onSubmitted: onSubmitted,
-      textInputAction: TextInputAction.search,
-      cursorColor: colors.primary,
-      style: text.bodyLarge?.copyWith(color: ink),
-      decoration: InputDecoration(
-        hintText: 'Busca por número o nombre',
-        hintStyle: text.bodyMedium?.copyWith(color: softInk),
-        prefixIcon: const Icon(Icons.search_rounded),
-        prefixIconColor: ink,
-        suffixIconColor: softInk,
-        suffixIcon: ValueListenableBuilder<TextEditingValue>(
-          valueListenable: controller,
-          builder: (context, value, _) => value.text.isEmpty
-              ? const SizedBox.shrink()
-              : IconButton(
-                  tooltip: 'Limpiar búsqueda',
-                  onPressed: onClear,
-                  icon: const Icon(Icons.close_rounded, size: 20),
-                ),
-        ),
-        filled: true,
-        fillColor: colors.surface,
-        contentPadding: const EdgeInsets.symmetric(vertical: 14),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(AppRadius.input),
-          borderSide: BorderSide(color: hairline),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(AppRadius.input),
-          borderSide: BorderSide(color: hairline),
-        ),
-      ),
-    );
-  }
-}
-
-/// Tarjeta de una línea: su micro ilustrado, identidad GTFS, cifras y
-/// «Ver detalles».
-///
-/// La franja izquierda y el bus comparten el color del feed, así la lista se
-/// escanea por línea sin leer el número. No hay paradas: el catálogo solo
-/// conoce lo que el backend expone de cada ruta (viajes y sentidos).
-class _MicroCard extends StatelessWidget {
-  const _MicroCard({required this.route, required this.onTap});
-
-  final RouteSummary route;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.colors;
-    final text = context.text;
-    final dark = Theme.of(context).brightness == Brightness.dark;
-    final ink = colors.onSurface;
-    final softInk = colors.onSurfaceVariant;
-    final accent = AppColors.fromHex(route.color);
-    // El color de la línea entra teñido en la placa del bus y sólido en la
-    // franja: nunca como relleno de la tarjeta.
-    final tinted = AppColors.tint(accent, colors.surface, dark ? 0.18 : 0.10);
-    final stripe = AppColors.legible(accent, colors.surface);
-    final radius = BorderRadius.circular(AppRadius.lg);
-    final hairline = dark
-        ? AppColors.lineDark
-        : colors.outlineVariant.withValues(alpha: 0.7);
-
-    return PressScale(
-      scale: 0.985,
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          borderRadius: radius,
-          boxShadow: dark
-              ? [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.32),
-                    blurRadius: 18,
-                    offset: const Offset(0, 8),
-                  ),
-                ]
-              : AppTheme.softShadow(opacity: 0.05, blur: 16),
-        ),
-        child: Material(
-          color: colors.surface,
-          borderRadius: radius,
-          clipBehavior: Clip.antiAlias,
-          child: InkWell(
-            onTap: onTap,
-            splashColor: ink.withValues(alpha: 0.05),
-            child: Container(
-              decoration: BoxDecoration(
-                borderRadius: radius,
-                border: Border.all(color: hairline),
-              ),
-              child: Stack(
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(
-                      AppSpace.md,
-                      AppSpace.md,
-                      AppSpace.md,
-                      AppSpace.sm,
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Container(
-                              width: 66,
-                              height: 54,
-                              alignment: Alignment.center,
-                              decoration: BoxDecoration(
-                                color: tinted,
-                                borderRadius: BorderRadius.circular(
-                                  AppRadius.tile,
-                                ),
-                              ),
-                              child: MicroBusArt(color: accent),
-                            ),
-                            const SizedBox(width: AppSpace.md),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Row(
-                                    children: [
-                                      RouteBadge(
-                                        label: route.shortName,
-                                        colorHex: route.color,
-                                        textColorHex: route.textColor,
-                                        size: RouteBadgeSize.small,
-                                        heroTag:
-                                            'route-badge-micros-${route.id}',
-                                      ),
-                                      const Spacer(),
-                                      Icon(
-                                        Icons.chevron_right_rounded,
-                                        size: 20,
-                                        color: softInk,
-                                      ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    route.longName,
-                                    maxLines: 2,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: text.titleSmall?.copyWith(
-                                      fontWeight: FontWeight.w800,
-                                      height: 1.15,
-                                      color: ink,
-                                    ),
-                                  ),
-                                  if (route.description.isNotEmpty) ...[
-                                    const SizedBox(height: 2),
-                                    Text(
-                                      route.description,
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: text.bodySmall?.copyWith(
-                                        color: softInk,
-                                      ),
-                                    ),
-                                  ],
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: AppSpace.sm),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: Wrap(
-                                spacing: AppSpace.sm,
-                                runSpacing: AppSpace.xs,
-                                children: [
-                                  MetaChip(
-                                    icon: Icons.schedule_rounded,
-                                    label: '${route.tripCount} rutas',
-                                  ),
-                                  if (route.directionsCount > 1)
-                                    const MetaChip(
-                                      icon: Icons.swap_horiz_rounded,
-                                      label: 'Ida y vuelta',
-                                    ),
-                                ],
-                              ),
-                            ),
-                            const SizedBox(width: AppSpace.xs),
-                            TextButton(
-                              onPressed: onTap,
-                              style: TextButton.styleFrom(
-                                minimumSize: Size.zero,
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: AppSpace.sm,
-                                  vertical: AppSpace.xs,
-                                ),
-                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                                visualDensity: VisualDensity.compact,
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  const Text('Ver detalles'),
-                                  const SizedBox(width: 2),
-                                  Icon(
-                                    Icons.arrow_forward_rounded,
-                                    size: 15,
-                                    color: colors.primary,
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                  Positioned(
-                    left: 0,
-                    top: 0,
-                    bottom: 0,
-                    child: Container(
-                      width: 4,
-                      decoration: BoxDecoration(
-                        color: stripe,
-                        borderRadius: const BorderRadius.horizontal(
-                          left: Radius.circular(AppRadius.lg),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
+        );
+      }, childCount: _routes.length + (_loadingMore ? 1 : 0)),
     );
   }
 }

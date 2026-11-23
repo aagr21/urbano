@@ -362,8 +362,8 @@ void main() {
         // El color de la insignia es el de la polilínea del mismo tramo.
         expect((marker.child as dynamic).color, const Color(0xFFD35400));
 
-        // Y la leyenda dice qué micro es con ese mismo color.
-        expect(find.text('Micro 1'), findsOneWidget);
+        // Y la leyenda dice qué línea es con ese mismo color.
+        expect(find.text('Línea 1'), findsOneWidget);
         expect(find.text('Caminata'), findsOneWidget);
         expect(find.text('Transbordo'), findsOneWidget);
       },
@@ -391,9 +391,9 @@ void main() {
       expect(second.point.latitude, closeTo(-17.7875, 1e-9));
       expect(second.point.longitude, closeTo(-63.1575, 1e-9));
 
-      // Leyenda con los dos micros y la fila de transbordo.
-      expect(find.text('Micro 101 ANGOSTURA'), findsOneWidget);
-      expect(find.text('Micro 5'), findsOneWidget);
+      // Leyenda con las dos líneas y la fila de transbordo.
+      expect(find.text('Línea 101 ANGOSTURA'), findsOneWidget);
+      expect(find.text('Línea 5'), findsOneWidget);
       expect(find.text('Transbordo'), findsOneWidget);
     });
   });
@@ -746,12 +746,30 @@ void main() {
       // nativa no se creó ni se destruyó entre estados.
       expect(tester.element(find.byType(JourneyResultMap)), same(mapElement));
       expect(find.text('Opción 1 en el mapa'), findsOneWidget);
-      expect(find.text('En el mapa'), findsOneWidget);
+      // La primera opción se rotula como la mejor del viaje, ENCIMA de la
+      // tarjeta y con jerarquía de título (ya no hay chip "En el mapa").
+      expect(find.text('Mejor opción de viaje'), findsOneWidget);
+      expect(find.text('En el mapa'), findsNothing);
+      final heading = tester.getRect(find.text('Mejor opción de viaje'));
+      final firstCard = tester.getRect(find.text('Directo'));
+      expect(
+        heading.bottom,
+        lessThanOrEqualTo(firstCard.top),
+        reason: 'el título de la mejor opción va arriba de su tarjeta',
+      );
+      expect(
+        tester.widget<Text>(find.text('Mejor opción de viaje')).style?.fontSize,
+        greaterThan(tester.widget<Text>(find.text('Directo')).style!.fontSize!),
+        reason: 'la recomendación se lee como título, no como chip',
+      );
+      // La tarjeta dice en palabras qué hacer en cada paso.
+      expect(find.textContaining('Sube a la'), findsWidgets);
+      expect(find.textContaining('bájate en'), findsWidgets);
+      expect(find.textContaining('Parada 10'), findsWidgets);
       // La "pantalla completa" ya no es una pantalla separada (el mapa fusionado
-      // ES la pantalla, UNA sola instancia): ahora es solo un toggle dentro de
-      // los controles del mapa.
+      // ES la pantalla, UNA sola instancia) ni un botón de los controles.
       expect(find.byType(JourneyResultMap), findsOneWidget);
-      expect(find.byIcon(Icons.fullscreen_rounded), findsOneWidget);
+      expect(find.byIcon(Icons.fullscreen_rounded), findsNothing);
 
       // Al tocar otra tarjeta, el mapa cambia a esa opción (con transbordo).
       await tester.scrollUntilVisible(
@@ -764,53 +782,21 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Opción 2 en el mapa'), findsOneWidget);
-      expect(find.text('En el mapa'), findsOneWidget);
+      // La píldora de "mejor opción" es de la PRIMERA tarjeta, no de la
+      // seleccionada: cambiar de opción en el mapa no la mueve.
+      // Volver arriba para que el SliverList construya el índice 0 con el
+      // heading (el SliverChildBuilderDelegate solo construye lo visible).
+      await tester.scrollUntilVisible(
+        find.text('38 min'),
+        -240,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Mejor opción de viaje'), findsOneWidget);
+      expect(find.text('En el mapa'), findsNothing);
       // Seguimos con el MISMO mapa (solo cambió la capa dibujada).
       expect(tester.element(find.byType(JourneyResultMap)), same(mapElement));
     });
-
-    testWidgets(
-      'la pantalla completa oculta paneles y controles; salir los restaura',
-      (tester) async {
-        await pumpPlanner(tester);
-        await tester.pump();
-
-        // Planifica para tener hoja de resultados y controles del mapa visibles.
-        await openPanel(tester);
-        await pickPlace(
-          tester,
-          'Marca un punto en el mapa o usa tu ubicación',
-          point: originPoint,
-        );
-        await pickPlace(
-          tester,
-          'Marca dónde quieres llegar',
-          point: destinationPoint,
-        );
-        await tester.tap(find.text('Viajar'));
-        await tester.pumpAndSettle();
-
-        expect(find.text('Opción 1 en el mapa'), findsOneWidget);
-        expect(find.byKey(const ValueKey('planner-trigger')), findsOneWidget);
-
-        // Entra en pantalla completa desde los controles del mapa.
-        await tester.tap(find.byIcon(Icons.fullscreen_rounded));
-        await tester.pumpAndSettle();
-
-        // Solo queda el mapa: sin hoja de resultados y sin panel/píldora.
-        expect(find.text('Opción 1 en el mapa'), findsNothing);
-        expect(find.byKey(const ValueKey('planner-trigger')), findsNothing);
-        expect(find.byIcon(Icons.fullscreen_exit_rounded), findsOneWidget);
-        expect(find.byType(JourneyResultMap), findsOneWidget);
-
-        // Sale de pantalla completa y todo vuelve a su sitio.
-        await tester.tap(find.byIcon(Icons.fullscreen_exit_rounded));
-        await tester.pumpAndSettle();
-        expect(find.text('Opción 1 en el mapa'), findsOneWidget);
-        expect(find.byKey(const ValueKey('planner-trigger')), findsOneWidget);
-        expect(find.byIcon(Icons.fullscreen_rounded), findsOneWidget);
-      },
-    );
 
     testWidgets(
       'los pines de origen/destino fijados se ven EN EL MAPA antes de '
@@ -919,7 +905,8 @@ void main() {
 
         // Mientras corre el debounce el mapa sigue visible con el aviso.
         expect(find.text('Recalculando…'), findsOneWidget);
-        expect(find.text('Buscando conexiones de micro…'), findsOneWidget);
+        // El overlay de carga muestra "Buscando conexiones…" (sin "de micro").
+        expect(find.text('Buscando conexiones…'), findsOneWidget);
         expect(find.byType(JourneyResultMap), findsOneWidget);
 
         // Pasa el debounce (600 ms) y la nueva consulta termina.

@@ -14,7 +14,7 @@ import '../../home/presentation/widgets/home_route_lattice.dart';
 import '../../routes/data/route_models.dart';
 import '../application/complaints_feed_controller.dart';
 import '../application/passenger_controller.dart';
-import '../data/complaint_repository.dart';
+import '../domain/complaint_models.dart';
 import 'create_complaint_screen.dart';
 import 'widgets/complaint_chips.dart';
 import 'widgets/complaint_post_card.dart';

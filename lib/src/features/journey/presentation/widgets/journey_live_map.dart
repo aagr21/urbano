@@ -245,23 +245,15 @@ class LiveMapControls extends ConsumerWidget {
     super.key,
     required this.onZoomIn,
     required this.onZoomOut,
-    required this.fullscreen,
-    required this.onToggleFullscreen,
     required this.bearing,
     required this.onResetNorth,
-    this.onOpenMenu,
     this.onBack,
   });
 
   final VoidCallback onZoomIn;
   final VoidCallback onZoomOut;
-  final bool fullscreen;
-  final VoidCallback onToggleFullscreen;
   final double bearing;
   final VoidCallback onResetNorth;
-
-  /// Abre el menú principal de la app (la barra inferior ya no existe).
-  final VoidCallback? onOpenMenu;
 
   /// Vuelve a Inicio (rama de primer nivel sin barra inferior).
   final VoidCallback? onBack;
@@ -276,20 +268,14 @@ class LiveMapControls extends ConsumerWidget {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.end,
       children: [
-        // La píldora explícita «Mapa completo»: descubrir el modo full-screen
-        // era cazarse con el botoncito de la columna; el rótulo lo nombra.
-        const SizedBox(width: 10),
         JourneyMapControls(
           onZoomIn: onZoomIn,
           onZoomOut: onZoomOut,
           tracking: tracking,
           onFollowChanged: (value) =>
               ref.read(followLocationProvider.notifier).state = value,
-          fullscreen: fullscreen,
-          onToggleFullscreen: onToggleFullscreen,
           bearing: bearing,
           onResetNorth: onResetNorth,
-          onOpenMenu: onOpenMenu,
           onBack: onBack,
         ),
       ],

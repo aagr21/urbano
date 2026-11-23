@@ -1,232 +1,29 @@
-import 'dart:convert';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:latlong2/latlong.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../../../core/animation/motion.dart';
 import '../../../../core/location/reverse_geocoding.dart';
 import '../../../../core/theme/app_colors.dart';
-import '../../../../core/theme/app_theme.dart';
+import '../../../../core/theme/app_theme.dart' show AppRadius, AppSpace;
+import '../../../../core/theme/html_design_tokens.dart' show HtmlDesignTokens;
 import '../../../../core/utils/extensions.dart';
 import '../../../../core/utils/location.dart';
 import '../../application/journey_planner_controller.dart';
 import '../../application/journey_providers.dart';
+import '../../application/saved_trips_controller.dart';
 import '../../application/trip_history_controller.dart';
-import '../../data/popular_places.dart';
+import '../../data/saved_trips.dart';
 import '../../data/trip_history.dart';
-import '../journey_planner_controller.dart';
-
-/// Full trip saved locally (origin + destination).
-@immutable
-class SavedTrip {
-  const SavedTrip({
-    required this.originLabel,
-    required this.originLat,
-    required this.originLon,
-    required this.destinationLabel,
-    required this.destinationSubtitle,
-    required this.destinationLat,
-    required this.destinationLon,
-    required this.lastUsed,
-    this.durationMinutes,
-  });
-
-  final String originLabel;
-  final double originLat;
-  final double originLon;
-  final String destinationLabel;
-  final String? destinationSubtitle;
-  final double destinationLat;
-  final double destinationLon;
-  final DateTime lastUsed;
-  final int? durationMinutes;
-
-  String get key =>
-      '${originLabel.toLowerCase()}|${originLat.toStringAsFixed(4)}|${originLon.toStringAsFixed(4)}|'
-      '${destinationLabel.toLowerCase()}|${destinationLat.toStringAsFixed(4)}|${destinationLon.toStringAsFixed(4)}';
-
-  Map<String, Object?> toJson() => {
-    'originLabel': originLabel,
-    'originLat': originLat,
-    'originLon': originLon,
-    'destinationLabel': destinationLabel,
-    if (destinationSubtitle != null && destinationSubtitle!.trim().isNotEmpty)
-      'destinationSubtitle': destinationSubtitle,
-    'destinationLat': destinationLat,
-    'destinationLon': destinationLon,
-    'lastUsed': lastUsed.toIso8601String(),
-    if (durationMinutes != null) 'durationMinutes': durationMinutes,
-  };
-
-  static SavedTrip? fromJson(Object? raw) {
-    if (raw is! Map) return null;
-    final oLabel = raw['originLabel'];
-    final oLat = raw['originLat'];
-    final oLon = raw['originLon'];
-    final dLabel = raw['destinationLabel'];
-    final dLat = raw['destinationLat'];
-    final dLon = raw['destinationLon'];
-    final used = switch (raw['lastUsed']) {
-      final String value => DateTime.tryParse(value),
-      _ => null,
-    };
-    if (oLabel is! String ||
-        dLabel is! String ||
-        oLat is! num ||
-        oLon is! num ||
-        dLat is! num ||
-        dLon is! num ||
-        used == null) {
-      return null;
-    }
-    final dSub = raw['destinationSubtitle'];
-    final dur = raw['durationMinutes'];
-    return SavedTrip(
-      originLabel: oLabel,
-      originLat: oLat.toDouble(),
-      originLon: oLon.toDouble(),
-      destinationLabel: dLabel,
-      destinationSubtitle: dSub is String && dSub.trim().isNotEmpty
-          ? dSub
-          : null,
-      destinationLat: dLat.toDouble(),
-      destinationLon: dLon.toDouble(),
-      lastUsed: used,
-      durationMinutes: dur is num ? dur.toInt() : null,
-    );
-  }
-}
-
-/// Local store for saved trips.
-abstract interface class SavedTripsStore {
-  Future<List<SavedTrip>> load();
-  Future<void> save(List<SavedTrip> trips);
-}
-
-class SharedPreferencesSavedTripsStore implements SavedTripsStore {
-  static const _key = 'urbano.trips.saved';
-
-  @override
-  Future<List<SavedTrip>> load() async {
-    try {
-      final preferences = await SharedPreferences.getInstance();
-      final raw = preferences.getString(_key);
-      if (raw == null || raw.isEmpty) return const [];
-      final decoded = jsonDecode(raw);
-      if (decoded is! List) return const [];
-      return decoded
-          .map(SavedTrip.fromJson)
-          .whereType<SavedTrip>()
-          .toList(growable: false);
-    } catch (_) {
-      return const [];
-    }
-  }
-
-  @override
-  Future<void> save(List<SavedTrip> trips) async {
-    try {
-      final preferences = await SharedPreferences.getInstance();
-      await preferences.setString(
-        _key,
-        jsonEncode([for (final t in trips) t.toJson()]),
-      );
-    } catch (_) {}
-  }
-}
-
-/// Controller for saved trips.
-final savedTripsControllerProvider =
-    AsyncNotifierProvider<SavedTripsController, List<SavedTrip>>(
-      SavedTripsController.new,
-    );
-
-class SavedTripsController extends AsyncNotifier<List<SavedTrip>> {
-  SavedTripsController([this._store]);
-
-  final SavedTripsStore? _store;
-
-  static const int maxEntries = 10;
-
-  SavedTripsStore get _resolvedStore =>
-      _store ?? SharedPreferencesSavedTripsStore();
-
-  @override
-  Future<List<SavedTrip>> build() async {
-    final saved = await _resolvedStore.load();
-    return _sorted(saved);
-  }
-
-  Future<void> add({
-    required JourneyPlace origin,
-    required JourneyPlace destination,
-    int? durationMinutes,
-    DateTime? at,
-  }) async {
-    final oPoint = origin.pointOrNull;
-    final dPoint = destination.pointOrNull;
-    if (oPoint == null || dPoint == null) return;
-
-    final oDesc = _describe(origin);
-    final dDesc = _describe(destination);
-
-    final trip = SavedTrip(
-      originLabel: oDesc.label,
-      originLat: oPoint.lat,
-      originLon: oPoint.lon,
-      destinationLabel: dDesc.label,
-      destinationSubtitle: dDesc.subtitle,
-      destinationLat: dPoint.lat,
-      destinationLon: dPoint.lon,
-      lastUsed: at ?? DateTime.now(),
-      durationMinutes: durationMinutes,
-    );
-
-    final current = state.valueOrNull ?? await future;
-    final next = _sorted([trip, ...current.where((t) => t.key != trip.key)]);
-    state = AsyncData(next);
-    await _resolvedStore.save(next);
-  }
-
-  Future<void> remove(SavedTrip trip) async {
-    final current = state.valueOrNull ?? await future;
-    final next = current.where((t) => t.key != trip.key).toList();
-    state = AsyncData(next);
-    await _resolvedStore.save(next);
-  }
-
-  Future<void> clear() async {
-    state = const AsyncData([]);
-    await _resolvedStore.save(const []);
-  }
-
-  static List<SavedTrip> _sorted(List<SavedTrip> trips) {
-    final list = [...trips]..sort((a, b) => b.lastUsed.compareTo(a.lastUsed));
-    return list.length <= maxEntries ? list : list.sublist(0, maxEntries);
-  }
-
-  static ({String label, String? subtitle}) _describe(JourneyPlace place) {
-    return switch (place) {
-      JourneyPlacePoi(:final name, :final subtitle) => (
-        label: name,
-        subtitle: subtitle == null || subtitle.trim().isEmpty
-            ? 'Lugar de Santa Cruz'
-            : subtitle,
-      ),
-      JourneyPlacePoint(:final address, :final lat, :final lon) => (
-        label:
-            address ?? '${lat.toStringAsFixed(4)}, ${lon.toStringAsFixed(4)}',
-        subtitle: '${lat.toStringAsFixed(5)}, ${lon.toStringAsFixed(5)}',
-      ),
-      JourneyPlaceLocation(:final address, :final lat, :final lon) => (
-        label: address ?? 'Mi ubicación',
-        subtitle: '${lat.toStringAsFixed(5)}, ${lon.toStringAsFixed(5)}',
-      ),
-    };
-  }
-}
+import '../../domain/journey_place.dart';
+import 'journey_destination_sheet_header.dart';
+import 'journey_endpoint_field.dart';
+import 'journey_plan_button.dart';
+import 'journey_recent_destinations.dart';
+import 'journey_recent_destinations_unified.dart';
+import 'journey_swap_divider.dart';
+import 'pick_endpoint_from_map.dart';
 
 /// Bottom sheet for picking destination with origin pre-filled and recent destinations.
 Future<void> showJourneyDestinationSheet({
@@ -264,8 +61,12 @@ class _DestinationSheetContentState
     extends ConsumerState<_DestinationSheetContent> {
   late JourneyPlace? _origin;
   late JourneyPlace? _destination;
+  final TextEditingController _originCtrl = TextEditingController();
+  final FocusNode _originFocus = FocusNode();
   final TextEditingController _destinationCtrl = TextEditingController();
   final FocusNode _destinationFocus = FocusNode();
+  int _recentPage = 0;
+  static const int _recentPageSize = 5;
 
   @override
   void initState() {
@@ -273,6 +74,9 @@ class _DestinationSheetContentState
     // Default origin = Mi ubicación (last known or request GPS)
     _origin = widget.initialOrigin;
     _destination = widget.initialDestination;
+    if (_origin != null) {
+      _originCtrl.text = _destinationLabel(_origin!);
+    }
     if (_destination != null) {
       _destinationCtrl.text = _destinationLabel(_destination!);
     }
@@ -281,6 +85,8 @@ class _DestinationSheetContentState
 
   @override
   void dispose() {
+    _originCtrl.dispose();
+    _originFocus.dispose();
     _destinationCtrl.dispose();
     _destinationFocus.dispose();
     super.dispose();
@@ -338,7 +144,6 @@ class _DestinationSheetContentState
   @override
   Widget build(BuildContext context) {
     final text = context.text;
-    final colors = context.colors;
     final savedTrips =
         ref.watch(savedTripsControllerProvider).valueOrNull ??
         const <SavedTrip>[];
@@ -363,100 +168,185 @@ class _DestinationSheetContentState
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Punto de partida: Mi ubicación (pre-filled, read-only)
-              _OriginField(
-                place: _origin,
-                onMapTap: () => _pickOriginFromMap(),
-                colors: colors,
-                text: text,
-              ),
-              const SizedBox(height: 12),
-              // Destino: TextField con botón "Mapa" al final
-              _DestinationField(
-                controller: _destinationCtrl,
-                focusNode: _destinationFocus,
-                place: _destination,
-                onMapTap: () => _pickDestinationFromMap(),
-                onPlaceTap: (poi) => _setDestinationFromPoi(poi),
-                colors: colors,
-                text: text,
-              ),
-              const SizedBox(height: 12),
-              // Botón planificar
-              SizedBox(
-                width: double.infinity,
-                child: FilledButton.icon(
-                  icon: const Icon(Icons.directions_transit_rounded),
-                  label: const Text('Planificar viaje'),
-                  onPressed: _canPlan() ? () => _planAndClose() : null,
-                  style: FilledButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(AppRadius.tile),
-                    ),
-                  ),
-                ),
-              ),
-              if (savedTrips.isNotEmpty || history.isNotEmpty) ...[
-                const SizedBox(height: 16),
-                const Divider(height: 1),
-                const SizedBox(height: 12),
-                Text(
-                  'Tus destinos recientes',
-                  style: text.labelLarge?.copyWith(
-                    fontWeight: FontWeight.w700,
-                    color: colors.primary,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                // Saved trips (full origin→destination)
-                if (savedTrips.isNotEmpty) ...[
-                  Text(
-                    'Viajes guardados',
-                    style: text.labelSmall?.copyWith(
-                      color: colors.onSurfaceVariant,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  ...savedTrips.map(
-                    (trip) => _SavedTripTile(
-                      key: ValueKey('saved-trip-${trip.key}'),
-                      trip: trip,
-                      onTap: () => _useSavedTrip(trip),
-                      onDelete: () => _deleteSavedTrip(trip),
-                      colors: colors,
-                      text: text,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                ],
-                // History destinations only
-                if (history.isNotEmpty) ...[
-                  Text(
-                    'Destinos frecuentes',
-                    style: text.labelSmall?.copyWith(
-                      color: colors.onSurfaceVariant,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  ...history.map(
-                    (entry) => _HistoryDestinationTile(
-                      key: ValueKey('history-dest-${entry.key}'),
-                      entry: entry,
-                      onTap: () => _useHistoryDestination(entry),
-                      colors: colors,
-                      text: text,
-                    ),
-                  ),
-                ],
-              ],
+              // Header como sheet.html: píldora de ubicación + título con logo
+              const DestinationSheetHeader(),
+              const SizedBox(height: AppSpace.md),
+              // Tarjeta blanca con campos de origen y destino
+              _buildPlannerCard(context),
+              if (savedTrips.isNotEmpty || history.isNotEmpty)
+                ...() {
+                  final unified = buildUnifiedRecentList(
+                    savedTrips: savedTrips,
+                    history: history,
+                  );
+                  final totalPages = (unified.length / _recentPageSize).ceil();
+                  final pageItems = unified
+                      .skip(_recentPage * _recentPageSize)
+                      .take(_recentPageSize)
+                      .toList();
+
+                  return [
+                    const SizedBox(height: AppSpace.lg),
+                    // Encabezado de sección de destinos recientes
+                    _buildRecentHeader(context, text),
+                    const SizedBox(height: AppSpace.sm),
+                    // Lista unificada paginada (5 por página)
+                    ..._buildUnifiedRecentTiles(pageItems),
+                    if (totalPages > 1) ...[
+                      const SizedBox(height: AppSpace.sm),
+                      _buildPagination(context, text, totalPages),
+                    ],
+                  ];
+                }(),
             ],
           ),
         ),
       ),
     );
+  }
+
+  /// Tarjeta blanca con campos de origen/destino y botón de planificar.
+  Widget _buildPlannerCard(BuildContext context) {
+    final dark = Theme.of(context).brightness == Brightness.dark;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: dark ? HtmlDesignTokens.slate800 : HtmlDesignTokens.white,
+        borderRadius: BorderRadius.circular(AppRadius.xl),
+        border: Border.all(
+          color: dark ? AppColors.lineDark : HtmlDesignTokens.slate200,
+          width: 0.7,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: dark
+                ? Colors.black.withValues(alpha: 0.2)
+                : HtmlDesignTokens.slate900.withValues(alpha: 0.05),
+            blurRadius: 24,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          children: [
+            // Contenedor gris con campos
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: dark
+                    ? HtmlDesignTokens.slate900
+                    : HtmlDesignTokens.slate50,
+                borderRadius: BorderRadius.circular(AppRadius.md),
+                border: Border.all(
+                  color: dark ? AppColors.lineDark : HtmlDesignTokens.slate200,
+                  width: 0.8,
+                ),
+              ),
+              child: Column(
+                children: [
+                  // Campo de origen
+                  JourneyEndpointField(
+                    label: 'Origen',
+                    place: _origin,
+                    icon: Icons.my_location_rounded,
+                    iconBg: HtmlDesignTokens.emerald100,
+                    iconInk: HtmlDesignTokens.emerald600,
+                    labelInk: HtmlDesignTokens.emerald700,
+                    subtitleInk: HtmlDesignTokens.emerald500,
+                    mapButtonBg: HtmlDesignTokens.white,
+                    mapButtonInk: HtmlDesignTokens.emerald700,
+                    mapButtonBorder: HtmlDesignTokens.emerald200,
+                    controller: _originCtrl,
+                    focusNode: _originFocus,
+                    hintText: '¿Dónde estás?',
+                    onTap: () {
+                      _originFocus.requestFocus();
+                      _originCtrl.selection = TextSelection.collapsed(
+                        offset: _originCtrl.text.length,
+                      );
+                    },
+                    onMapTap: () => _pickOriginFromMap(),
+                  ),
+                  // Separador con botón swap
+                  JourneySwapDivider(onSwap: _swapEndpoints),
+                  // Campo de destino
+                  JourneyEndpointField(
+                    label: 'Destino',
+                    place: _destination,
+                    icon: Icons.location_on_rounded,
+                    iconBg: HtmlDesignTokens.rose50,
+                    iconInk: HtmlDesignTokens.rose500,
+                    labelInk: HtmlDesignTokens.roseRed,
+                    subtitleInk: HtmlDesignTokens.rose400,
+                    mapButtonBg: HtmlDesignTokens.white,
+                    mapButtonInk: HtmlDesignTokens.roseRed,
+                    mapButtonBorder: HtmlDesignTokens.rose300,
+                    controller: _destinationCtrl,
+                    focusNode: _destinationFocus,
+                    hintText: '¿A dónde vas?',
+                    onTap: () {
+                      _destinationFocus.requestFocus();
+                      _destinationCtrl.selection = TextSelection.collapsed(
+                        offset: _destinationCtrl.text.length,
+                      );
+                    },
+                    onMapTap: () => _pickDestinationFromMap(),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 14),
+            // Botón de planificar — degradado esmeralda
+            JourneyPlanButton(
+              enabled: _canPlan(),
+              onPressed: _canPlan() ? () => _planAndClose() : null,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Header de sección de destinos recientes.
+  Widget _buildRecentHeader(BuildContext context, TextTheme text) {
+    return Row(
+      children: [
+        Container(
+          width: 28,
+          height: 28,
+          decoration: BoxDecoration(
+            color: HtmlDesignTokens.teal500.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(AppRadius.sm),
+          ),
+          child: const Icon(
+            Icons.history_rounded,
+            size: 14,
+            color: HtmlDesignTokens.teal600,
+          ),
+        ),
+        const SizedBox(width: 8),
+        Text(
+          'Tus destinos recientes',
+          style: text.labelLarge?.copyWith(
+            fontWeight: FontWeight.w800,
+            color: HtmlDesignTokens.slate800,
+          ),
+        ),
+      ],
+    );
+  }
+
+  void _swapEndpoints() {
+    final tempPlace = _origin;
+    final tempText = _originCtrl.text;
+    setState(() {
+      _origin = _destination;
+      _destination = tempPlace;
+      _originCtrl.text = _destinationCtrl.text;
+      _destinationCtrl.text = tempText;
+    });
   }
 
   bool _canPlan() => _origin != null && _destination != null;
@@ -472,71 +362,33 @@ class _DestinationSheetContentState
   }
 
   Future<void> _pickOriginFromMap() async {
-    final params = <String, String>{'title': 'Origen'};
-    if (_origin?.pointOrNull case final point?) {
-      params['lat'] = '${point.lat}';
-      params['lon'] = '${point.lon}';
-    }
-    final point = await context.push<JourneyPoint>(
-      Uri(path: '/journey/pick', queryParameters: params).toString(),
+    final place = await pickEndpointFromMap(
+      context: context,
+      ref: ref,
+      title: 'Origen',
+      currentPoint: _origin?.pointOrNull,
     );
-    if (point != null && mounted) {
-      String? address;
-      try {
-        final result = await ref.read(
-          reverseGeocodeProvider(LatLng(point.lat, point.lon)).future,
-        );
-        address = result?.shortFormatted;
-      } catch (_) {}
+    if (place != null && mounted) {
       setState(() {
-        _origin = JourneyPlacePoint(
-          lat: point.lat,
-          lon: point.lon,
-          address: address,
-        );
+        _origin = place;
+        _originCtrl.text = _destinationLabel(_origin!);
       });
     }
   }
 
   Future<void> _pickDestinationFromMap() async {
-    final params = <String, String>{'title': 'Destino'};
-    if (_destination?.pointOrNull case final point?) {
-      params['lat'] = '${point.lat}';
-      params['lon'] = '${point.lon}';
-    }
-    final point = await context.push<JourneyPoint>(
-      Uri(path: '/journey/pick', queryParameters: params).toString(),
+    final place = await pickEndpointFromMap(
+      context: context,
+      ref: ref,
+      title: 'Destino',
+      currentPoint: _destination?.pointOrNull,
     );
-    if (point != null && mounted) {
-      String? address;
-      try {
-        final result = await ref.read(
-          reverseGeocodeProvider(LatLng(point.lat, point.lon)).future,
-        );
-        address = result?.shortFormatted;
-      } catch (_) {}
+    if (place != null && mounted) {
       setState(() {
-        _destination = JourneyPlacePoint(
-          lat: point.lat,
-          lon: point.lon,
-          address: address,
-        );
+        _destination = place;
         _destinationCtrl.text = _destinationLabel(_destination!);
       });
     }
-  }
-
-  void _setDestinationFromPoi(SantaCruzPoi poi) {
-    setState(() {
-      _destination = JourneyPlacePoi(
-        name: poi.name,
-        lat: poi.lat,
-        lon: poi.lon,
-        subtitle: poi.ringOrZone,
-      );
-      _destinationCtrl.text = poi.name;
-      _destinationFocus.unfocus();
-    });
   }
 
   Future<void> _planAndClose() async {
@@ -628,605 +480,106 @@ class _DestinationSheetContentState
       await _planAndClose();
     }
   }
-}
 
-class _OriginField extends StatefulWidget {
-  const _OriginField({
-    required this.place,
-    required this.onMapTap,
-    required this.colors,
-    required this.text,
-  });
-
-  final JourneyPlace? place;
-  final VoidCallback onMapTap;
-  final ColorScheme colors;
-  final TextTheme text;
-
-  @override
-  State<_OriginField> createState() => _OriginFieldState();
-}
-
-class _OriginFieldState extends State<_OriginField> {
-  late final FocusNode _focusNode;
-  late final TextEditingController _controller;
-
-  @override
-  void initState() {
-    super.initState();
-    _focusNode = FocusNode();
-    _controller = TextEditingController(text: _labelFor(widget.place));
-  }
-
-  @override
-  void didUpdateWidget(_OriginField oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    final label = _labelFor(widget.place);
-    if (_controller.text != label) {
-      _controller.text = label;
-    }
-  }
-
-  @override
-  void dispose() {
-    _focusNode.dispose();
-    _controller.dispose();
-    super.dispose();
-  }
-
-  void _onFieldTap() {
-    _focusNode.requestFocus();
-  }
-
-  String _labelFor(JourneyPlace? place) {
-    if (place == null) return '';
-    return switch (place) {
-      JourneyPlacePoi(:final name) => name,
-      JourneyPlacePoint(:final address, :final lat, :final lon) =>
-        address ?? '${lat.toStringAsFixed(4)}, ${lon.toStringAsFixed(4)}',
-      JourneyPlaceLocation(:final address, :final lat, :final lon) =>
-        address ??
-            'Mi ubicación (${lat.toStringAsFixed(4)}, ${lon.toStringAsFixed(4)})',
-    };
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final fill = widget.colors.primary.withValues(alpha: 0.08);
-    final borderColor = widget.colors.primary.withValues(alpha: 0.3);
-    final iconColor = widget.colors.primary;
-
-    return InkWell(
-      onTap: _onFieldTap,
-      borderRadius: BorderRadius.circular(AppRadius.tile),
-      child: Container(
-        padding: const EdgeInsets.all(AppSpace.md),
-        decoration: BoxDecoration(
-          color: fill,
-          borderRadius: BorderRadius.circular(AppRadius.tile),
-          border: Border.all(color: borderColor, width: 1.2),
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                color: widget.colors.primary.withValues(alpha: 0.13),
-                borderRadius: BorderRadius.circular(AppRadius.tile),
-              ),
-              child: Icon(
-                Icons.my_location_rounded,
-                size: 20,
-                color: iconColor,
-              ),
-            ),
-            const SizedBox(width: AppSpace.md),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Punto de partida',
-                    style: widget.text.labelSmall?.copyWith(
-                      color: widget.colors.primary,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  TextField(
-                    controller: _controller,
-                    focusNode: _focusNode,
-                    decoration: InputDecoration(
-                      hintText: 'Escribe un lugar',
-                      hintStyle: widget.text.bodyMedium?.copyWith(
-                        color: widget.colors.onSurfaceVariant,
-                        fontWeight: FontWeight.w600,
-                      ),
-                      border: InputBorder.none,
-                      enabledBorder: InputBorder.none,
-                      focusedBorder: InputBorder.none,
-                      contentPadding: EdgeInsets.zero,
-                      isCollapsed: true,
-                    ),
-                    style: widget.text.bodyMedium?.copyWith(
-                      fontWeight: FontWeight.w600,
-                      color: widget.colors.onSurface,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            TextButton(
-              onPressed: widget.onMapTap,
-              style: TextButton.styleFrom(
-                foregroundColor: widget.colors.primary,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 8,
-                ),
-                minimumSize: Size.zero,
-                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              ),
-              child: Text(
-                'Mapa',
-                style: widget.text.labelLarge?.copyWith(
-                  fontWeight: FontWeight.w600,
-                  color: widget.colors.primary,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _DestinationField extends ConsumerStatefulWidget {
-  const _DestinationField({
-    required this.controller,
-    required this.focusNode,
-    required this.place,
-    required this.onMapTap,
-    required this.onPlaceTap,
-    required this.colors,
-    required this.text,
-  });
-
-  final TextEditingController controller;
-  final FocusNode focusNode;
-  final JourneyPlace? place;
-  final VoidCallback onMapTap;
-  final void Function(SantaCruzPoi) onPlaceTap;
-  final ColorScheme colors;
-  final TextTheme text;
-
-  @override
-  ConsumerState<_DestinationField> createState() => _DestinationFieldState();
-}
-
-class _DestinationFieldState extends ConsumerState<_DestinationField> {
-  String _filter = '';
-  OverlayEntry? _overlayEntry;
-
-  @override
-  void initState() {
-    super.initState();
-    widget.controller.addListener(_onTextChanged);
-    widget.focusNode.addListener(_onFocusChanged);
-  }
-
-  @override
-  void dispose() {
-    widget.controller.removeListener(_onTextChanged);
-    widget.focusNode.removeListener(_onFocusChanged);
-    _removeOverlay();
-    super.dispose();
-  }
-
-  void _onTextChanged() {
-    final newFilter = widget.controller.text.trim().toLowerCase();
-    if (newFilter != _filter) {
-      setState(() => _filter = newFilter);
-      _showSuggestions();
-    }
-  }
-
-  void _onFocusChanged() {
-    if (!widget.focusNode.hasFocus) {
-      Future.delayed(const Duration(milliseconds: 150), _removeOverlay);
-    } else {
-      _showSuggestions();
-    }
-  }
-
-  void _showSuggestions() {
-    if (!widget.focusNode.hasFocus) return;
-    _removeOverlay();
-
-    final places = kSantaCruzPopularPlaces
-        .where((poi) {
-          if (_filter.isEmpty) return true;
-          return poi.name.toLowerCase().contains(_filter) ||
-              poi.category.toLowerCase().contains(_filter) ||
-              (poi.ringOrZone?.toLowerCase().contains(_filter) ?? false);
-        })
-        .take(5)
+  /// Convierte la lista unificada en widgets [RecentDestinationTile].
+  List<Widget> _buildUnifiedRecentTiles(List<RecentDestinationItem> items) {
+    return items
+        .asMap()
+        .entries
+        .map(
+          (e) => RecentDestinationTile(
+            key: ValueKey('recent-${e.value.key}'),
+            item: e.value,
+            onTap: () => _onRecentItemTap(e.value),
+            onDelete: () => _onRecentItemDelete(e.value),
+          ),
+        )
         .toList();
+  }
 
-    if (places.isEmpty) return;
+  /// Controles de paginación con flechas e indicador de página.
+  Widget _buildPagination(
+    BuildContext context,
+    TextTheme text,
+    int totalPages,
+  ) {
+    final canGoPrev = _recentPage > 0;
+    final canGoNext = _recentPage < totalPages - 1;
 
-    final renderBox = context.findRenderObject() as RenderBox?;
-    if (renderBox == null) return;
-
-    final offset = renderBox.localToGlobal(Offset.zero);
-    final size = renderBox.size;
-
-    _overlayEntry = OverlayEntry(
-      builder: (context) => Positioned(
-        left: offset.dx,
-        top: offset.dy + size.height + 4,
-        width: size.width,
-        child: Material(
-          elevation: 8,
-          borderRadius: BorderRadius.circular(AppRadius.tile),
-          child: Container(
-            constraints: const BoxConstraints(maxHeight: 200),
-            decoration: BoxDecoration(
-              color: widget.colors.surface,
-              borderRadius: BorderRadius.circular(AppRadius.tile),
-              border: Border.all(
-                color: widget.colors.outlineVariant.withValues(alpha: 0.5),
-              ),
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        // Flecha anterior
+        PressScale(
+          scale: 0.95,
+          child: IconButton(
+            onPressed: canGoPrev
+                ? () {
+                    setState(() {
+                      _recentPage--;
+                    });
+                  }
+                : null,
+            icon: Icon(
+              Icons.chevron_left_rounded,
+              color: canGoPrev
+                  ? HtmlDesignTokens.emerald600
+                  : HtmlDesignTokens.slate300,
+              size: 28,
             ),
-            child: ListView.separated(
-              shrinkWrap: true,
-              padding: EdgeInsets.zero,
-              itemCount: places.length,
-              separatorBuilder: (_, _) => Divider(
-                height: 1,
-                color: widget.colors.outlineVariant.withValues(alpha: 0.5),
-              ),
-              itemBuilder: (ctx, i) {
-                final poi = places[i];
-                return ListTile(
-                  dense: true,
-                  leading: Container(
-                    width: 32,
-                    height: 32,
-                    decoration: BoxDecoration(
-                      color: widget.colors.surfaceContainerHighest,
-                      borderRadius: BorderRadius.circular(AppRadius.sm),
-                    ),
-                    child: Icon(
-                      poi.icon,
-                      size: 18,
-                      color: widget.colors.onSurfaceVariant,
-                    ),
-                  ),
-                  title: Text(
-                    poi.name,
-                    style: widget.text.bodyMedium?.copyWith(
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  subtitle: Text(
-                    poi.ringOrZone != null
-                        ? '${poi.category} · ${poi.ringOrZone}'
-                        : poi.category,
-                    style: widget.text.bodySmall?.copyWith(
-                      color: widget.colors.onSurfaceVariant,
-                    ),
-                  ),
-                  onTap: () {
-                    widget.onPlaceTap(poi);
-                    _removeOverlay();
-                  },
-                );
-              },
+            tooltip: 'Página anterior',
+          ),
+        ),
+        // Indicador de página "1 / 3"
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          child: Text(
+            '${_recentPage + 1} / $totalPages',
+            style: text.labelLarge?.copyWith(
+              fontWeight: FontWeight.w600,
+              color: HtmlDesignTokens.emerald700,
             ),
           ),
         ),
-      ),
-    );
-
-    Overlay.of(context).insert(_overlayEntry!);
-  }
-
-  void _removeOverlay() {
-    _overlayEntry?.remove();
-    _overlayEntry = null;
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = widget.colors;
-    final text = widget.text;
-
-    return InkWell(
-      onTap: widget.onMapTap,
-      borderRadius: BorderRadius.circular(AppRadius.tile),
-      child: Container(
-        padding: const EdgeInsets.all(AppSpace.md),
-        decoration: BoxDecoration(
-          color: colors.primary.withValues(alpha: 0.08),
-          borderRadius: BorderRadius.circular(AppRadius.tile),
-          border: Border.all(
-            color: colors.primary.withValues(alpha: 0.3),
-            width: 1.2,
+        // Flecha siguiente
+        PressScale(
+          scale: 0.95,
+          child: IconButton(
+            onPressed: canGoNext
+                ? () {
+                    setState(() {
+                      _recentPage++;
+                    });
+                  }
+                : null,
+            icon: Icon(
+              Icons.chevron_right_rounded,
+              color: canGoNext
+                  ? HtmlDesignTokens.emerald600
+                  : HtmlDesignTokens.slate300,
+              size: 28,
+            ),
+            tooltip: 'Página siguiente',
           ),
         ),
-        child: Row(
-          children: [
-            Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                color: colors.primary.withValues(alpha: 0.13),
-                borderRadius: BorderRadius.circular(AppRadius.tile),
-              ),
-              child: Icon(Icons.place_rounded, size: 20, color: colors.primary),
-            ),
-            const SizedBox(width: AppSpace.md),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Destino',
-                    style: text.labelSmall?.copyWith(
-                      color: colors.primary,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  TextField(
-                    controller: widget.controller,
-                    focusNode: widget.focusNode,
-                    decoration: InputDecoration(
-                      hintText: 'Escribe un lugar o toca "Mapa"',
-                      hintStyle: text.bodyMedium?.copyWith(
-                        color: colors.onSurfaceVariant,
-                        fontWeight: FontWeight.w600,
-                      ),
-                      border: InputBorder.none,
-                      enabledBorder: InputBorder.none,
-                      focusedBorder: InputBorder.none,
-                      contentPadding: EdgeInsets.zero,
-                      isCollapsed: true,
-                    ),
-                    style: text.bodyMedium?.copyWith(
-                      fontWeight: FontWeight.w600,
-                      color: colors.onSurface,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            TextButton(
-              onPressed: widget.onMapTap,
-              style: TextButton.styleFrom(
-                foregroundColor: colors.primary,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 8,
-                ),
-                minimumSize: Size.zero,
-                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              ),
-              child: Text(
-                'Mapa',
-                style: text.labelLarge?.copyWith(
-                  fontWeight: FontWeight.w600,
-                  color: colors.primary,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _SavedTripTile extends StatelessWidget {
-  const _SavedTripTile({
-    super.key,
-    required this.trip,
-    required this.onTap,
-    required this.onDelete,
-    required this.colors,
-    required this.text,
-  });
-
-  final SavedTrip trip;
-  final VoidCallback onTap;
-  final VoidCallback onDelete;
-  final ColorScheme colors;
-  final TextTheme text;
-
-  @override
-  Widget build(BuildContext context) {
-    final fill = AppColors.tint(colors.primary, colors.surface, 0.12);
-    final trailing = trip.durationMinutes != null && trip.durationMinutes! > 0
-        ? '${trip.durationMinutes} min'
-        : _timeAgo(trip.lastUsed);
-
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(AppRadius.tile),
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 4),
-        padding: const EdgeInsets.all(AppSpace.sm),
-        decoration: BoxDecoration(
-          color: fill,
-          borderRadius: BorderRadius.circular(AppRadius.tile),
-          border: Border.all(color: colors.primary.withValues(alpha: 0.2)),
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 36,
-              height: 36,
-              decoration: BoxDecoration(
-                color: colors.primary,
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(
-                Icons.swap_horiz_rounded,
-                size: 18,
-                color: Colors.white,
-              ),
-            ),
-            const SizedBox(width: AppSpace.sm),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    trip.originLabel,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: text.bodySmall?.copyWith(
-                      color: colors.onSurfaceVariant,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    trip.destinationLabel,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: text.titleSmall?.copyWith(
-                      fontWeight: FontWeight.w700,
-                      color: colors.onSurface,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: AppSpace.sm),
-            Text(
-              trailing,
-              style: text.labelSmall?.copyWith(
-                color: colors.onSurfaceVariant,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-            IconButton(
-              icon: Icon(
-                Icons.close_rounded,
-                size: 18,
-                color: colors.onSurfaceVariant,
-              ),
-              onPressed: onDelete,
-              padding: EdgeInsets.zero,
-              constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-              tooltip: 'Eliminar viaje',
-            ),
-          ],
-        ),
-      ),
+      ],
     );
   }
 
-  String _timeAgo(DateTime dt) {
-    final days = DateTime.now().difference(dt).inDays;
-    if (days <= 0) return 'hoy';
-    if (days == 1) return 'ayer';
-    return 'hace $days d';
-  }
-}
-
-class _HistoryDestinationTile extends StatelessWidget {
-  const _HistoryDestinationTile({
-    super.key,
-    required this.entry,
-    required this.onTap,
-    required this.colors,
-    required this.text,
-  });
-
-  final TripHistoryEntry entry;
-  final VoidCallback onTap;
-  final ColorScheme colors;
-  final TextTheme text;
-
-  @override
-  Widget build(BuildContext context) {
-    final fill = AppColors.tint(colors.primary, colors.surface, 0.12);
-    final trailing = entry.durationMinutes != null && entry.durationMinutes! > 0
-        ? '${entry.durationMinutes} min'
-        : _timeAgo(entry.lastUsed);
-
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(AppRadius.tile),
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 4),
-        padding: const EdgeInsets.all(AppSpace.sm),
-        decoration: BoxDecoration(
-          color: fill,
-          borderRadius: BorderRadius.circular(AppRadius.tile),
-          border: Border.all(color: colors.primary.withValues(alpha: 0.2)),
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 36,
-              height: 36,
-              decoration: BoxDecoration(color: fill, shape: BoxShape.circle),
-              child: Icon(Icons.place_rounded, size: 18, color: colors.primary),
-            ),
-            const SizedBox(width: AppSpace.sm),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    entry.label,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: text.titleSmall?.copyWith(
-                      fontWeight: FontWeight.w700,
-                      color: colors.onSurface,
-                    ),
-                  ),
-                  if (entry.subtitle != null) ...[
-                    const SizedBox(height: 1),
-                    Text(
-                      entry.subtitle!,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: text.bodySmall?.copyWith(
-                        color: colors.onSurfaceVariant,
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-            const SizedBox(width: AppSpace.sm),
-            Text(
-              trailing,
-              style: text.labelSmall?.copyWith(
-                color: colors.onSurfaceVariant,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
+  void _onRecentItemTap(RecentDestinationItem item) {
+    if (item is RecentDestinationSavedTrip) {
+      _useSavedTrip(item.trip);
+    } else if (item is RecentDestinationHistoryEntry) {
+      _useHistoryDestination(item.entry);
+    }
   }
 
-  String _timeAgo(DateTime dt) {
-    final days = DateTime.now().difference(dt).inDays;
-    if (days <= 0) return 'hoy';
-    if (days == 1) return 'ayer';
-    return 'hace $days d';
+  Future<void> _onRecentItemDelete(RecentDestinationItem item) async {
+    if (item is RecentDestinationSavedTrip) {
+      await _deleteSavedTrip(item.trip);
+    } else if (item is RecentDestinationHistoryEntry) {
+      await ref.read(tripHistoryControllerProvider.notifier).remove(item.entry);
+      if (mounted) setState(() {});
+    }
   }
 }

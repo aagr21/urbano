@@ -14,7 +14,7 @@ import 'package:urbano/src/features/journey/presentation/journey_planner_control
 import 'package:urbano/src/features/journey/presentation/journey_providers.dart';
 import 'package:urbano/src/features/journey/presentation/map_picker_screen.dart';
 import 'package:urbano/src/features/journey/presentation/widgets/journey_micros_sheet.dart';
-import 'package:urbano/src/features/journey/presentation/widgets/micros_places_list.dart';
+import 'package:urbano/src/features/journey/presentation/widgets/micros_place_tile.dart';
 import 'package:urbano/src/features/routes/data/route_models.dart';
 import 'package:urbano/src/features/routes/data/route_repository.dart';
 import 'package:urbano/src/features/stops/data/stop_search_models.dart';

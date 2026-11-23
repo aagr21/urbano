@@ -7,7 +7,7 @@ import '../../../../core/theme/app_theme.dart';
 import '../../../../core/utils/extensions.dart';
 import '../../../../core/widgets/photo_shine.dart';
 import '../../application/complaints_feed_controller.dart';
-import '../../data/complaint_repository.dart';
+import '../../domain/complaint_models.dart';
 import 'complaint_chips.dart';
 import 'complaint_photo.dart';
 

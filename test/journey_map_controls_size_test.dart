@@ -20,8 +20,6 @@ void main() {
               onZoomOut: () {},
               tracking: false,
               onFollowChanged: (_) {},
-              fullscreen: false,
-              onToggleFullscreen: () {},
             ),
           ),
         ),
@@ -31,8 +29,7 @@ void main() {
     final size = tester.getSize(find.byType(MapCircleButton).first);
     expect(size.width, AppControl.mapButton);
     expect(size.height, AppControl.mapButton);
-    // Todos los botones de estilo MapCircleButton miden lo mismo (2 zoom y
-    // pantalla completa).
+    // Todos los botones de estilo MapCircleButton miden lo mismo.
     final count = tester.widgetList(find.byType(MapCircleButton)).length;
     for (var i = 0; i < count; i++) {
       final dim = tester.getSize(find.byType(MapCircleButton).at(i));
@@ -61,8 +58,6 @@ void main() {
               onZoomOut: () {},
               tracking: false,
               onFollowChanged: (_) {},
-              fullscreen: false,
-              onToggleFullscreen: () {},
               bearing: 45,
               onResetNorth: () => resetCount++,
             ),

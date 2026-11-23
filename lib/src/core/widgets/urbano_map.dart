@@ -58,6 +58,7 @@ class UrbanoMap extends ConsumerStatefulWidget {
   final LatLng center;
   final double zoom;
   final List<MapPolyline> polylines;
+
   final List<MapMarker> markers;
 
   /// Auras pulsantes de «mi ubicación» ([MapPulse]): los pintan los MOTORES

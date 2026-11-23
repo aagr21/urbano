@@ -47,6 +47,7 @@ class MapScene {
   final MapCameraFit? cameraFit;
 
   final List<MapPolyline> polylines;
+
   final List<MapMarker> markers;
 
   /// Auras pulsantes de ubicación (puntos de «mi ubicación»).
