@@ -152,6 +152,46 @@ JourneyOption _offsetStopOption({required bool withWalkGeometry}) =>
 
 void main() {
   group('JourneyResultMap', () {
+    testWidgets('las cabezas de flecha llevan el MISMO color que el trazo de '
+        'su micro', (tester) async {
+      await tester.pumpWidget(_mapApp(fixtureDirectOption()));
+      await tester.pumpAndSettle();
+
+      final map = tester.widget<UrbanoMap>(find.byType(UrbanoMap));
+      final bus = map.polylines.firstWhere((line) => line.width == 6);
+      final arrows = map.markers
+          .where((m) => m.id.startsWith('journey-map-arrow-'))
+          .toList();
+      expect(arrows, isNotEmpty);
+      for (final arrow in arrows) {
+        expect(arrow.child, isA<RouteArrowMarker>());
+        expect((arrow.child as RouteArrowMarker).color, bus.color);
+        // El rumbo es geográfico: la flecha gira CON el mapa y no da vueltas
+        // sobre la línea cuando el usuario rota la vista.
+        expect(arrow.rotateWithMap, isTrue);
+      }
+      // La imagen nativa se cachea por COLOR, no por id: todas las flechas del
+      // trazo comparten una, y la misma flecha (`journey-map-arrow-0-0`) en
+      // un micro de otro color pide OTRA imagen — antes heredaba el color del
+      // micro de la opción anterior.
+      expect(arrows.map((a) => a.imageCacheKey).toSet(), hasLength(1));
+      expect(
+        arrows.first.imageCacheKey,
+        isNot(
+          MapMarker(
+            id: arrows.first.id,
+            point: arrows.first.point,
+            width: arrows.first.width,
+            height: arrows.first.height,
+            iconKey: JourneyResultMapState.arrowIconKey(
+              const Color(0xFF27AE60),
+            ),
+            child: const RouteArrowMarker(color: Color(0xFF27AE60)),
+          ).imageCacheKey,
+        ),
+      );
+    });
+
     testWidgets('dibuja geometry, caminatas punteadas y marcadores', (
       tester,
     ) async {

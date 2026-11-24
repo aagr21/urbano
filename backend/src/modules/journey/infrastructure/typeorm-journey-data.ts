@@ -23,6 +23,8 @@ interface TripScheduleRow {
   sequence: number;
   arrivalTime: string;
   departureTime: string;
+  stopLat: number | null;
+  stopLon: number | null;
 }
 
 /** Implementación TypeORM/PostGIS del puerto de datos del planeador. */
@@ -97,11 +99,14 @@ export class TypeOrmJourneyData implements JourneyDataPort {
               st.stop_id AS "stopId",
               st.stop_sequence AS sequence,
               st.arrival_time AS "arrivalTime",
-              st.departure_time AS "departureTime"
+              st.departure_time AS "departureTime",
+              s.stop_lat AS "stopLat",
+              s.stop_lon AS "stopLon"
        FROM trip t
        JOIN route r ON r.route_id = t.route_id
        JOIN frequency f ON f.trip_id = t.trip_id
        JOIN stop_time st ON st.trip_id = t.trip_id
+       LEFT JOIN stop s ON s.stop_id = st.stop_id
        WHERE t.trip_id = ANY($1)
        ORDER BY t.trip_id, st.stop_sequence ASC`,
       [tripIds]
@@ -130,6 +135,9 @@ export class TypeOrmJourneyData implements JourneyDataPort {
         sequence: row.sequence,
         arrivalSec: timeToSeconds(row.arrivalTime),
         departureSec: timeToSeconds(row.departureTime),
+        ...(row.stopLat != null && row.stopLon != null
+          ? { lat: Number(row.stopLat), lon: Number(row.stopLon) }
+          : {}),
       });
     }
     return [...byTrip.values()];

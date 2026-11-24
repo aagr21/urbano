@@ -47,6 +47,7 @@ Colores hex **sin** `#` (ej: `D35400`), tal como vienen en GTFS.
             "maxCandidateStops": 15,
             "minTransitDistanceM": 150,
             "minBoardingPairDistanceM": 150,
+            "minFirstRideTransferM": 1000,
             "walkSpeedMPerMin": 80,
             "transferPenaltyMinutes": 10
         }
@@ -228,7 +229,7 @@ Colores hex **sin** `#` (ej: `D35400`), tal como vienen en GTFS.
 
 ```json
 { "options": [
-  { "type": "direct", "departAt": "06:03:00", "arriveAt": "06:41:00", "durationMinutes": 38,
+  { "type": "direct", "departAt": "06:01:00", "arriveAt": "06:41:00", "durationMinutes": 40,
     "walkToStop": { "id": "S10", "name": "...", "distanceMeters": 80, "lat": -17.78, "lon": -63.15 },
     "walkFromStop": { "id": "S200", "name": "...", "distanceMeters": 120, "lat": -17.79, "lon": -63.16 },
     "legs": [ { "kind": "walk", "durationMinutes": 2, "distanceMeters": 80 },
@@ -244,6 +245,24 @@ Colores hex **sin** `#` (ej: `D35400`), tal como vienen en GTFS.
 ```
 
 - `type`: `"direct" | "transfer"`. Ordenado por `durationMinutes` asc.
+- **`departAt`/`durationMinutes` son puerta a puerta** (ambos motores, como
+  OTP): `departAt` es la hora de salir del origen para llegar justo al micro
+  (la hora del micro está en el `departAt` de su tramo) y la duración incluye
+  la caminata de acceso. Si no la incluyera, caminar hasta una parada más
+  adelantada de la MISMA línea "acortaba" el viaje y ganaba el ranking: el
+  usuario caminaba un tramo que el micro ya cubría.
+- **Una opción por micro (o par de micros)**: de todas las paradas de
+  subida/bajada posibles del mismo trip se devuelve la de menor duración y, a
+  igualdad, la que menos camina. El cliente colapsa además por secuencia de
+  líneas quedándose con la que llega antes y luego la que menos camina.
+- **Transbordo con primer micro corto**: una opción `transfer` cuyo primer
+  tramo de micro recorre menos de `minFirstRideTransferM` (1000 m, medido
+  sobre su `geometry`, o la recta entre paradas si no la tiene) se descarta,
+  venga de OTP o del planner interno.
+- **Transbordo sin caminata explícita** (micro → micro en la misma parada):
+  cada `geometry` se recorta sobre su propio `shape`, así que el fin del
+  primero y el inicio del segundo no coinciden. El cliente dibuja ese hueco
+  como caminata (fin del primero → parada → inicio del segundo).
 - **INVARIANTE — sentido de la geometría (fuente única de verdad)**: para
   todo tramo de micro, `geometry` empieza en `fromStop` (subida) y termina en
   `toStop` (bajada), es decir, en el sentido de marcha REAL del viaje. El

@@ -17,7 +17,7 @@ import 'home_action_illustrations.dart';
 
 /// Los cuatro accesos de la portada en una retícula de 2 × 2.
 ///
-/// Cada cuadro es una tarjeta con degradado tonal de su acento, una placa con
+/// Cada cuadro es una tarjeta de superficie común (velo de laguna), una placa con
 /// la ilustración propia (que flota y cuyo halo respira), una píldora con la
 /// categoría y el nombre con su bajada. Los cuadros son deliberadamente
 /// compactos: la portada tiene que mostrar también «¿A dónde vas?» y los viajes
@@ -75,12 +75,6 @@ class HomeActionTiles extends ConsumerWidget {
                     art: HomeActionArt.micros,
                     title: 'Micros',
                     subtitle: 'Rutas y frecuencias',
-                    bgGradient: const [
-                      HtmlDesignTokens.orange50,
-                      HtmlDesignTokens.white,
-                      HtmlDesignTokens.yellow50,
-                    ],
-                    borderColor: HtmlDesignTokens.orange100,
                     arrowHoverBg: HtmlDesignTokens.rose50,
                     arrowHoverInk: HtmlDesignTokens.redMaterial,
                     live: true,
@@ -98,12 +92,6 @@ class HomeActionTiles extends ConsumerWidget {
                     title: 'Viajes',
                     subtitle: 'Planifica tu trayecto',
                     phaseOffset: 0.25,
-                    bgGradient: const [
-                      HtmlDesignTokens.cyan50,
-                      HtmlDesignTokens.white,
-                      HtmlDesignTokens.cyan50,
-                    ],
-                    borderColor: HtmlDesignTokens.cyan100,
                     arrowHoverBg: HtmlDesignTokens.cyan50,
                     arrowHoverInk: HtmlDesignTokens.microDark,
                     onTap: openJourneySheet,
@@ -127,12 +115,6 @@ class HomeActionTiles extends ConsumerWidget {
                     title: 'Lugares',
                     subtitle: 'Paradas y puntos',
                     phaseOffset: 0.5,
-                    bgGradient: const [
-                      HtmlDesignTokens.green50,
-                      HtmlDesignTokens.white,
-                      HtmlDesignTokens.cyan50,
-                    ],
-                    borderColor: HtmlDesignTokens.green100,
                     arrowHoverBg: HtmlDesignTokens.green50,
                     arrowHoverInk: HtmlDesignTokens.greenDark,
                     onTap: openPlaces,
@@ -149,12 +131,6 @@ class HomeActionTiles extends ConsumerWidget {
                     title: 'Denuncias',
                     subtitle: 'Reclamos y alertas',
                     phaseOffset: 0.75,
-                    bgGradient: const [
-                      HtmlDesignTokens.rose50Light,
-                      HtmlDesignTokens.white,
-                      HtmlDesignTokens.orange50,
-                    ],
-                    borderColor: HtmlDesignTokens.red50,
                     arrowHoverBg: HtmlDesignTokens.rose50,
                     arrowHoverInk: HtmlDesignTokens.redDark,
                     onTap: () => context.go('/complaints'),
@@ -179,8 +155,6 @@ class _ActionTile extends StatelessWidget {
     required this.title,
     required this.subtitle,
     required this.onTap,
-    required this.bgGradient,
-    required this.borderColor,
     required this.arrowHoverBg,
     required this.arrowHoverInk,
     this.phaseOffset = 0,
@@ -194,12 +168,6 @@ class _ActionTile extends StatelessWidget {
   final String title;
   final String subtitle;
   final VoidCallback onTap;
-
-  /// Degradado de fondo de la tarjeta, fijo desde el HTML.
-  final List<Color> bgGradient;
-
-  /// Color del borde de la tarjeta.
-  final Color borderColor;
 
   /// Colores del botón de acción al pasar el dedo.
   final Color arrowHoverBg;
@@ -223,20 +191,25 @@ class _ActionTile extends StatelessWidget {
     final inkSoft = colors.onSurfaceVariant;
     final radius = BorderRadius.circular(AppRadius.lg);
 
-    // Los fondos son fijos del HTML en claro; en oscuro se adaptan al tema.
-    final bgColors = dark
-        ? [
-            AppColors.tint(colors.primary, colors.surface, 0.18),
-            colors.surface,
-            AppColors.tint(colors.primary, colors.surface, 0.08),
-          ]
-        : bgGradient;
-    final border = dark ? colors.primary.withValues(alpha: 0.2) : borderColor;
+    // Los cuatro cuadros comparten superficie en los dos temas: un velo de
+    // laguna apenas perceptible en la esquina y un filete neutro. Antes, en
+    // claro, cada uno llevaba su degradado pastel y su borde de color, y la
+    // retícula competía con «¿A dónde vas?» (el CTA primario). La identidad
+    // de cada acceso la lleva su píldora, no el fondo.
+    final bgColors = [
+      AppColors.tint(colors.primary, colors.surface, dark ? 0.16 : 0.07),
+      colors.surface,
+      colors.surface,
+    ];
+    final border = dark
+        ? colors.primary.withValues(alpha: 0.2)
+        : colors.outlineVariant;
 
-    // Placa tonal de la ilustración.
+    // Placa tonal de la ilustración: relleno sin filete (la tarjeta ya tiene
+    // uno; dos bordes anidados se leían como «caja dentro de caja»).
     final plateFill = dark
         ? Colors.white.withValues(alpha: 0.055)
-        : colors.surface.withValues(alpha: 0.66);
+        : AppColors.tint(colors.primary, colors.surface, 0.06);
 
     return PressScale(
       scale: 0.97,
@@ -253,7 +226,7 @@ class _ActionTile extends StatelessWidget {
             BoxShadow(
               color: dark
                   ? Colors.black.withValues(alpha: 0.12)
-                  : borderColor.withValues(alpha: 0.25),
+                  : AppColors.ink.withValues(alpha: 0.06),
               blurRadius: 18,
               offset: const Offset(0, 6),
             ),
@@ -446,9 +419,6 @@ class _ArtStage extends StatelessWidget {
           decoration: BoxDecoration(
             color: plateFill,
             borderRadius: BorderRadius.circular(AppRadius.md),
-            border: Border.all(
-              color: colors.primary.withValues(alpha: dark ? 0.22 : 0.14),
-            ),
           ),
           child: Stack(
             alignment: Alignment.center,

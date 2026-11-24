@@ -5,10 +5,11 @@ import '../../../../core/theme/app_theme.dart' show AppRadius;
 import '../../../../core/theme/html_design_tokens.dart' show HtmlDesignTokens;
 import '../../../../core/utils/extensions.dart';
 
-/// Botón de planificar — degradado esmeralda como sheet.html.
+/// Botón de planificar del sheet «Planificar viaje».
 ///
-/// Botón ancho con gradiente esmeralda, sombra glow, ícono de micro y flecha.
-/// Cuando está deshabilitado, muestra un fondo gris semitransparente.
+/// Encendido: degradado esmeralda con glow, placa del micro y flecha.
+/// Apagado: superficie tonal del tema (nada de blanco translúcido sobre un
+/// fondo claro, que dejaba el texto casi invisible).
 class JourneyPlanButton extends StatelessWidget {
   const JourneyPlanButton({
     super.key,
@@ -21,77 +22,96 @@ class JourneyPlanButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.colors;
     final text = context.text;
-    final dark = Theme.of(context).brightness == Brightness.dark;
+
+    // El estado apagado no puede quedar por debajo de 4.5:1: sobre el gris
+    // claro del tema, `onSurfaceVariant` se perdía. Tinta principal atenuada
+    // sobre el contenedor más bajo mantiene el texto legible sin gritar.
+    final disabledInk = colors.onSurface.withValues(alpha: 0.62);
+    final foreground = enabled ? Colors.white : disabledInk;
 
     return PressScale(
       scale: 0.98,
-      child: InkWell(
-        onTap: enabled ? onPressed : null,
-        borderRadius: BorderRadius.circular(AppRadius.lg),
-        child: Container(
-          width: double.infinity,
-          decoration: enabled
-              ? BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [
-                      HtmlDesignTokens.emerald600,
-                      HtmlDesignTokens.emerald500,
-                      HtmlDesignTokens.teal500,
-                    ],
-                  ),
-                  borderRadius: BorderRadius.circular(AppRadius.lg),
-                  boxShadow: [
-                    BoxShadow(
-                      color: HtmlDesignTokens.emerald500.withValues(
-                        alpha: 0.35,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: enabled ? onPressed : null,
+          borderRadius: BorderRadius.circular(AppRadius.md),
+          child: Ink(
+            decoration: BoxDecoration(
+              gradient: enabled
+                  ? const LinearGradient(
+                      colors: [
+                        HtmlDesignTokens.emerald600,
+                        HtmlDesignTokens.emerald500,
+                        HtmlDesignTokens.teal500,
+                      ],
+                    )
+                  : null,
+              color: enabled ? null : colors.surfaceContainerLow,
+              borderRadius: BorderRadius.circular(AppRadius.md),
+              border: enabled
+                  ? null
+                  : Border.all(color: colors.outlineVariant, width: 0.8),
+              boxShadow: enabled
+                  ? [
+                      BoxShadow(
+                        color: HtmlDesignTokens.emerald500.withValues(
+                          alpha: 0.32,
+                        ),
+                        blurRadius: 22,
+                        offset: const Offset(0, 8),
                       ),
-                      blurRadius: 25,
-                      offset: const Offset(0, 8),
+                    ]
+                  : null,
+            ),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 13),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Container(
+                    width: 30,
+                    height: 30,
+                    decoration: BoxDecoration(
+                      color: enabled
+                          ? Colors.white.withValues(alpha: 0.2)
+                          : colors.surface.withValues(alpha: 0.7),
+                      borderRadius: BorderRadius.circular(AppRadius.sm),
                     ),
-                  ],
-                )
-              : BoxDecoration(
-                  color:
-                      (dark
-                              ? HtmlDesignTokens.slate500
-                              : HtmlDesignTokens.slate400)
-                          .withValues(alpha: 0.3),
-                  borderRadius: BorderRadius.circular(AppRadius.lg),
-                ),
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Container(
-                width: 32,
-                height: 32,
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.2),
-                  borderRadius: BorderRadius.circular(AppRadius.sm),
-                ),
-                child: const Icon(
-                  Icons.directions_bus_rounded,
-                  size: 16,
-                  color: Colors.white,
-                ),
+                    child: Icon(
+                      Icons.directions_bus_rounded,
+                      size: 16,
+                      color: foreground,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Flexible(
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text(
+                        'Planificar viaje',
+                        maxLines: 1,
+                        style: text.titleSmall?.copyWith(
+                          color: foreground,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 0.2,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Icon(
+                    Icons.arrow_forward_rounded,
+                    size: 16,
+                    color: enabled
+                        ? Colors.white
+                        : disabledInk.withValues(alpha: 0.7),
+                  ),
+                ],
               ),
-              const SizedBox(width: 12),
-              Text(
-                'Planificar viaje',
-                style: text.titleSmall?.copyWith(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 0.5,
-                ),
-              ),
-              const SizedBox(width: 4),
-              const Icon(
-                Icons.arrow_forward_rounded,
-                size: 14,
-                color: Color(0xCCFFFFFF),
-              ),
-            ],
+            ),
           ),
         ),
       ),

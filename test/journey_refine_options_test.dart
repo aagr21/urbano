@@ -10,6 +10,8 @@ JourneyOption _option({
   required List<String> routes,
   required String departAt,
   required int durationMinutes,
+  String? arriveAt,
+  List<int> walkMeters = const [],
 }) {
   final busLegs = [
     for (final (i, r) in routes.indexed)
@@ -27,9 +29,12 @@ JourneyOption _option({
   return JourneyOption.fromJson({
     'type': type == JourneyType.direct ? 'direct' : 'transfer',
     'departAt': departAt,
-    'arriveAt': departAt,
+    'arriveAt': arriveAt ?? departAt,
     'durationMinutes': durationMinutes,
-    'legs': busLegs,
+    'legs': [
+      for (final m in walkMeters) {'kind': 'walk', 'distanceMeters': m},
+      ...busLegs,
+    ],
   });
 }
 
@@ -57,8 +62,36 @@ void main() {
       final result = refineJourneyOptions(input, maxShown: 3);
 
       expect(result, hasLength(1));
-      // Se queda con la salida más próxima, aunque la otra sea más corta.
+      // Se queda con la que llega antes (el micro más próximo).
       expect(result.single.departAt, '10:30:00');
+    });
+
+    test('de la misma línea prefiere la variante que menos hace caminar', () {
+      // Mismo micro y misma llegada: una variante camina 450 m hasta una
+      // parada más adelante (sale antes de casa), la otra 100 m a la cercana.
+      final input = [
+        _option(
+          type: JourneyType.direct,
+          routes: ['8'],
+          departAt: '05:56:00',
+          arriveAt: '06:30:00',
+          durationMinutes: 34,
+          walkMeters: [450],
+        ),
+        _option(
+          type: JourneyType.direct,
+          routes: ['8'],
+          departAt: '05:58:00',
+          arriveAt: '06:30:00',
+          durationMinutes: 32,
+          walkMeters: [100],
+        ),
+      ];
+
+      final result = refineJourneyOptions(input, maxShown: 3);
+
+      expect(result, hasLength(1));
+      expect(totalWalkMeters(result.single), 100);
     });
 
     test('muestra primero las opciones sin transbordo', () {

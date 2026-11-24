@@ -196,12 +196,20 @@ class ComplaintPill extends StatelessWidget {
         borderRadius: BorderRadius.circular(AppRadius.pill),
         border: Border.all(
           color: ink.withValues(alpha: emphasized ? 0.85 : 0.4),
+          width: emphasized ? 1.5 : 1,
         ),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 16, color: ink),
+          // Solo con tacto: en un filtro, el seleccionado cambia su ícono por
+          // un ✓. El tinte al 34 % solo no bastaba para leer cuál está activo
+          // (y pintar el acento crudo rompería la regla de `tint`/`legible`).
+          Icon(
+            emphasized && onTap != null ? Icons.check_rounded : icon,
+            size: 16,
+            color: ink,
+          ),
           const SizedBox(width: AppSpace.xs),
           // `Flexible`, no `Text` a pelo: dentro del `Wrap` de la tarjeta, un
           // motivo largo en pantalla angosta (360 px) desbordaba la pastilla.

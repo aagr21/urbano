@@ -21,6 +21,7 @@ import {
   straightLineMeters,
   orientBusLegGeometry,
   connectWalkAndBusGeometry,
+  dropShortFirstRideTransfers,
 } from '../domain/journey-planner';
 import { JourneyRouterPort } from '../domain/journey-router.port';
 import {
@@ -150,6 +151,10 @@ export class JourneyService {
     // (bajada). Nunca se compara contra el rumbo origen→destino del usuario,
     // porque un tramo puede girar y seguir siendo correcto.
     options = orientBusLegGeometry(options);
+
+    // Transbordo con un primer micro de ~200 m: se descarta (misma regla
+    // para OTP y el planner interno, medida sobre la geometría del tramo).
+    options = dropShortFirstRideTransfers(options);
 
     // Recortar a maxResults (necesario para OTP; idempotente para el planner
     // interno que ya lo hace internamente).

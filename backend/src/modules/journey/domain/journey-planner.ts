@@ -9,6 +9,7 @@ import {
 import {
   JOURNEY_LIMITS,
   MIN_BOARDING_PAIR_DISTANCE_M,
+  MIN_FIRST_RIDE_TRANSFER_M,
   WALK_SPEED_M_PER_MIN,
   TRANSFER_PENALTY_MINUTES,
 } from './journey-limits';
@@ -20,6 +21,7 @@ import {
 export {
   JOURNEY_LIMITS,
   MIN_BOARDING_PAIR_DISTANCE_M,
+  MIN_FIRST_RIDE_TRANSFER_M,
   WALK_SPEED_M_PER_MIN,
   TRANSFER_PENALTY_MINUTES,
 };
@@ -34,6 +36,16 @@ export {
  *   común; trip B (distinto) continúa desde ahí hacia el destino.
  * - Horarios calculados desde frequencies: el viaje k repite con offset
  *   k*headway dentro de la ventana [startTime, endTime].
+ * - `departAt`/`durationMinutes` son PUERTA A PUERTA (como OTP): la salida es
+ *   el momento de dejar el origen para llegar justo al micro, de modo que la
+ *   caminata de acceso cuenta en la duración. Si no contara, bajarse a pie
+ *   hasta una parada más adelantada de la MISMA línea "acortaba" el viaje y
+ *   el usuario caminaba un tramo que el micro ya cubría.
+ * - Una opción por trip (directo) o par de trips (transbordo): de todas las
+ *   combinaciones de paradas se queda la de menor duración y, a igualdad, la
+ *   que menos hace caminar.
+ * - Con transbordo, el primer micro debe recorrer al menos
+ *   [MIN_FIRST_RIDE_TRANSFER_M] (medido por las paradas del trip).
  *
  * La búsqueda usa índices parada→trips para que el costo sea lineal en
  * viajes candidatos, no en el producto de ambos conjuntos.
@@ -99,6 +111,8 @@ interface IndexedStop {
   seq: number;
   arr: number;
   dep: number;
+  /** Metros recorridos por el trip desde su primera parada (null sin coordenadas). */
+  along: number | null;
 }
 
 interface IndexedTrip {
@@ -110,14 +124,38 @@ interface IndexedTrip {
 
 function indexTrip(trip: TripSchedule): IndexedTrip {
   const index = new Map<string, IndexedStop>();
+  // Distancia acumulada parada a parada: aproxima lo que recorre el micro
+  // sin necesitar el shape (el planeador es puro). Si falta una coordenada,
+  // la distancia queda desconocida desde ahí y no se filtra por ella.
+  let along: number | null = 0;
+  let prev: { lat: number; lon: number } | null = null;
   for (const stop of trip.stops) {
+    const here =
+      stop.lat != null && stop.lon != null
+        ? { lat: stop.lat, lon: stop.lon }
+        : null;
+    if (along !== null) {
+      if (!here) along = null;
+      else if (prev) along += straightLineMeters(prev, here);
+    }
+    prev = here;
     index.set(stop.stopId, {
       seq: stop.sequence,
       arr: stop.arrivalSec,
       dep: stop.departureSec,
+      along,
     });
   }
   return { trip, kMax: kMaxOf(trip), index };
+}
+
+/**
+ * Metros que recorre el micro entre dos paradas del mismo trip, o `null` si
+ * no se conocen las coordenadas.
+ */
+function rideMeters(from: IndexedStop, to: IndexedStop): number | null {
+  if (from.along === null || to.along === null) return null;
+  return Math.max(0, to.along - from.along);
 }
 
 function formatHms(totalSec: number): string {
@@ -246,20 +284,26 @@ export function connectWalkAndBusGeometry(
       if (
         isLonLat(afterStart) &&
         isLonLat(end) &&
-        straightLineMeters({ lat: end[1], lon: end[0] }, {
-          lat: afterStart[1],
-          lon: afterStart[0],
-        }) <= STOP_SNAP_MAX_METERS
+        straightLineMeters(
+          { lat: end[1], lon: end[0] },
+          {
+            lat: afterStart[1],
+            lon: afterStart[0],
+          }
+        ) <= STOP_SNAP_MAX_METERS
       ) {
         next[lastIndex] = [afterStart[0], afterStart[1]];
       }
       if (
         isLonLat(beforeEnd) &&
         isLonLat(start) &&
-        straightLineMeters({ lat: start[1], lon: start[0] }, {
-          lat: beforeEnd[1],
-          lon: beforeEnd[0],
-        }) <= STOP_SNAP_MAX_METERS
+        straightLineMeters(
+          { lat: start[1], lon: start[0] },
+          {
+            lat: beforeEnd[1],
+            lon: beforeEnd[0],
+          }
+        ) <= STOP_SNAP_MAX_METERS
       ) {
         next[0] = [beforeEnd[0], beforeEnd[1]];
       }
@@ -427,11 +471,13 @@ export function planJourneys(input: PlannerInput): JourneyOption[] {
         const arriveAtSec = arriveBusSec + walkFromMin * 60;
         if (arriveAtSec <= depA.departureSec) continue;
 
+        // Puerta a puerta: se sale del origen justo para llegar al micro.
+        const leaveSec = depA.departureSec - walkToMin * 60;
         const option: JourneyOption = {
           type: 'direct',
-          departAt: formatHms(depA.departureSec),
+          departAt: formatHms(leaveSec),
           arriveAt: formatHms(arriveAtSec),
-          durationMinutes: minutesBetween(depA.departureSec, arriveAtSec),
+          durationMinutes: minutesBetween(leaveSec, arriveAtSec),
           walkToStop: stopRef(originStop),
           walkFromStop: stopRef(destStop),
           legs: [
@@ -448,11 +494,12 @@ export function planJourneys(input: PlannerInput): JourneyOption[] {
             walkLeg(destStop.distanceMeters),
           ],
         };
-        keepBest(
-          bestByKey,
-          `direct:${a.trip.tripId}:${stopId}:${destStopId}`,
-          option
-        );
+        // Clave por trip (no por par de paradas): de todas las paradas de
+        // subida/bajada del mismo micro gana la de menor duración puerta a
+        // puerta y, a igualdad, la que menos camina. Antes cada par era una
+        // opción distinta y la que hacía caminar de más competía (y ganaba
+        // en el cliente, que se quedaba con la de salida más temprana).
+        keepBest(bestByKey, `direct:${a.trip.tripId}`, option);
       }
     }
   }
@@ -475,6 +522,12 @@ export function planJourneys(input: PlannerInput): JourneyOption[] {
       for (const transfer of a.trip.stops) {
         const x = a.index.get(transfer.stopId);
         if (!x || x.seq <= o.seq) continue;
+        // Primer micro demasiado corto: subir para bajarse a ~200 m y tomar
+        // otro no es un viaje razonable (se camina y se ahorra un pasaje).
+        const firstRide = rideMeters(o, x);
+        if (firstRide !== null && firstRide < MIN_FIRST_RIDE_TRANSFER_M) {
+          continue;
+        }
         const arrXSec = x.arr + depA.k * a.trip.headwaySeconds;
 
         for (const b of destServingByStop.get(transfer.stopId) ?? []) {
@@ -503,11 +556,12 @@ export function planJourneys(input: PlannerInput): JourneyOption[] {
             const arriveAtSec = arriveBusSec + walkFromMin * 60;
             if (arriveAtSec <= depA.departureSec) continue;
 
+            const leaveSec = depA.departureSec - walkToMin * 60;
             const option: JourneyOption = {
               type: 'transfer',
-              departAt: formatHms(depA.departureSec),
+              departAt: formatHms(leaveSec),
               arriveAt: formatHms(arriveAtSec),
-              durationMinutes: minutesBetween(depA.departureSec, arriveAtSec),
+              durationMinutes: minutesBetween(leaveSec, arriveAtSec),
               walkToStop: stopRef(originStop),
               walkFromStop: stopRef(destStop),
               legs: [
@@ -535,7 +589,7 @@ export function planJourneys(input: PlannerInput): JourneyOption[] {
             };
             keepBest(
               bestByKey,
-              `transfer:${a.trip.tripId}:${b.trip.tripId}:${stopId}:${destStopId}`,
+              `transfer:${a.trip.tripId}:${b.trip.tripId}`,
               option
             );
           }
@@ -566,7 +620,75 @@ function keepBest(
   option: JourneyOption
 ): void {
   const existing = map.get(key);
-  if (!existing || option.durationMinutes < existing.durationMinutes) {
+  if (!existing || isBetterVariant(option, existing)) {
     map.set(key, option);
   }
+}
+
+/** Metros totales a pie de una opción (acceso + transbordos + egreso). */
+export function totalWalkMeters(option: JourneyOption): number {
+  return option.legs.reduce(
+    (acc, leg) => acc + (leg.kind === 'walk' ? leg.distanceMeters : 0),
+    0
+  );
+}
+
+/**
+ * Entre dos variantes del MISMO micro (o par de micros): menor duración
+ * puerta a puerta; a igualdad, menos caminata; después, la que llega antes.
+ */
+function isBetterVariant(a: JourneyOption, b: JourneyOption): boolean {
+  if (a.durationMinutes !== b.durationMinutes) {
+    return a.durationMinutes < b.durationMinutes;
+  }
+  const walkA = totalWalkMeters(a);
+  const walkB = totalWalkMeters(b);
+  if (walkA !== walkB) return walkA < walkB;
+  return a.arriveAt < b.arriveAt;
+}
+
+/**
+ * Metros que recorre un tramo de micro YA enriquecido: largo de su
+ * `geometry` (shape recortado / polyline de OTP) o, sin ella, la recta entre
+ * sus paradas. `null` si no hay con qué medir.
+ */
+export function busLegRideMeters(leg: BusLeg): number | null {
+  const coords = leg.geometry?.coordinates;
+  if (coords && coords.length >= 2) {
+    let total = 0;
+    for (let i = 1; i < coords.length; i++) {
+      const p = coords[i - 1];
+      const q = coords[i];
+      if (!isLonLat(p) || !isLonLat(q)) continue;
+      total += straightLineMeters(
+        { lat: p[1], lon: p[0] },
+        { lat: q[1], lon: q[0] }
+      );
+    }
+    return total;
+  }
+  if (leg.fromStop && leg.toStop) {
+    return straightLineMeters(leg.fromStop, leg.toStop);
+  }
+  return null;
+}
+
+/**
+ * Descarta las opciones con transbordo cuyo PRIMER micro recorre menos de
+ * [MIN_FIRST_RIDE_TRANSFER_M]. Es la regla para cualquier motor (OTP y el
+ * planner interno, que además ya la aplica durante la búsqueda para no gastar
+ * cupos de resultado en ellas). Si el tramo no se puede medir, se conserva.
+ */
+export function dropShortFirstRideTransfers(
+  options: JourneyOption[]
+): JourneyOption[] {
+  return options.filter((option) => {
+    if (option.type !== 'transfer') return true;
+    const firstBus = option.legs.find(
+      (leg): leg is BusLeg => leg.kind === 'bus'
+    );
+    if (!firstBus) return true;
+    const ride = busLegRideMeters(firstBus);
+    return ride === null || ride >= MIN_FIRST_RIDE_TRANSFER_M;
+  });
 }

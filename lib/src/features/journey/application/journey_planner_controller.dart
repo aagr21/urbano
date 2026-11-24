@@ -154,7 +154,8 @@ class JourneyPlannerController extends Notifier<JourneyPlannerState> {
             planOrigin: isOrigin ? place : keepJourneyField,
             planDestination: isOrigin ? keepJourneyField : place,
             replanPending: false,
-            expandedIndex: null,
+            // Respuesta nueva: la mejor opción abre con su paso a paso.
+            expandedIndex: 0,
             selectedOptionIndex: 0,
           );
         });
@@ -212,7 +213,7 @@ class JourneyPlannerController extends Notifier<JourneyPlannerState> {
       planDestination: isOrigin ? keepJourneyField : place,
       submitted: keepSubmitted,
       replanPending: false,
-      expandedIndex: null,
+      expandedIndex: 0,
       selectedOptionIndex: 0,
     );
   }
@@ -252,7 +253,8 @@ class JourneyPlannerController extends Notifier<JourneyPlannerState> {
       planOrigin: state.origin,
       planDestination: state.destination,
       submitted: true,
-      expandedIndex: null,
+      // La opción dibujada abre con su paso a paso.
+      expandedIndex: state.selectedOptionIndex,
     );
   }
 
@@ -320,7 +322,7 @@ class JourneyPlannerController extends Notifier<JourneyPlannerState> {
         id: 'micro-route-$key',
         point: routePathMidpoint(points),
         width: routeBadgeWidth(label),
-        height: 24,
+        height: routeBadgeHeight,
         iconKey: 'route-badge-${route.id}-$label-${detail.color}',
         child: MapRouteBadge(
           key: ValueKey('micro-route-$key'),
@@ -399,8 +401,8 @@ class JourneyPlannerController extends Notifier<JourneyPlannerState> {
         MapMarker(
           id: 'place-stop-${stop.id}',
           point: LatLng(stop.lat, stop.lon),
-          width: 16,
-          height: 16,
+          width: stopDotBox,
+          height: stopDotBox,
           child: const MapStopDot(color: AppColors.primary),
         ),
       );

@@ -52,11 +52,20 @@ LatLng routePathMidpoint(List<LatLng> path) {
   return path.last;
 }
 
-/// Ancho de la insignia en función del texto (icono + texto + padding).
+/// Ancho de la CAJA del marcador de una insignia: la insignia en función del
+/// texto (icono + texto + padding) más el aire de su sombra a cada lado
+/// ([kMarkerShadowMargin]).
 double routeBadgeWidth(String label) {
   final width = 30 + label.length * 6.6;
-  return width.clamp(46, 170).toDouble();
+  return width.clamp(46, 170).toDouble() + kMarkerShadowMargin * 2;
 }
+
+/// Alto de la caja del marcador de una insignia (24 visibles + el aire de la
+/// sombra).
+const double routeBadgeHeight = 24 + kMarkerShadowMargin * 2;
+
+/// Lado de la caja del marcador de un punto de parada de 16 px.
+const double stopDotBox = 16 + kMarkerShadowMargin * 2;
 
 /// Pin del LUGAR consultado en el modo lugares del panel: marca EN EL MAPA el
 /// punto exacto sobre el que se pregunta «¿qué línea pasa por aquí?» (elegido
@@ -122,40 +131,45 @@ class MapRouteBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final onColor = AppColors.onColor(color);
-    return Container(
-      alignment: Alignment.center,
-      decoration: BoxDecoration(
-        color: color,
-        borderRadius: BorderRadius.circular(AppRadius.tile),
-        border: Border.all(color: Colors.white, width: 2),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x4D000000),
-            blurRadius: 6,
-            offset: Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.directions_bus_rounded, size: 12, color: onColor),
-          const SizedBox(width: 3),
-          Flexible(
-            child: Text(
-              label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: onColor,
-                fontSize: 10.5,
-                fontWeight: FontWeight.w800,
-                height: 1.1,
+    // El aire alrededor deja entrar la sombra entera en la imagen nativa: sin
+    // él se recortaba contra la caja y asomaban puntas en las esquinas.
+    return Padding(
+      padding: const EdgeInsets.all(kMarkerShadowMargin),
+      child: Container(
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: color,
+          borderRadius: BorderRadius.circular(AppRadius.tile),
+          border: Border.all(color: Colors.white, width: 2),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x4D000000),
+              blurRadius: 6,
+              offset: Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.directions_bus_rounded, size: 12, color: onColor),
+            const SizedBox(width: 3),
+            Flexible(
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: onColor,
+                  fontSize: 10.5,
+                  fontWeight: FontWeight.w800,
+                  height: 1.1,
+                ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

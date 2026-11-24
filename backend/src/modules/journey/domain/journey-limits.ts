@@ -35,6 +35,14 @@ export const MIN_TRANSIT_DISTANCE_M = 150;
  */
 export const MIN_BOARDING_PAIR_DISTANCE_M = 150;
 
+/**
+ * Recorrido mínimo (m) del PRIMER micro de una opción con transbordo: subir
+ * a un micro para bajarse ~200 m después y tomar otro no tiene sentido (se
+ * camina eso en 2-3 min y se ahorra un pasaje). Las opciones con transbordo
+ * cuyo primer tramo de micro recorre menos que esto se descartan.
+ */
+export const MIN_FIRST_RIDE_TRANSFER_M = 1000;
+
 /** Velocidad de caminata: 80 m/min ≈ 4.8 km/h. */
 export const WALK_SPEED_M_PER_MIN = 80;
 
@@ -48,6 +56,7 @@ export const JOURNEY_LIMITS = Object.freeze({
   maxCandidateStops: MAX_CANDIDATE_STOPS,
   minTransitDistanceM: MIN_TRANSIT_DISTANCE_M,
   minBoardingPairDistanceM: MIN_BOARDING_PAIR_DISTANCE_M,
+  minFirstRideTransferM: MIN_FIRST_RIDE_TRANSFER_M,
   walkSpeedMPerMin: WALK_SPEED_M_PER_MIN,
   transferPenaltyMinutes: TRANSFER_PENALTY_MINUTES,
 });

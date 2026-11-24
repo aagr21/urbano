@@ -1,3 +1,5 @@
+import 'dart:ui' as ui;
+
 import 'package:flutter/foundation.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:material_ui/material_ui.dart';
@@ -9,6 +11,7 @@ import '../../../../core/utils/extensions.dart';
 import '../../../../core/widgets/urbano_map.dart';
 import '../../data/journey_models.dart';
 import '../../data/journey_repository.dart';
+import '../../domain/route_arrows.dart';
 import '../journey_markers.dart';
 import './journey_option_card.dart';
 
@@ -310,6 +313,11 @@ class JourneyResultMapState extends State<JourneyResultMap> {
           markers: [
             ..._endpointMarkers(origin, destination),
             if (showJourney) ..._journeyMarkers(option),
+            if (showJourney)
+              ..._buildRouteArrows(
+                option,
+                JourneyOptionCard.alternativeRouteColorsForLegs(option.legs),
+              ),
             ...widget.extraMarkers,
           ],
         ),
@@ -358,8 +366,9 @@ class JourneyResultMapState extends State<JourneyResultMap> {
   ) {
     final polylines = <MapPolyline>[];
 
-    // Colores alternativos para distinguir líneas con el mismo color GTFS
-    // cuando hay transbordo entre ellas (dibujo en el mapa).
+    // Cada tramo de micro con un color distinto de los demás y del gris de la
+    // caminata (`alternativeRouteColorsForLegs`): dos líneas del mismo color
+    // —o de colores muy parecidos— ya no se confunden en un transbordo.
     final legAltColors = JourneyOptionCard.alternativeRouteColorsForLegs(
       option.legs,
     );
@@ -369,7 +378,7 @@ class JourneyResultMapState extends State<JourneyResultMap> {
     // y único modo cuando el backend usa el planner interno sin OTP). En
     // ambos casos el extremo que toca el micro se pega a su trazado
     // (`_joinWalkToBus`).
-    const walkColor = Color(0xFF94A3B8);
+    const walkColor = JourneyOptionCard.walkStrokeColor;
     final walkLegs = option.walkLegs;
     if (walkLegs.isEmpty) {
       // Compatibilidad: opciones sin tramos de caminata explícitos.
@@ -420,6 +429,22 @@ class JourneyResultMapState extends State<JourneyResultMap> {
       }
     }
 
+    // Transbordo sin tramo a pie entre dos micros: el trazado del primero
+    // acaba en SU calzada y el del segundo empieza en la suya (cada `shape` se
+    // recorta proyectando la parada sobre su propia línea), así que entre
+    // ambos quedaba un hueco sin dibujar. Se pinta como caminata: es lo que
+    // hace el pasajero para cambiar de micro.
+    for (final connector in transferConnectors(option.legs)) {
+      polylines.add(
+        MapPolyline(
+          points: connector,
+          width: 4,
+          color: walkColor,
+          dashed: true,
+        ),
+      );
+    }
+
     // Tramos de micro: `mapPoints` ya los entrega en el sentido del propio
     // tramo (fromStop → toStop). No se comparan con el origen/destino del
     // usuario: el segundo micro de un transbordo está más cerca del destino y
@@ -428,17 +453,58 @@ class JourneyResultMapState extends State<JourneyResultMap> {
       final path = leg.mapPoints;
       if (path == null || path.isEmpty) continue;
       final legIndex = option.legs.indexOf(leg);
-      final colorHex = legAltColors[legIndex] ?? leg.routeColor;
       polylines.add(
         MapPolyline(
           points: path,
           width: 6,
-          color: AppColors.fromHex(colorHex).withValues(alpha: 0.92),
+          color: busLegStrokeColor(legAltColors[legIndex] ?? leg.routeColor),
           outline: true,
         ),
       );
     }
     return polylines;
+  }
+
+  /// Distancia (m) por debajo de la cual el fin de un micro y el inicio del
+  /// siguiente se consideran el mismo punto (no hay hueco que dibujar).
+  static const double _transferGapMinMeters = 1;
+
+  /// Caminatas implícitas de los transbordos: para cada par de micros
+  /// CONSECUTIVOS sin un tramo a pie explícito entre ellos, la línea
+  /// fin-del-primero → parada de transbordo → inicio-del-segundo. Si ya hay
+  /// una caminata entre ambos, la dibuja ella y aquí no se añade nada.
+  @visibleForTesting
+  static List<List<LatLng>> transferConnectors(List<JourneyLeg> legs) {
+    const distance = Distance();
+    final connectors = <List<LatLng>>[];
+    JourneyLeg? prevBus;
+    for (final leg in legs) {
+      if (leg.isWalk) {
+        prevBus = null;
+        continue;
+      }
+      if (!leg.isBus) continue;
+      final previous = prevBus;
+      prevBus = leg;
+      if (previous == null) continue;
+
+      final end = previous.mapPoints?.last ?? previous.toStop?.position;
+      final start = leg.mapPoints?.first ?? leg.fromStop?.position;
+      if (end == null || start == null) continue;
+      final stop = previous.toStop?.position ?? leg.fromStop?.position;
+      final points = <LatLng>[end];
+      if (stop != null &&
+          distance(stop, end) >= _transferGapMinMeters &&
+          distance(stop, start) >= _transferGapMinMeters) {
+        points.add(stop);
+      }
+      points.add(start);
+      if (points.length == 2 && distance(end, start) < _transferGapMinMeters) {
+        continue;
+      }
+      connectors.add(points);
+    }
+    return connectors;
   }
 
   /// Separación máxima (m) entre el extremo de una caminata y el trazado del
@@ -530,9 +596,17 @@ class JourneyResultMapState extends State<JourneyResultMap> {
           leg.fromStop?.position;
       end = destination;
     } else {
-      // Transferencia a pie entre paradas de micro.
-      start = prevBus.toStop?.position;
-      end = nextBus.fromStop?.position;
+      // Transferencia a pie entre paradas de micro. Sin coordenadas de las
+      // paradas se usan los extremos de los trazados: el transbordo nunca se
+      // queda como un hueco vacío entre los dos micros.
+      start =
+          prevBus.toStop?.position ??
+          leg.fromStop?.position ??
+          prevBus.mapPoints?.last;
+      end =
+          nextBus.fromStop?.position ??
+          leg.toStop?.position ??
+          nextBus.mapPoints?.first;
     }
     if (start == null || end == null) return null;
     return [start, end];
@@ -604,7 +678,7 @@ class JourneyResultMapState extends State<JourneyResultMap> {
           // La insignia debe medir distinto por ruta para no compartir
           // caché con un badge de otro color/texto.
           width: routeBadgeWidth(label),
-          height: 24,
+          height: routeBadgeHeight,
           iconKey: 'route-badge-${leg.routeId ?? label}-$label-$colorHex',
           child: MapRouteBadge(
             key: ValueKey('journey-map-route-$i'),
@@ -616,4 +690,126 @@ class JourneyResultMapState extends State<JourneyResultMap> {
     }
     return markers;
   }
+
+  /// Flechas de sentido a lo largo de cada tramo de micro, cada
+  /// [_arrowSpacingMeters]. La geometría (reparto y rumbo) es pura y vive en
+  /// `domain/route_arrows.dart`; aquí solo se pinta, en el color de la línea
+  /// (o el alternativo del transbordo) para que se lea sobre ella.
+  static List<MapMarker> _buildRouteArrows(
+    JourneyOption option,
+    Map<int, String> legAltColors,
+  ) {
+    final markers = <MapMarker>[];
+    for (final leg in option.busLegs) {
+      final path = leg.mapPoints;
+      if (path == null || path.length < 2) continue;
+      final legIndex = option.legs.indexOf(leg);
+      // MISMO color que el trazo del tramo: la flecha es parte de la línea.
+      final color = busLegStrokeColor(legAltColors[legIndex] ?? leg.routeColor);
+      final arrows = arrowsAlongPath(path, _arrowSpacingMeters);
+      for (var j = 0; j < arrows.length; j++) {
+        markers.add(
+          MapMarker(
+            id: 'journey-map-arrow-$legIndex-$j',
+            point: arrows[j].point,
+            width: _arrowSize,
+            height: _arrowSize,
+            rotation: arrows[j].bearing,
+            // El rumbo es GEOGRÁFICO: la flecha gira con el mapa y sigue
+            // apuntando a lo largo del trazo. Con la rotación de pantalla
+            // (la de los pines) daba vueltas sobre la línea al girar el mapa.
+            rotateWithMap: true,
+            // Una imagen por COLOR, no por id: con la clave por id, al cambiar
+            // de opción el motor reutilizaba la flecha ya rasterizada con el
+            // color del micro anterior.
+            iconKey: arrowIconKey(color),
+            child: RouteArrowMarker(color: color),
+          ),
+        );
+      }
+    }
+    return markers;
+  }
+
+  /// Color del trazo de un tramo de micro (GTFS o alternativo). Lo usan la
+  /// polilínea y sus flechas de sentido: una sola fuente para que nunca
+  /// diverjan.
+  ///
+  /// OPACO a propósito: el motor nativo descarta el alfa del color de una
+  /// línea (`_hex`), así que un trazo «al 92 %» se pintaba opaco mientras la
+  /// flecha rasterizada sí quedaba translúcida, y su punta se veía de otro
+  /// tono donde sobresale del trazo.
+  @visibleForTesting
+  static Color busLegStrokeColor(String? hex) => AppColors.fromHex(hex);
+
+  /// Clave de la imagen de una flecha: depende SOLO de su color (todas las
+  /// flechas del mismo trazo comparten una imagen nativa).
+  @visibleForTesting
+  static String arrowIconKey(Color color) =>
+      'route-arrow-${color.toARGB32().toRadixString(16)}';
+
+  /// Distancia entre flechas de sentido sobre un tramo de micro.
+  static const double _arrowSpacingMeters = 200;
+
+  /// Lado del marcador de cada flecha.
+  static const double _arrowSize = 16;
+}
+
+/// Cabeza de flecha de sentido sobre un tramo de micro.
+@visibleForTesting
+class RouteArrowMarker extends StatelessWidget {
+  const RouteArrowMarker({super.key, required this.color});
+
+  /// Color del trazo del tramo ([JourneyResultMapState.busLegStrokeColor]).
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return CustomPaint(
+      size: const Size.square(JourneyResultMapState._arrowSize),
+      painter: _RouteArrowPainter(color: color),
+    );
+  }
+}
+
+/// Cabeza de flecha rellena del MISMO color que el trazo, con el borde blanco
+/// de la polilínea (`MapPolyline.outlineColor`): se lee como una punta de la
+/// propia línea, no como un marcador aparte. El borde la separa del trazo
+/// sobre el que se apoya y del mapa, así que no hace falta otra tinta.
+class _RouteArrowPainter extends CustomPainter {
+  _RouteArrowPainter({required this.color});
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final c = size.center(Offset.zero);
+    final r = size.shortestSide / 2;
+    // Apunta hacia arriba (0° = norte); la rotación la aplica el marcador.
+    final head = ui.Path()
+      ..moveTo(c.dx, c.dy - r * 0.78)
+      ..lineTo(c.dx + r * 0.72, c.dy + r * 0.55)
+      ..lineTo(c.dx, c.dy + r * 0.2)
+      ..lineTo(c.dx - r * 0.72, c.dy + r * 0.55)
+      ..close();
+    canvas
+      ..drawPath(
+        head,
+        Paint()
+          ..color = const Color(0xFFFFFFFF)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = r * 0.3
+          ..strokeJoin = StrokeJoin.round
+          ..isAntiAlias = true,
+      )
+      ..drawPath(
+        head,
+        Paint()
+          ..color = color
+          ..isAntiAlias = true,
+      );
+  }
+
+  @override
+  bool shouldRepaint(covariant _RouteArrowPainter oldDelegate) =>
+      oldDelegate.color != color;
 }

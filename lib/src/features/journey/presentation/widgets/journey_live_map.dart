@@ -6,6 +6,7 @@ import '../../../../core/location/compass_service.dart';
 import '../../../../core/map/map.dart';
 import '../../../../core/utils/extensions.dart';
 import '../../../../core/utils/location.dart';
+import '../../../../core/widgets/my_location_dot.dart';
 import '../../data/journey_models.dart';
 import '../../data/journey_repository.dart';
 import 'journey_map_controls.dart';
@@ -147,34 +148,10 @@ class LiveMapLayer extends ConsumerWidget {
     final markers = [
       ...extraMarkers,
       if (locationReady && shownPoint != null)
-        MapMarker(
+        MyLocationDot.marker(
           id: 'my-location-last',
           point: shownPoint,
-          width: 30,
-          height: 30,
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              // Relleno = primario del tema, el MISMO color de los botones de
-              // ubicación y del pin de origen: en oscuro es la menta de la
-              // marca, no un verde genérico.
-              color: context.colors.primary,
-              // Anillo SIEMPRE blanco, como los pines de origen/destino
-              // (`JourneyMarkers`): el punto va sobre el mapa, no sobre una
-              // superficie de la app, así que no debe seguir al tema — con
-              // `surface` el borde se volvía negro en modo oscuro y el punto
-              // se confundía con la cartografía oscura.
-              border: Border.all(color: Colors.white, width: 3),
-            ),
-            child: Center(
-              child: Icon(
-                Icons.navigation_rounded,
-                size: 18,
-                color: context.colors.onPrimary,
-              ),
-            ),
-          ),
-          rotation: heading,
+          heading: heading,
         ),
     ];
     final pulses = [

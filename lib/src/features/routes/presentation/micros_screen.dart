@@ -5,6 +5,7 @@ import 'package:material_ui/material_ui.dart';
 import '../../../core/animation/motion.dart';
 import '../../../core/network/api_client.dart';
 import '../../../core/router/app_router.dart';
+import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/html_design_tokens.dart' show HtmlDesignTokens;
 import '../../../core/utils/debouncer.dart';
@@ -12,16 +13,36 @@ import '../../../core/utils/extensions.dart';
 import '../../../core/widgets/empty_state.dart';
 import '../../../core/widgets/error_view.dart';
 import '../../../core/widgets/loading_shimmer.dart';
+import '../../../core/widgets/urbano_back_button.dart';
+import '../data/route_facts.dart';
 import '../data/route_models.dart';
 import '../data/route_repository.dart';
+import 'widgets/micro_bus_art.dart';
 import 'widgets/micros_card.dart';
+
+/// Orden del catálogo. Se traduce al `sort` del contrato (`/routes`).
+enum _CatalogSort {
+  number('name', 'número de línea', '1–9'),
+  corridor('longName', 'nombre del recorrido', 'A–Z');
+
+  const _CatalogSort(this.value, this.label, this.short);
+
+  /// Valor que entiende el backend.
+  final String value;
+
+  /// Cómo se lee en la app.
+  final String label;
+
+  /// Etiqueta del selector.
+  final String short;
+}
 
 /// **Catálogo completo de micros** en pantalla propia.
 ///
-/// Antes «Micros» abría el cajón lateral del mapa de Viaje: un fragmento que
-/// solo dejaba ver la línea mientras el planificador seguía detrás. Aquí es una
-/// pantalla de verdad —buscador, cifras del catálogo y una tarjeta por línea—
-/// con la acción **Ver detalles** en cada una.
+/// La lista muestra la identidad real de cada línea —numeral con su color GTFS,
+/// recorrido, paradas y sentidos— y lleva al detalle (`/routes/:id`) con el
+/// badge en vuelo. El buscador consulta el backend con debounce y el orden es
+/// una decisión explícita ([_CatalogSort]), no un adorno.
 ///
 /// El backend topa `limit` en 100 y el feed ronda las 154 líneas, así que la
 /// lista pagina de 100 en 100 al acercarse al final (el repositorio ya cachea
@@ -47,6 +68,7 @@ class _MicrosScreenState extends ConsumerState<MicrosScreen> {
   bool _loadingMore = false;
   bool _hasMore = false;
   Object? _error;
+  _CatalogSort _sort = _CatalogSort.number;
 
   @override
   void initState() {
@@ -73,7 +95,7 @@ class _MicrosScreenState extends ConsumerState<MicrosScreen> {
           q: query.isEmpty ? null : query,
           page: page,
           limit: _pageSize,
-          sort: 'shortName',
+          sort: _sort.value,
         );
   }
 
@@ -142,24 +164,28 @@ class _MicrosScreenState extends ConsumerState<MicrosScreen> {
     });
   }
 
+  void _changeSort(_CatalogSort sort) {
+    if (sort == _sort) return;
+    _debounce.cancel();
+    setState(() => _sort = sort);
+    _loadFirstPage();
+    _scroll.jumpTo(0);
+  }
+
   void _openDetail(RouteSummary route) {
     context.push(UrbanoRoutes.routeDetail(route.id, from: 'micros'));
   }
 
   @override
   Widget build(BuildContext context) {
-    final dark = Theme.of(context).brightness == Brightness.dark;
+    final colors = context.colors;
     return Scaffold(
-      backgroundColor: dark
-          ? HtmlDesignTokens.slate900
-          : HtmlDesignTokens.slate50,
+      backgroundColor: colors.surfaceContainerLowest,
       body: SafeArea(
         bottom: false,
         child: Column(
           children: [
-            // Custom header con backdrop blur
             _buildHeader(context),
-            // Contenido scrolleable
             Expanded(
               child: CustomScrollView(
                 controller: _scroll,
@@ -175,16 +201,15 @@ class _MicrosScreenState extends ConsumerState<MicrosScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          // Hero banner
                           _buildHeroBanner(context),
                           const SizedBox(height: AppSpace.md),
-                          // Search + filter chips
-                          _buildSearchAndFilters(context),
+                          _buildSearch(context),
+                          const SizedBox(height: AppSpace.sm),
+                          _buildResultsCaption(context),
                         ],
                       ),
                     ),
                   ),
-                  // Route list
                   if (_loading)
                     const SliverToBoxAdapter(child: SkeletonList())
                   else if (_error != null)
@@ -210,76 +235,32 @@ class _MicrosScreenState extends ConsumerState<MicrosScreen> {
     );
   }
 
-  /// Header personalizado: back button, título "Micros" + badge "SCZ",
-  /// botones de mapa y notificaciones.
+  /// Cabecera: volver, identidad del catálogo y la única acción de pantalla
+  /// (actualizar). Antes había un botón de mapa y una campana que no hacían
+  /// nada: un control que no responde es peor que no tenerlo.
   Widget _buildHeader(BuildContext context) {
-    final dark = Theme.of(context).brightness == Brightness.dark;
-    final bg = dark
-        ? HtmlDesignTokens.slate800.withValues(alpha: 0.9)
-        : HtmlDesignTokens.white.withValues(alpha: 0.9);
-    final border = dark
-        ? HtmlDesignTokens.slate700.withValues(alpha: 0.3)
-        : HtmlDesignTokens.slate200.withValues(alpha: 0.5);
+    final colors = context.colors;
+    final text = context.text;
 
     return Container(
       padding: const EdgeInsets.fromLTRB(
         AppSpace.lg,
         AppSpace.sm,
-        AppSpace.lg,
-        AppSpace.md,
+        AppSpace.sm,
+        AppSpace.sm,
       ),
       decoration: BoxDecoration(
-        color: bg,
-        border: Border(bottom: BorderSide(color: border)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 6,
-            offset: const Offset(0, 2),
+        color: colors.surface.withValues(alpha: 0.94),
+        border: Border(
+          bottom: BorderSide(
+            color: colors.outlineVariant.withValues(alpha: 0.6),
           ),
-        ],
+        ),
       ),
       child: Row(
         children: [
-          // Back button
-          PressScale(
-            scale: 0.95,
-            child: InkWell(
-              onTap: () => context.pop(),
-              borderRadius: BorderRadius.circular(20),
-              child: Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: dark
-                      ? HtmlDesignTokens.slate700
-                      : HtmlDesignTokens.white,
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(
-                    color: dark
-                        ? HtmlDesignTokens.slate600
-                        : HtmlDesignTokens.slate200.withValues(alpha: 0.7),
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.06),
-                      blurRadius: 4,
-                      offset: const Offset(0, 1),
-                    ),
-                  ],
-                ),
-                child: Icon(
-                  Icons.chevron_left_rounded,
-                  size: 20,
-                  color: dark
-                      ? HtmlDesignTokens.slate300
-                      : HtmlDesignTokens.slate700,
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(width: 12),
-          // Title + subtitle
+          const UrbanoBackButton(key: ValueKey('micros-back')),
+          const SizedBox(width: AppSpace.sm),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -288,595 +269,270 @@ class _MicrosScreenState extends ConsumerState<MicrosScreen> {
                   children: [
                     Text(
                       'Micros',
-                      style: context.text.titleLarge?.copyWith(
+                      style: text.titleLarge?.copyWith(
                         fontWeight: FontWeight.w800,
-                        color: dark
-                            ? HtmlDesignTokens.white
-                            : HtmlDesignTokens.slate900,
+                        color: colors.onSurface,
                         letterSpacing: -0.5,
                       ),
                     ),
                     const SizedBox(width: 6),
-                    // SCZ badge
                     Container(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 6,
                         vertical: 2,
                       ),
                       decoration: BoxDecoration(
-                        color: HtmlDesignTokens.emerald100,
-                        borderRadius: BorderRadius.circular(8),
+                        color: AppColors.tint(
+                          colors.primary,
+                          colors.surface,
+                          0.14,
+                        ),
+                        borderRadius: BorderRadius.circular(AppRadius.sm),
                         border: Border.all(
-                          color: HtmlDesignTokens.emerald200.withValues(
-                            alpha: 0.8,
-                          ),
+                          color: colors.primary.withValues(alpha: 0.24),
                         ),
                       ),
                       child: Text(
                         'SCZ',
-                        style: context.text.labelSmall?.copyWith(
+                        style: text.labelSmall?.copyWith(
                           fontSize: 10,
                           fontWeight: FontWeight.w800,
-                          color: HtmlDesignTokens.emerald800,
+                          color: AppColors.legible(
+                            colors.primary,
+                            AppColors.tint(
+                              colors.primary,
+                              colors.surface,
+                              0.14,
+                            ),
+                          ),
                         ),
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 1),
                 Text(
-                  'Santa Cruz de la Sierra',
-                  style: context.text.labelSmall?.copyWith(
+                  _loading
+                      ? 'Santa Cruz de la Sierra'
+                      : 'Santa Cruz de la Sierra · $_total líneas',
+                  style: text.labelSmall?.copyWith(
                     fontSize: 11,
                     fontWeight: FontWeight.w600,
-                    color: dark
-                        ? HtmlDesignTokens.slate400
-                        : HtmlDesignTokens.slate500,
+                    color: colors.onSurfaceVariant,
                   ),
                 ),
               ],
             ),
           ),
-          // Action buttons
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // Map button
-              PressScale(
-                scale: 0.95,
-                child: Container(
-                  width: 40,
-                  height: 40,
-                  margin: const EdgeInsets.only(right: 8),
-                  decoration: BoxDecoration(
-                    color: HtmlDesignTokens.emerald50,
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(
-                      color: HtmlDesignTokens.emerald200.withValues(alpha: 0.6),
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.03),
-                        blurRadius: 2,
-                        offset: const Offset(0, 1),
-                      ),
-                    ],
-                  ),
-                  child: const Icon(
-                    Icons.map_outlined,
-                    size: 20,
-                    color: HtmlDesignTokens.emerald700,
-                  ),
-                ),
-              ),
-              // Notification button
-              PressScale(
-                scale: 0.95,
-                child: Container(
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    color: dark
-                        ? HtmlDesignTokens.slate700
-                        : HtmlDesignTokens.white,
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(
-                      color: dark
-                          ? HtmlDesignTokens.slate600
-                          : HtmlDesignTokens.slate200.withValues(alpha: 0.7),
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.06),
-                        blurRadius: 4,
-                        offset: const Offset(0, 1),
-                      ),
-                    ],
-                  ),
-                  child: Stack(
-                    children: [
-                      Icon(
-                        Icons.notifications_outlined,
-                        size: 20,
-                        color: dark
-                            ? HtmlDesignTokens.slate300
-                            : HtmlDesignTokens.slate600,
-                      ),
-                      Positioned(
-                        top: 6,
-                        right: 6,
-                        child: Container(
-                          width: 8,
-                          height: 8,
-                          decoration: BoxDecoration(
-                            color: HtmlDesignTokens.emerald500,
-                            shape: BoxShape.circle,
-                            border: Border.all(
-                              color: dark
-                                  ? HtmlDesignTokens.slate700
-                                  : HtmlDesignTokens.white,
-                              width: 2,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
+          IconButton(
+            onPressed: _loading ? null : _loadFirstPage,
+            tooltip: 'Actualizar catálogo',
+            icon: Icon(
+              Icons.refresh_rounded,
+              size: 20,
+              color: colors.onSurfaceVariant,
+            ),
           ),
         ],
       ),
     );
   }
 
-  /// Hero banner: gradiente esmeralda, ícono de micro, título,
-  /// contador de líneas activas, tarifa y horario.
+  /// Banda de identidad del catálogo: qué es, qué se puede hacer y los datos
+  /// de ciudad que no cambian por línea (cuántas hay, pasaje y fuente).
   Widget _buildHeroBanner(BuildContext context) {
     final text = context.text;
+
     return Container(
-      padding: const EdgeInsets.all(AppSpace.md),
+      clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(AppRadius.xl),
-        // HTML: from-emerald-800 via-[#064e3b] to-teal-950
-        // Tailwind emerald-800 = #064E3B = HtmlDesignTokens.emerald900
+        borderRadius: BorderRadius.circular(AppRadius.lg),
         gradient: const LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [
-            HtmlDesignTokens.emerald900,
-            HtmlDesignTokens.emerald900,
-            HtmlDesignTokens.teal950,
-          ],
+          colors: [HtmlDesignTokens.emerald900, HtmlDesignTokens.teal950],
         ),
-        border: Border.all(
-          color: HtmlDesignTokens.emerald600.withValues(alpha: 0.3),
-        ),
-        // HTML: shadow-floating = 0 12px 30px -4px rgba(6, 78, 59, 0.28)
         boxShadow: [
           BoxShadow(
-            color: HtmlDesignTokens.emerald700.withValues(alpha: 0.28),
-            blurRadius: 30,
-            offset: const Offset(0, 12),
-            spreadRadius: -4,
+            color: HtmlDesignTokens.emerald700.withValues(alpha: 0.24),
+            blurRadius: 24,
+            offset: const Offset(0, 10),
+            spreadRadius: -6,
           ),
         ],
       ),
       child: Stack(
-        clipBehavior: Clip.none,
         children: [
-          // Ambient glow effects
-          Positioned(
-            right: -32,
-            bottom: -40,
-            child: Container(
-              width: 176,
-              height: 176,
-              decoration: BoxDecoration(
-                color: HtmlDesignTokens.emerald400.withValues(alpha: 0.1),
-                shape: BoxShape.circle,
-                boxShadow: [
-                  BoxShadow(
-                    color: HtmlDesignTokens.emerald400.withValues(alpha: 0.05),
-                    blurRadius: 48,
-                  ),
-                ],
-              ),
+          // Anillos de la ciudad como textura: la banda no es un rectángulo
+          // plano, pero tampoco compite con las tarjetas.
+          const Positioned(
+            right: -46,
+            top: -46,
+            child: _Ring(size: 150, alpha: 0.10),
+          ),
+          const Positioned(
+            right: -14,
+            top: -14,
+            child: _Ring(size: 86, alpha: 0.14),
+          ),
+          const Positioned(
+            right: AppSpace.lg,
+            top: AppSpace.md,
+            child: MicroBusArt(
+              color: HtmlDesignTokens.emerald400,
+              size: Size(48, 32),
             ),
           ),
-          Positioned(
-            right: 56,
-            top: -24,
-            child: Container(
-              width: 112,
-              height: 112,
-              decoration: BoxDecoration(
-                color: HtmlDesignTokens.teal300.withValues(alpha: 0.15),
-                shape: BoxShape.circle,
-                boxShadow: [
-                  BoxShadow(
-                    color: HtmlDesignTokens.teal300.withValues(alpha: 0.08),
-                    blurRadius: 32,
+          Padding(
+            padding: const EdgeInsets.all(AppSpace.lg),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Red urbana de micros',
+                  style: text.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w800,
+                    color: HtmlDesignTokens.white,
+                    letterSpacing: -0.3,
                   ),
-                ],
-              ),
-            ),
-          ),
-          // Content
-          Column(
-            children: [
-              Row(
-                children: [
-                  // Bus icon
-                  Container(
-                    width: 44,
-                    height: 44,
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: HtmlDesignTokens.white.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(AppRadius.tile),
-                      border: Border.all(
-                        color: HtmlDesignTokens.white.withValues(alpha: 0.2),
-                      ),
-                    ),
-                    child: const Icon(
-                      Icons.directions_bus_rounded,
-                      size: 24,
-                      color: HtmlDesignTokens.emerald200,
-                    ),
-                  ),
-                  const SizedBox(width: 14),
-                  // Title + count
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Expanded(
-                              child: Text(
-                                'Red Urbana de Micros',
-                                style: text.titleSmall?.copyWith(
-                                  fontWeight: FontWeight.w800,
-                                  color: HtmlDesignTokens.white,
-                                  letterSpacing: -0.3,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 10,
-                                vertical: 2,
-                              ),
-                              decoration: BoxDecoration(
-                                color: HtmlDesignTokens.emerald400.withValues(
-                                  alpha: 0.2,
-                                ),
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(
-                                  color: HtmlDesignTokens.emerald300.withValues(
-                                    alpha: 0.3,
-                                  ),
-                                ),
-                              ),
-                              child: Text(
-                                '$_total líneas activas',
-                                style: text.labelSmall?.copyWith(
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w700,
-                                  color: HtmlDesignTokens.emerald100,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          'Toca cualquier línea para ver su recorrido y paradas',
-                          style: text.labelSmall?.copyWith(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w500,
-                            color: HtmlDesignTokens.emerald100.withValues(
-                              alpha: 0.8,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              // HTML: mt-3 pt-2.5 border-t border-white/10
-              const SizedBox(height: 12),
-              Padding(
-                padding: const EdgeInsets.only(top: 10),
-                child: Divider(
-                  height: 0,
-                  color: HtmlDesignTokens.white.withValues(alpha: 0.1),
                 ),
-              ),
-              const SizedBox(height: 8),
-              // Footer: fare + hours (HTML: flex-wrap gap-2)
-              Wrap(
-                spacing: 8,
-                runSpacing: 6,
-                children: [
-                  // Fare pill — HTML: bg-emerald-500/20 + pulse dot + white bold text
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: HtmlDesignTokens.emerald500.withValues(alpha: 0.2),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(
-                        color: HtmlDesignTokens.emerald400.withValues(
-                          alpha: 0.3,
-                        ),
+                const SizedBox(height: 2),
+                Padding(
+                  padding: const EdgeInsets.only(right: 64),
+                  child: Text(
+                    'Toca una línea para ver su recorrido, horario y por dónde pasa.',
+                    style: text.labelSmall?.copyWith(
+                      fontWeight: FontWeight.w500,
+                      height: 1.35,
+                      color: HtmlDesignTokens.emerald100.withValues(
+                        alpha: 0.88,
                       ),
                     ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Container(
-                          width: 8,
-                          height: 8,
-                          decoration: const BoxDecoration(
-                            color: HtmlDesignTokens.emerald300,
-                            shape: BoxShape.circle,
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          'Tarifa oficial: Bs. 3.50',
-                          style: text.labelSmall?.copyWith(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w700,
-                            color: HtmlDesignTokens.white,
-                            letterSpacing: 0.5,
-                          ),
-                        ),
-                      ],
-                    ),
                   ),
-                  // Hours pill — HTML: bg-white/10
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: HtmlDesignTokens.white.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(
-                        color: HtmlDesignTokens.white.withValues(alpha: 0.1),
+                ),
+                const SizedBox(height: AppSpace.md),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _HeroStat(
+                        value: _loading ? '—' : '$_total',
+                        label: 'líneas',
                       ),
                     ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(
-                          Icons.schedule_rounded,
-                          size: 14,
-                          color: HtmlDesignTokens.emerald300,
-                        ),
-                        const SizedBox(width: 6),
-                        Text(
-                          '05:00 - 23:30',
-                          style: text.labelSmall?.copyWith(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w500,
-                            color: HtmlDesignTokens.emerald100.withValues(
-                              alpha: 0.9,
-                            ),
-                          ),
-                        ),
-                      ],
+                    const _HeroDivider(),
+                    const Expanded(
+                      child: _HeroStat(
+                        value: kOfficialFareLabel,
+                        label: 'pasaje',
+                      ),
                     ),
-                  ),
-                ],
-              ),
-            ],
+                    const _HeroDivider(),
+                    const Expanded(
+                      child: _HeroStat(value: 'GTFS', label: 'datos oficiales'),
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
         ],
       ),
     );
   }
 
-  /// Búsqueda con chips de filtro horizontales.
-  Widget _buildSearchAndFilters(BuildContext context) {
+  Widget _buildSearch(BuildContext context) {
+    final colors = context.colors;
     final text = context.text;
-    final dark = Theme.of(context).brightness == Brightness.dark;
-    final ink = dark ? HtmlDesignTokens.slate300 : HtmlDesignTokens.slate800;
-    final softInk = dark
-        ? HtmlDesignTokens.slate400
-        : HtmlDesignTokens.slate400;
-    final hairline = dark
-        ? HtmlDesignTokens.slate600
-        : HtmlDesignTokens.slate200.withValues(alpha: 0.9);
-    final fieldBg = dark ? HtmlDesignTokens.slate800 : HtmlDesignTokens.white;
+    final border = OutlineInputBorder(
+      borderRadius: BorderRadius.circular(AppRadius.md),
+      borderSide: BorderSide(color: colors.outlineVariant),
+    );
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // Search field
-        TextField(
-          controller: _search,
-          onChanged: _onQueryChanged,
-          onSubmitted: (_) {
-            _debounce.cancel();
-            _loadFirstPage();
-          },
-          textInputAction: TextInputAction.search,
-          cursorColor: HtmlDesignTokens.emerald600,
-          style: text.bodyMedium?.copyWith(
-            color: ink,
-            fontWeight: FontWeight.w500,
-          ),
-          decoration: InputDecoration(
-            hintText: 'Busca por número, avenida o zona...',
-            hintStyle: text.bodyMedium?.copyWith(color: softInk),
-            prefixIcon: Icon(Icons.search_rounded, size: 20, color: softInk),
-            prefixIconConstraints: const BoxConstraints(
-              minWidth: 44,
-              minHeight: 44,
-            ),
-            suffixIcon: ValueListenableBuilder<TextEditingValue>(
-              valueListenable: _search,
-              builder: (context, value, _) {
-                if (value.text.isEmpty) {
-                  return IconButton(
-                    icon: Icon(Icons.tune_rounded, size: 16, color: softInk),
-                    onPressed: () {},
-                    padding: const EdgeInsets.all(8),
-                    constraints: const BoxConstraints(),
-                  );
-                }
-                return IconButton(
-                  icon: Icon(Icons.close_rounded, size: 16, color: softInk),
-                  onPressed: () {
-                    _search.clear();
-                    _loadFirstPage();
-                  },
-                  padding: const EdgeInsets.all(8),
-                  constraints: const BoxConstraints(),
-                );
-              },
-            ),
-            filled: true,
-            fillColor: fieldBg,
-            contentPadding: const EdgeInsets.symmetric(
-              horizontal: 16,
-              vertical: 12,
-            ),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(AppRadius.md),
-              borderSide: BorderSide(color: hairline),
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(AppRadius.md),
-              borderSide: BorderSide(color: hairline),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(AppRadius.md),
-              borderSide: const BorderSide(
-                color: HtmlDesignTokens.emerald600,
-                width: 2,
+    return TextField(
+      controller: _search,
+      onChanged: _onQueryChanged,
+      onSubmitted: (_) {
+        _debounce.cancel();
+        _loadFirstPage();
+      },
+      textInputAction: TextInputAction.search,
+      cursorColor: colors.primary,
+      style: text.bodyMedium?.copyWith(
+        color: colors.onSurface,
+        fontWeight: FontWeight.w500,
+      ),
+      decoration: InputDecoration(
+        hintText: 'Busca por número, avenida o zona…',
+        hintStyle: text.bodyMedium?.copyWith(color: colors.onSurfaceVariant),
+        prefixIcon: Icon(
+          Icons.search_rounded,
+          size: 20,
+          color: colors.onSurfaceVariant,
+        ),
+        prefixIconConstraints: const BoxConstraints(
+          minWidth: 44,
+          minHeight: 44,
+        ),
+        suffixIcon: ValueListenableBuilder<TextEditingValue>(
+          valueListenable: _search,
+          builder: (context, value, _) {
+            if (value.text.isEmpty) return const SizedBox.shrink();
+            return IconButton(
+              tooltip: 'Limpiar búsqueda',
+              icon: Icon(
+                Icons.close_rounded,
+                size: 18,
+                color: colors.onSurfaceVariant,
               ),
-            ),
-          ),
+              onPressed: () {
+                _search.clear();
+                _loadFirstPage();
+              },
+            );
+          },
         ),
-        const SizedBox(height: 12),
-        // Filter chips
-        SizedBox(
-          height: 32,
-          child: ListView(
-            scrollDirection: Axis.horizontal,
-            shrinkWrap: true,
-            physics: const ClampingScrollPhysics(),
-            children: [
-              _filterChip(context, text, 'Todos', '$_total', true),
-              const SizedBox(width: 8),
-              _filterChip(context, text, '⭐ Favoritos'),
-              const SizedBox(width: 8),
-              _filterChip(context, text, 'Casco Viejo / Centro'),
-              const SizedBox(width: 8),
-              _filterChip(context, text, 'Anillos (1° al 4°)'),
-              const SizedBox(width: 8),
-              _filterChip(context, text, 'Plan 3000'),
-              const SizedBox(width: 8),
-              _filterChip(context, text, 'Villa 1° de Mayo'),
-              const SizedBox(width: 8),
-              _filterChip(context, text, 'Pampa de la Isla'),
-            ],
-          ),
+        filled: true,
+        fillColor: colors.surface,
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 12,
         ),
-      ],
+        border: border,
+        enabledBorder: border,
+        focusedBorder: border.copyWith(
+          borderSide: BorderSide(color: colors.primary, width: 1.8),
+        ),
+      ),
     );
   }
 
-  Widget _filterChip(
-    BuildContext context,
-    TextTheme text,
-    String label, [
-    String? count,
-    bool isSelected = false,
-  ]) {
-    final dark = Theme.of(context).brightness == Brightness.dark;
-    return PressScale(
-      scale: 0.97,
-      child: InkWell(
-        onTap: () {},
-        borderRadius: BorderRadius.circular(20),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-          decoration: BoxDecoration(
-            color: isSelected
-                ? HtmlDesignTokens.emerald700
-                : (dark ? HtmlDesignTokens.slate700 : HtmlDesignTokens.white),
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(
-              color: isSelected
-                  ? HtmlDesignTokens.emerald800
-                  : (dark
-                        ? HtmlDesignTokens.slate600
-                        : HtmlDesignTokens.slate200.withValues(alpha: 0.9)),
+  /// Qué se está viendo y en qué orden. El orden es un selector visible (no
+  /// un menú escondido dentro del buscador): es una decisión real del catálogo.
+  Widget _buildResultsCaption(BuildContext context) {
+    final colors = context.colors;
+    final text = context.text;
+    final query = _search.text.trim();
+    final label = _loading
+        ? 'Cargando líneas…'
+        : query.isEmpty
+        ? '$_total líneas'
+        : '$_total ${_total == 1 ? 'línea' : 'líneas'} para «$query»';
+
+    return Row(
+      children: [
+        Expanded(
+          child: Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: text.labelMedium?.copyWith(
+              color: colors.onSurfaceVariant,
+              fontWeight: FontWeight.w700,
             ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.03),
-                blurRadius: 2,
-                offset: const Offset(0, 1),
-              ),
-            ],
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                label,
-                style: text.labelSmall?.copyWith(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: isSelected
-                      ? HtmlDesignTokens.white
-                      : (dark
-                            ? HtmlDesignTokens.slate300
-                            : HtmlDesignTokens.slate600),
-                ),
-              ),
-              if (count != null) ...[
-                const SizedBox(width: 6),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 6,
-                    vertical: 2,
-                  ),
-                  decoration: BoxDecoration(
-                    color: isSelected
-                        ? HtmlDesignTokens.emerald800.withValues(alpha: 0.9)
-                        : HtmlDesignTokens.slate100,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(
-                    count,
-                    style: text.labelSmall?.copyWith(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w700,
-                      color: isSelected
-                          ? HtmlDesignTokens.emerald100
-                          : HtmlDesignTokens.slate600,
-                    ),
-                  ),
-                ),
-              ],
-            ],
           ),
         ),
-      ),
+        const SizedBox(width: AppSpace.sm),
+        _SortSwitch(value: _sort, onChanged: _changeSort),
+      ],
     );
   }
 
@@ -929,10 +585,190 @@ class _MicrosScreenState extends ConsumerState<MicrosScreen> {
               horizontal: AppSpace.lg,
               vertical: 6,
             ),
-            child: MicroCard(route: route, onTap: () => _openDetail(route)),
+            child: MicroCard(
+              route: route,
+              heroPrefix: 'micros',
+              onTap: () => _openDetail(route),
+            ),
           ),
         );
       }, childCount: _routes.length + (_loadingMore ? 1 : 0)),
+    );
+  }
+}
+
+/// Dato de la banda de identidad (fondo oscuro fijo: la tinta es clara).
+class _HeroStat extends StatelessWidget {
+  const _HeroStat({required this.value, required this.label});
+
+  final String value;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final text = context.text;
+    return Column(
+      children: [
+        Text(
+          value,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: text.titleMedium?.copyWith(
+            fontWeight: FontWeight.w800,
+            color: HtmlDesignTokens.white,
+          ),
+        ),
+        Text(
+          label,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: text.labelSmall?.copyWith(
+            fontSize: 10.5,
+            fontWeight: FontWeight.w600,
+            color: HtmlDesignTokens.emerald200,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _HeroDivider extends StatelessWidget {
+  const _HeroDivider();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 1,
+      height: 28,
+      color: HtmlDesignTokens.white.withValues(alpha: 0.14),
+    );
+  }
+}
+
+/// Anillo translúcido de la banda (eco de los anillos de Santa Cruz).
+class _Ring extends StatelessWidget {
+  const _Ring({required this.size, required this.alpha});
+
+  final double size;
+  final double alpha;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        border: Border.all(
+          color: HtmlDesignTokens.emerald300.withValues(alpha: alpha),
+          width: 10,
+        ),
+      ),
+    );
+  }
+}
+
+/// Selector de orden del catálogo: dos segmentos compactos (`1–9` · `A–Z`).
+class _SortSwitch extends StatelessWidget {
+  const _SortSwitch({required this.value, required this.onChanged});
+
+  final _CatalogSort value;
+  final ValueChanged<_CatalogSort> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    final radius = BorderRadius.circular(AppRadius.pill);
+
+    return Container(
+      padding: const EdgeInsets.all(3),
+      decoration: BoxDecoration(
+        color: colors.surfaceContainerHighest.withValues(alpha: 0.7),
+        borderRadius: radius,
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          for (final sort in _CatalogSort.values)
+            _SortOption(
+              key: ValueKey('micros-sort-${sort.name}'),
+              label: sort.short,
+              tooltip: 'Ordenar por ${sort.label}',
+              selected: sort == value,
+              onTap: () => onChanged(sort),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SortOption extends StatelessWidget {
+  const _SortOption({
+    super.key,
+    required this.label,
+    required this.tooltip,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final String tooltip;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    final radius = BorderRadius.circular(AppRadius.pill);
+    final ink = selected
+        ? AppColors.legible(colors.primary, colors.surface)
+        : colors.onSurfaceVariant;
+
+    return Tooltip(
+      message: tooltip,
+      child: Semantics(
+        button: true,
+        selected: selected,
+        // Sombra suave en vez de `elevation`: la del Material dibujaba un
+        // contorno oscuro duro alrededor de la píldora activa.
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: selected ? colors.surface : Colors.transparent,
+            borderRadius: radius,
+            boxShadow: selected
+                ? [
+                    BoxShadow(
+                      color: colors.shadow.withValues(alpha: 0.12),
+                      blurRadius: 6,
+                      offset: const Offset(0, 1),
+                    ),
+                  ]
+                : null,
+          ),
+          child: Material(
+            type: MaterialType.transparency,
+            child: InkWell(
+              onTap: onTap,
+              borderRadius: radius,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 5,
+                ),
+                child: Text(
+                  label,
+                  style: context.text.labelMedium?.copyWith(
+                    fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
+                    color: ink,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

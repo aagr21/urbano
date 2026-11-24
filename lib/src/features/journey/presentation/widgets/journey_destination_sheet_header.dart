@@ -1,147 +1,123 @@
 import 'package:material_ui/material_ui.dart';
 
+import '../../../../core/animation/motion.dart';
 import '../../../../core/theme/app_colors.dart';
-import '../../../../core/theme/app_theme.dart' show AppRadius;
+import '../../../../core/theme/app_theme.dart' show AppRadius, AppSpace;
 import '../../../../core/theme/html_design_tokens.dart' show HtmlDesignTokens;
 import '../../../../core/utils/extensions.dart';
 
-/// Header del bottom sheet "Planificar viaje" — estilo de sheet.html.
+/// Cabecera del sheet «Planificar viaje».
 ///
-/// Muestra una píldora de ubicación, un logo con borde degradado, el título
-/// "Planificar viaje" y un botón de ajustes.
+/// Una sola fila: la placa con el glifo de ruta, el título con la ciudad en
+/// vivo debajo y el botón de cerrar. Antes había una píldora de ciudad aparte
+/// y un botón de ajustes que no hacía nada; los dos se retiraron para que la
+/// cabecera no ocupe alto ni prometa acciones que no existen.
 class DestinationSheetHeader extends StatelessWidget {
-  const DestinationSheetHeader({super.key});
+  const DestinationSheetHeader({super.key, this.onClose});
+
+  /// Cierra la hoja. Por defecto usa la ruta actual del [Navigator].
+  final VoidCallback? onClose;
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.colors;
     final text = context.text;
-    final dark = Theme.of(context).brightness == Brightness.dark;
+    final enVivo = AppColors.legible(
+      HtmlDesignTokens.emerald600,
+      colors.surface,
+    );
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+    void close() => (onClose ?? () => Navigator.maybePop(context))();
+
+    return Row(
       children: [
-        // Píldora de ubicación
+        // Placa de marca con el glifo de ruta.
         Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+          width: 44,
+          height: 44,
           decoration: BoxDecoration(
-            color: HtmlDesignTokens.emerald500.withValues(alpha: 0.1),
-            borderRadius: BorderRadius.circular(AppRadius.pill),
-            border: Border.all(
-              color: HtmlDesignTokens.emerald500.withValues(alpha: 0.2),
+            gradient: const LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [HtmlDesignTokens.emerald500, HtmlDesignTokens.teal600],
             ),
+            borderRadius: BorderRadius.circular(AppRadius.tile),
+            boxShadow: [
+              BoxShadow(
+                color: HtmlDesignTokens.emerald600.withValues(alpha: 0.28),
+                blurRadius: 14,
+                offset: const Offset(0, 5),
+              ),
+            ],
           ),
-          child: Row(
+          child: const Icon(
+            Icons.alt_route_rounded,
+            size: 22,
+            color: Colors.white,
+          ),
+        ),
+        const SizedBox(width: AppSpace.md),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
-              // Punto vivo
-              Stack(
-                alignment: Alignment.center,
+              Text(
+                'Planificar viaje',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: text.titleLarge?.copyWith(
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: -0.3,
+                  color: colors.onSurface,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Row(
                 children: [
-                  Container(
-                    width: 8,
-                    height: 8,
-                    decoration: const BoxDecoration(
-                      color: HtmlDesignTokens.emerald400,
-                      shape: BoxShape.circle,
+                  LiveDot(color: enVivo, size: 5),
+                  const SizedBox(width: 2),
+                  Flexible(
+                    child: Text(
+                      'Santa Cruz de la Sierra · en vivo',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: text.labelSmall?.copyWith(
+                        color: enVivo,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0.2,
+                      ),
                     ),
                   ),
                 ],
-              ),
-              const SizedBox(width: 6),
-              Text(
-                'Santa Cruz de la Sierra',
-                style: text.labelSmall?.copyWith(
-                  color: HtmlDesignTokens.emerald700,
-                  fontWeight: FontWeight.w600,
-                  fontSize: 12,
-                ),
-              ),
-              const SizedBox(width: 2),
-              const Icon(
-                Icons.chevron_right_rounded,
-                size: 10,
-                color: HtmlDesignTokens.emerald600,
               ),
             ],
           ),
         ),
-        const SizedBox(height: 12),
-        // Título con logo degradado
-        Row(
-          children: [
-            // Logo con borde degradado
-            Container(
-              padding: const EdgeInsets.all(2),
-              decoration: const BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.bottomLeft,
-                  end: Alignment.topRight,
-                  colors: [
-                    HtmlDesignTokens.emerald600,
-                    HtmlDesignTokens.teal500,
-                    HtmlDesignTokens.cyan400,
-                  ],
-                ),
-                borderRadius: BorderRadius.all(Radius.circular(14)),
-              ),
+        const SizedBox(width: AppSpace.sm),
+        Tooltip(
+          message: 'Cerrar',
+          child: PressScale(
+            scale: 0.92,
+            child: InkWell(
+              onTap: close,
+              borderRadius: BorderRadius.circular(AppRadius.pill),
               child: Container(
-                width: 40,
-                height: 40,
+                width: 38,
+                height: 38,
                 decoration: BoxDecoration(
-                  color: HtmlDesignTokens.white,
-                  borderRadius: BorderRadius.circular(12),
+                  color: colors.surfaceContainerHighest,
+                  shape: BoxShape.circle,
+                  border: Border.all(color: colors.outlineVariant, width: 0.8),
                 ),
-                child: const Icon(
-                  Icons.route_rounded,
-                  size: 20,
-                  color: HtmlDesignTokens.emerald600,
+                child: Icon(
+                  Icons.close_rounded,
+                  size: 18,
+                  color: colors.onSurfaceVariant,
                 ),
               ),
             ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Planificar viaje',
-                    style: text.titleLarge?.copyWith(
-                      fontWeight: FontWeight.w900,
-                      color: dark
-                          ? HtmlDesignTokens.slate50
-                          : HtmlDesignTokens.slate900,
-                    ),
-                  ),
-                  Text(
-                    'Rutas en tiempo real & micros',
-                    style: text.bodySmall?.copyWith(
-                      fontWeight: FontWeight.w600,
-                      color: HtmlDesignTokens.slate400,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            // Botón de ajustes
-            Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                color: HtmlDesignTokens.white,
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(
-                  color: dark ? AppColors.lineDark : HtmlDesignTokens.slate200,
-                ),
-              ),
-              child: Icon(
-                Icons.tune_rounded,
-                size: 16,
-                color: dark
-                    ? HtmlDesignTokens.slate400
-                    : HtmlDesignTokens.slate600,
-              ),
-            ),
-          ],
+          ),
         ),
       ],
     );

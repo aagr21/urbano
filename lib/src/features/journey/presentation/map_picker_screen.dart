@@ -8,6 +8,7 @@ import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/extensions.dart';
 import '../../../core/utils/location.dart';
 import '../../../core/widgets/map_tile_button.dart';
+import '../../../core/widgets/urbano_back_button.dart';
 import '../../../core/widgets/urbano_map.dart';
 import '../data/journey_repository.dart';
 
@@ -252,10 +253,9 @@ class _MapPickerScreenState extends ConsumerState<MapPickerScreen> {
             right: 16,
             child: Row(
               children: [
-                _CircleButton(
-                  icon: Icons.arrow_back_rounded,
-                  tooltip: 'Volver',
-                  onTap: () => Navigator.of(context).maybePop(),
+                UrbanoBackButton(
+                  onPressed: () => Navigator.of(context).maybePop(),
+                  floating: true,
                 ),
                 const SizedBox(width: 10),
                 Container(

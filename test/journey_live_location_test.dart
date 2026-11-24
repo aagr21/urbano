@@ -12,6 +12,7 @@ import 'package:urbano/src/core/map/map.dart';
 import 'package:urbano/src/core/map/map_tile.dart';
 import 'package:urbano/src/core/theme/app_theme.dart';
 import 'package:urbano/src/core/theme/map_theme_controller.dart';
+import 'package:urbano/src/core/widgets/my_location_dot.dart';
 import 'package:urbano/src/features/journey/presentation/widgets/journey_live_map.dart';
 import 'package:urbano/src/features/journey/presentation/widgets/journey_result_map.dart';
 
@@ -416,7 +417,17 @@ void main() {
       final marker = _lastKnownMarker(tester);
       expect(marker, isNotNull);
 
-      final dot = marker!.child as DecoratedBox;
+      expect(marker!.child, isA<MyLocationDot>());
+      // El punto es compartido con el mapa a sangre: se mide montado, con el
+      // tema real del árbol (el primario se resuelve desde el contexto).
+      final dot = tester.widget<DecoratedBox>(
+        find
+            .descendant(
+              of: find.byType(MyLocationDot),
+              matching: find.byType(DecoratedBox),
+            )
+            .first,
+      );
       final decoration = dot.decoration as BoxDecoration;
       final ring = decoration.border! as Border;
       final primary = AppTheme.dark().colorScheme.primary;

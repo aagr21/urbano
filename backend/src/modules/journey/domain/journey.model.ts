@@ -16,6 +16,12 @@ export interface TripStop {
   sequence: number;
   arrivalSec: number;
   departureSec: number;
+  /**
+   * Coordenadas de la parada (opcionales: el repositorio las adjunta). Sirven
+   * para medir lo que recorre el micro entre dos paradas del mismo trip.
+   */
+  lat?: number;
+  lon?: number;
 }
 
 /** Horario base de un trip + ventana de frequencies. */

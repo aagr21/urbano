@@ -119,8 +119,8 @@ class MapLegend extends StatelessWidget {
       );
     }
 
-    // Colores alternativos para distinguir líneas con el mismo color GTFS
-    // cuando hay transbordo entre ellas (leyenda del mapa).
+    // Cada tramo de micro con un color distinto (el mismo reparto que el
+    // mapa y la tarjeta).
     final legAltColors = JourneyOptionCard.alternativeRouteColorsForLegs(
       option.legs,
     );
@@ -167,7 +167,7 @@ class MapLegend extends StatelessWidget {
           ...busRows,
           if (busRows.isNotEmpty) const SizedBox(height: 4),
           bar(
-            const Color(0xFF94A3B8),
+            JourneyOptionCard.walkStrokeColor,
             'Caminata',
             icon: Icons.directions_walk_rounded,
           ),

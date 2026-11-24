@@ -583,10 +583,11 @@ describe('JourneyService (enriquecimiento de mapa)', () => {
 
     const { options } = await service.plan(query);
 
-    // directo (T1: S1→S2) y transbordo (T1: S1→S2 + T2: S2→S3) comparten el
-    // primer tramo ⇒ 4 tramos en total, 3 únicos.
+    // directo (T1: S1→S2 — una sola variante por trip, la de menor duración
+    // puerta a puerta) y transbordo (T1: S1→S2 + T2: S2→S3) comparten el
+    // primer tramo ⇒ 3 tramos en total, 2 únicos.
     const busLegs = busLegsOf(options);
-    expect(busLegs.length).toBe(4);
+    expect(busLegs.length).toBe(3);
     const keys = busLegs.map((l) =>
       l.kind === 'bus' ? `${l.tripId}:${l.fromStopId}:${l.toStopId}` : ''
     );
@@ -594,10 +595,10 @@ describe('JourneyService (enriquecimiento de mapa)', () => {
 
     expect(loadLegDetails).toHaveBeenCalledTimes(1);
     const requested: LegDetailQuery[] = loadLegDetails.mock.calls[0][0];
-    expect(requested).toHaveLength(3);
+    expect(requested).toHaveLength(2);
     expect(
       requested.map((l) => `${l.tripId}:${l.fromStopId}:${l.toStopId}`)
-    ).toEqual(expect.arrayContaining(['T1:S1:S2', 'T1:S1:S3', 'T2:S2:S3']));
+    ).toEqual(expect.arrayContaining(['T1:S1:S2', 'T2:S2:S3']));
     // sin duplicados
     expect(
       new Set(requested.map((l) => `${l.tripId}:${l.fromStopId}:${l.toStopId}`))

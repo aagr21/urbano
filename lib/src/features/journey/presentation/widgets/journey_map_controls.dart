@@ -4,6 +4,7 @@ import 'package:material_ui/material_ui.dart';
 
 import '../../../../core/location/location_fab.dart';
 import '../../../../core/widgets/map_tile_button.dart';
+import '../../../../core/widgets/urbano_back_button.dart';
 import 'journey_map_button.dart';
 
 /// Columna de controles a la derecha del mapa: zoom, ubicación y brillo del
@@ -40,11 +41,11 @@ class JourneyMapControls extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.end,
       children: [
         if (onBack != null) ...[
-          MapCircleButton(
+          UrbanoBackButton(
             key: const ValueKey('journey-back-button'),
-            icon: Icons.arrow_back_rounded,
             tooltip: 'Volver al inicio',
-            onTap: onBack!,
+            onPressed: onBack,
+            floating: true,
           ),
           const SizedBox(height: 10),
         ],

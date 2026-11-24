@@ -9,6 +9,10 @@ part of 'maplibre_engine.dart';
 /// el mapa está montado, y el planeador lo está SIEMPRE.
 const Duration _pulseTick = Duration(milliseconds: 90);
 
+/// Fuente y capa propias de los marcadores alineados al mapa.
+const String _alignedSourceId = 'urbano-aligned-markers';
+const String _alignedLayerId = 'urbano-aligned-markers-layer';
+
 /// Sincronización escena → anotaciones nativas (métodos privados del
 /// [MapLibreEngineState], separados aquí porque son el bloque más denso
 /// del motor: agendado asíncrono, líneas y marcadores).
@@ -41,6 +45,7 @@ extension _EngineSync on MapLibreEngineState {
         if (_styleLoaded && _map != null) {
           await _syncLines(generation);
           await _syncMarkers(generation);
+          await _syncMapAlignedMarkers(generation);
           await _syncPulses(generation);
         }
         if (!_syncQueued || !mounted) break;
@@ -158,8 +163,13 @@ extension _EngineSync on MapLibreEngineState {
       _sceneMarkerPoints[marker.id] = marker.point;
     }
 
-    // Quita los símbolos de marcadores que ya no están en la escena.
-    final liveIds = scene.markers.map((m) => m.id).toSet();
+    // Quita los símbolos de marcadores que ya no están en la escena. Los
+    // alineados al mapa no viven en el `SymbolManager` (ver
+    // [_syncMapAlignedMarkers]).
+    final liveIds = scene.markers
+        .where((m) => !m.rotateWithMap)
+        .map((m) => m.id)
+        .toSet();
     final staleIds = _symbols.keys
         .where((id) => !liveIds.contains(id))
         .toList();
@@ -175,6 +185,7 @@ extension _EngineSync on MapLibreEngineState {
     }
 
     for (final marker in scene.markers) {
+      if (marker.rotateWithMap) continue;
       final point = _markerOverrides[marker.id] ?? marker.point;
       final imageName = await _ensureImage(marker, generation);
       if (!mounted || generation != _styleGeneration) return;
@@ -226,6 +237,86 @@ extension _EngineSync on MapLibreEngineState {
         _symbols[marker.id] = updated;
       }
     }
+  }
+
+  // ------------------------------------------------------------------
+  // Marcadores alineados al mapa (`MapMarker.rotateWithMap`)
+  // ------------------------------------------------------------------
+
+  /// Pinta los marcadores cuyo rumbo es geográfico en una capa de símbolos
+  /// PROPIA con `icon-rotation-alignment: map`.
+  ///
+  /// El `SymbolManager` del plugin no fija esa propiedad, así que su capa
+  /// rota los iconos respecto de la PANTALLA: con el mapa girado, una flecha
+  /// de sentido seguía apuntando al mismo lado del teléfono mientras el trazo
+  /// giraba debajo, y se veía «dar vueltas» sobre la línea. Es una propiedad
+  /// de capa (no admite valor por símbolo) y los pines SÍ deben quedar
+  /// derechos, de ahí la capa aparte. El GPU mantiene la flecha pegada al
+  /// trazo durante el giro: no se reescribe nada por cuadro.
+  ///
+  /// La capa va DEBAJO de la del `SymbolManager`: pines, insignias y «mi
+  /// ubicación» quedan encima de las flechas. La fuente solo se reescribe si
+  /// cambió su contenido ([_alignedSignature]).
+  Future<void> _syncMapAlignedMarkers(int generation) async {
+    final map = _map;
+    if (map == null) return;
+    final markers = widget.scene.markers
+        .where((m) => m.rotateWithMap)
+        .toList(growable: false);
+    final layerExists = _alignedLayerGeneration == generation;
+    if (markers.isEmpty && !layerExists) return;
+
+    final features = <Map<String, dynamic>>[];
+    for (final marker in markers) {
+      final imageName = await _ensureImage(marker, generation);
+      if (!mounted || generation != _styleGeneration) return;
+      if (imageName == null) continue;
+      features.add({
+        'type': 'Feature',
+        'id': marker.id,
+        'properties': {'icon': imageName, 'rotate': marker.rotation},
+        'geometry': {
+          'type': 'Point',
+          'coordinates': [marker.point.longitude, marker.point.latitude],
+        },
+      });
+    }
+    final collection = <String, dynamic>{
+      'type': 'FeatureCollection',
+      'features': features,
+    };
+    final signature = jsonEncode(collection);
+
+    if (!layerExists) {
+      await map.addGeoJsonSource(_alignedSourceId, collection);
+      if (!mounted || generation != _styleGeneration) return;
+      final symbolLayers = map.symbolManager?.layerIds;
+      await map.addSymbolLayer(
+        _alignedSourceId,
+        _alignedLayerId,
+        const ml.SymbolLayerProperties(
+          iconImage: [ml.Expressions.get, 'icon'],
+          iconRotate: [ml.Expressions.get, 'rotate'],
+          // La clave del arreglo: el rumbo se mide contra el NORTE del mapa.
+          iconRotationAlignment: 'map',
+          iconPitchAlignment: 'map',
+          iconAllowOverlap: true,
+          iconIgnorePlacement: true,
+        ),
+        belowLayerId: (symbolLayers == null || symbolLayers.isEmpty)
+            ? null
+            : symbolLayers.first,
+        enableInteraction: false,
+      );
+      if (!mounted || generation != _styleGeneration) return;
+      _alignedLayerGeneration = generation;
+      _alignedSignature = signature;
+      return;
+    }
+    if (signature == _alignedSignature) return;
+    await map.setGeoJsonSource(_alignedSourceId, collection);
+    if (!mounted || generation != _styleGeneration) return;
+    _alignedSignature = signature;
   }
 
   // ------------------------------------------------------------------

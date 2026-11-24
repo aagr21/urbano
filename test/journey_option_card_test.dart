@@ -6,7 +6,8 @@ import 'package:urbano/src/features/journey/presentation/widgets/journey_option_
 import 'helpers/journey_fixtures.dart';
 
 /// La tarjeta de opción muestra horarios grandes, tipo y duración, instrucciones
-/// paso a paso numeradas (1, 2, 3...), líneas a tomar y coste del pasaje.
+/// paso a paso numeradas (1, 2, 3...) solo al abrirla, la tira de líneas a
+/// tomar y el coste del pasaje.
 void main() {
   Future<void> pumpCard(
     WidgetTester tester, {
@@ -50,8 +51,14 @@ void main() {
     expect(find.text('55 min'), findsOneWidget);
   });
 
-  testWidgets('muestra pasos enumerados del viaje', (tester) async {
+  testWidgets('cerrada no muestra el paso a paso; abierta sí', (tester) async {
     await pumpCard(tester);
+    expect(find.text('Camina 50 m'), findsNothing);
+    expect(find.text('bájate en «Parada 200»'), findsNothing);
+  });
+
+  testWidgets('muestra pasos enumerados del viaje', (tester) async {
+    await pumpCard(tester, expanded: true);
 
     // 1) caminar
     expect(find.text('1'), findsWidgets);
@@ -76,10 +83,13 @@ void main() {
     expect(find.text('y llegas a tu destino'), findsOneWidget);
   });
 
-  testWidgets('muestra líneas a tomar con sus colores', (tester) async {
+  testWidgets('la tira del recorrido muestra las líneas a tomar', (
+    tester,
+  ) async {
     await pumpCard(tester);
 
-    expect(find.text('Líneas que vas a tomar:'), findsOneWidget);
+    // Tira: 🚶 › [🚌 101 ANGOSTURA] › [🚌 5] › 🚶 (sin rótulo de texto).
+    expect(find.byTooltip('Caminar'), findsNWidgets(2));
     expect(find.text('101 ANGOSTURA'), findsWidgets);
     expect(find.text('5'), findsWidgets);
     expect(find.byIcon(Icons.directions_bus_rounded), findsWidgets);
@@ -92,7 +102,8 @@ void main() {
     expect(find.byIcon(Icons.login_rounded), findsOneWidget);
     expect(find.byIcon(Icons.logout_rounded), findsOneWidget);
 
-    // Resumen al pie: pasaje.
+    // Pie: caminata total y pasaje, en una línea.
+    expect(find.text('200 m a pie'), findsOneWidget);
     expect(find.text('Bs 7.00 · 2 pasajes'), findsOneWidget);
     expect(find.byIcon(Icons.payments_outlined), findsOneWidget);
   });

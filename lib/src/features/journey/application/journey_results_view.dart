@@ -132,7 +132,11 @@ class JourneyResultsNotifier extends Notifier<JourneyResultsView> {
     final selectedIndex = cached == null || cached.isEmpty
         ? 0
         : planner.selectedOptionIndex.clamp(0, cached.length - 1);
-    final mapOption = !hasResults || cached.isEmpty
+    // Durante el recálculo el mapa NO dibuja el itinerario anterior: ya no
+    // corresponde a los extremos nuevos y se leía como «la ruta vieja se
+    // quedó pegada». Quedan solo los pines hasta que llegue la respuesta
+    // fresca (la hoja se oculta igual mientras dura el overlay de carga).
+    final mapOption = !hasResults || cached.isEmpty || replanning
         ? _bareOption()
         : cached[selectedIndex];
     // El mapa prefiere lo que muestran los CAMPOS (que durante un arrastre de

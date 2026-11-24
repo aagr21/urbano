@@ -1,212 +1,250 @@
 import 'package:material_ui/material_ui.dart';
 
-import '../../../../core/theme/app_theme.dart' show AppRadius;
-import '../../../../core/theme/html_design_tokens.dart' show HtmlDesignTokens;
+import '../../../../core/theme/app_colors.dart';
+import '../../../../core/theme/app_theme.dart' show AppRadius, AppSpace;
 import '../../../../core/utils/extensions.dart';
-import '../../domain/journey_place.dart';
 
-/// Campo de extremo (origen o destino) — estilo de sheet.html.
+/// Fila de extremo (origen o destino) del sheet «Planificar viaje».
 ///
-/// Muestra un ícono con fondo de color, la etiqueta, un campo de texto
-/// editable y un botón "Mapa" para elegir en el mapa.
+/// Se lee como un campo: contenedor tonal del acento del extremo, placa con
+/// el ícono, etiqueta, un campo de texto editable para escribir el lugar, el
+/// botón para elegir en el mapa y, debajo, la lista de sugerencias que arma
+/// quien la usa. El texto se escribe aquí; el punto del viaje lo resuelve el
+/// padre (GPS, lugar popular, mapa o reciente).
 class JourneyEndpointField extends StatelessWidget {
   const JourneyEndpointField({
     super.key,
     required this.label,
-    required this.place,
+    required this.value,
+    required this.emptyHint,
     required this.icon,
-    required this.iconBg,
-    required this.iconInk,
-    required this.labelInk,
-    required this.subtitleInk,
+    required this.accent,
     required this.onTap,
-    required this.onMapTap,
-    required this.mapButtonBg,
-    required this.mapButtonInk,
-    required this.mapButtonBorder,
+    this.subtitle,
+    this.tag,
+    this.onMapTap,
+    this.empty = false,
     this.controller,
     this.focusNode,
-    this.hintText,
+    this.inputKey,
+    this.onChanged,
+    this.onSubmitted,
+    this.suggestions,
   });
 
   final String label;
-  final JourneyPlace? place;
+
+  /// Valor mostrado cuando no hay [controller].
+  final String? value;
+  final String emptyHint;
   final IconData icon;
-  final Color iconBg;
-  final Color iconInk;
-  final Color labelInk;
-  final Color subtitleInk;
+
+  /// Acento del extremo (esmeralda en origen, rosa en destino).
+  final Color accent;
+  final String? subtitle;
+
+  /// Píldora corta junto a la etiqueta (por ejemplo `GPS`).
+  final String? tag;
+
   final VoidCallback onTap;
-  final VoidCallback onMapTap;
-  final Color mapButtonBg;
-  final Color mapButtonInk;
-  final Color mapButtonBorder;
+  final VoidCallback? onMapTap;
+
+  /// `true` cuando no hay valor todavía: el texto se pinta como pista.
+  final bool empty;
+
+  /// Campo editable. Cuando existe, el usuario puede escribir el lugar.
   final TextEditingController? controller;
   final FocusNode? focusNode;
-  final String? hintText;
+  final Key? inputKey;
+  final ValueChanged<String>? onChanged;
+  final ValueChanged<String>? onSubmitted;
 
-  String _label(JourneyPlace? place) {
-    if (place == null) return '';
-    return switch (place) {
-      JourneyPlacePoi(:final name) => name,
-      JourneyPlacePoint(:final address) => address ?? 'Punto en el mapa',
-      JourneyPlaceLocation(:final address) => address ?? 'Mi ubicación',
-    };
-  }
-
-  String _subtitle(JourneyPlace? place) {
-    if (place == null) return '';
-    if (place is JourneyPlacePoi) return place.subtitle ?? '';
-    if (place is JourneyPlaceLocation) return 'Ubicación actual detectada';
-    return '';
-  }
-
-  /// Campo de texto editable con el botón "Mapa" como zona separada.
-  Widget _buildEditableField(BuildContext context, TextTheme text) {
-    return TextField(
-      controller: controller,
-      focusNode: focusNode,
-      decoration: InputDecoration(
-        hintText: hintText,
-        hintStyle: text.titleSmall?.copyWith(
-          fontWeight: FontWeight.w700,
-          fontSize: 13,
-          color: HtmlDesignTokens.slate400,
-        ),
-        isDense: true,
-        contentPadding: const EdgeInsets.symmetric(vertical: 2),
-        border: InputBorder.none,
-        enabledBorder: InputBorder.none,
-        focusedBorder: InputBorder.none,
-        disabledBorder: InputBorder.none,
-        errorBorder: InputBorder.none,
-        focusedErrorBorder: InputBorder.none,
-      ),
-      style: text.titleSmall?.copyWith(
-        fontWeight: FontWeight.w700,
-        fontSize: 13,
-      ),
-    );
-  }
+  /// Sugerencias que se pintan justo debajo del campo (las arma el padre).
+  final Widget? suggestions;
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.colors;
     final text = context.text;
+    final dark = Theme.of(context).brightness == Brightness.dark;
 
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(AppRadius.sm),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 8),
-        child: Row(
-          children: [
-            // Icono con fondo de color
-            Container(
-              width: 32,
-              height: 32,
+    final fill = AppColors.tint(accent, colors.surface, dark ? 0.16 : 0.06);
+    final border = AppColors.tint(accent, colors.surface, dark ? 0.34 : 0.20);
+    final labelInk = AppColors.legible(accent, fill);
+    final plate = AppColors.tint(accent, fill, dark ? 0.34 : 0.22);
+    final plateInk = AppColors.legible(accent, plate);
+
+    final valueStyle = text.titleSmall?.copyWith(
+      fontWeight: FontWeight.w700,
+      fontSize: 14.5,
+      color: empty ? colors.onSurfaceVariant : colors.onSurface,
+    );
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: onTap,
+            borderRadius: BorderRadius.circular(AppRadius.input),
+            child: Ink(
               decoration: BoxDecoration(
-                color: iconBg,
-                borderRadius: BorderRadius.circular(AppRadius.sm),
-                boxShadow: const [
-                  BoxShadow(
-                    color: Color(0x0D000000),
-                    blurRadius: 4,
-                    offset: Offset(0, 1),
-                  ),
-                ],
+                color: fill,
+                borderRadius: BorderRadius.circular(AppRadius.input),
+                border: Border.all(color: border, width: 0.8),
               ),
-              child: Icon(icon, size: 14, color: iconInk),
-            ),
-            const SizedBox(width: 10),
-            // Texto editable o estático
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    label,
-                    style: text.labelSmall?.copyWith(
-                      color: labelInk,
-                      fontWeight: FontWeight.w800,
-                      fontSize: 10,
-                      letterSpacing: 1.2,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(
+                  AppSpace.md,
+                  AppSpace.sm + 2,
+                  AppSpace.sm,
+                  AppSpace.sm + 2,
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 36,
+                      height: 36,
+                      decoration: BoxDecoration(
+                        color: plate,
+                        borderRadius: BorderRadius.circular(AppRadius.sm),
+                      ),
+                      child: Icon(icon, size: 18, color: plateInk),
                     ),
-                  ),
-                  const SizedBox(height: 2),
-                  if (controller != null)
-                    // Campo editable: TextField con el botón "Mapa" integrado
-                    _buildEditableField(context, text)
-                  else if (place != null) ...[
-                    Text(
-                      _label(place),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: text.titleSmall?.copyWith(
-                        fontWeight: FontWeight.w700,
-                        fontSize: 13,
+                    const SizedBox(width: AppSpace.md),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Row(
+                            children: [
+                              Text(
+                                label,
+                                style: text.labelSmall?.copyWith(
+                                  color: labelInk,
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 10,
+                                  letterSpacing: 0.8,
+                                ),
+                              ),
+                              if (tag != null && !empty) ...[
+                                const SizedBox(width: 6),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 6,
+                                    vertical: 1,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: plate,
+                                    borderRadius: BorderRadius.circular(
+                                      AppRadius.pill,
+                                    ),
+                                  ),
+                                  child: Text(
+                                    tag!,
+                                    style: text.labelSmall?.copyWith(
+                                      color: plateInk,
+                                      fontWeight: FontWeight.w800,
+                                      fontSize: 8.5,
+                                      letterSpacing: 0.6,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                          const SizedBox(height: 2),
+                          if (controller != null)
+                            TextField(
+                              key: inputKey,
+                              controller: controller,
+                              focusNode: focusNode,
+                              onChanged: onChanged,
+                              onSubmitted: onSubmitted,
+                              textInputAction: TextInputAction.search,
+                              textCapitalization: TextCapitalization.words,
+                              cursorColor: colors.primary,
+                              style: valueStyle,
+                              // El tema de la app pinta los inputs como
+                              // píldoras rellenas; aquí el campo vive dentro
+                              // de la fila tonal, así que no lleva caja
+                              // propia ni borde de foco.
+                              decoration: InputDecoration(
+                                isCollapsed: true,
+                                filled: false,
+                                hintText: emptyHint,
+                                hintStyle: valueStyle?.copyWith(
+                                  color: colors.onSurfaceVariant,
+                                ),
+                                border: InputBorder.none,
+                                enabledBorder: InputBorder.none,
+                                focusedBorder: InputBorder.none,
+                                disabledBorder: InputBorder.none,
+                                errorBorder: InputBorder.none,
+                                focusedErrorBorder: InputBorder.none,
+                              ),
+                            )
+                          else
+                            Text(
+                              value ?? emptyHint,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: valueStyle,
+                            ),
+                          if (subtitle != null) ...[
+                            const SizedBox(height: 1),
+                            Text(
+                              subtitle!,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: text.labelSmall?.copyWith(
+                                color: colors.onSurfaceVariant,
+                                fontWeight: FontWeight.w600,
+                                fontSize: 10.5,
+                              ),
+                            ),
+                          ],
+                        ],
                       ),
                     ),
-                    if (_subtitle(place).isNotEmpty) ...[
-                      const SizedBox(height: 1),
-                      Text(
-                        _subtitle(place),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: text.labelSmall?.copyWith(
-                          color: subtitleInk,
-                          fontWeight: FontWeight.w600,
-                          fontSize: 10,
+                    if (onMapTap != null) ...[
+                      const SizedBox(width: AppSpace.sm),
+                      Tooltip(
+                        message: 'Elegir en el mapa',
+                        child: InkWell(
+                          onTap: onMapTap,
+                          borderRadius: BorderRadius.circular(AppRadius.pill),
+                          child: Container(
+                            width: 34,
+                            height: 34,
+                            decoration: BoxDecoration(
+                              color: colors.surface,
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: colors.outlineVariant,
+                                width: 0.8,
+                              ),
+                            ),
+                            child: Icon(
+                              Icons.map_outlined,
+                              size: 16,
+                              color: colors.onSurfaceVariant,
+                            ),
+                          ),
                         ),
                       ),
                     ],
                   ],
-                ],
-              ),
-            ),
-            // Botón "Mapa"
-            Tooltip(
-              message: 'Elegir en el mapa',
-              child: InkWell(
-                onTap: onMapTap,
-                borderRadius: BorderRadius.circular(AppRadius.sm),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 6,
-                  ),
-                  decoration: BoxDecoration(
-                    color: mapButtonBg,
-                    borderRadius: BorderRadius.circular(AppRadius.sm),
-                    border: Border.all(color: mapButtonBorder, width: 0.8),
-                    boxShadow: const [
-                      BoxShadow(
-                        color: Color(0x0D000000),
-                        blurRadius: 4,
-                        offset: Offset(0, 1),
-                      ),
-                    ],
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.map_rounded, size: 12, color: mapButtonInk),
-                      const SizedBox(width: 4),
-                      Text(
-                        'Mapa',
-                        style: text.labelSmall?.copyWith(
-                          color: mapButtonInk,
-                          fontWeight: FontWeight.w700,
-                          fontSize: 11,
-                        ),
-                      ),
-                    ],
-                  ),
                 ),
               ),
             ),
-          ],
+          ),
         ),
-      ),
+        ?suggestions,
+      ],
     );
   }
 }

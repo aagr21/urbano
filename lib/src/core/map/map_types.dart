@@ -179,6 +179,15 @@ class MapPolyline {
   );
 }
 
+/// Aire transparente que un marcador con sombra deja alrededor de su forma.
+///
+/// El motor nativo rasteriza cada marcador a una imagen del tamaño EXACTO de
+/// su caja: si la forma la ocupa entera, la sombra difusa se recorta contra
+/// los bordes y solo sobreviven sus esquinas, que se ven como puntas oscuras
+/// alrededor de un círculo. Con este margen la sombra entra completa (cubre
+/// un `blurRadius` de hasta ~5 y un desplazamiento de 1–2 px).
+const double kMarkerShadowMargin = 6;
+
 /// Marcador (icono) anclado a un punto geográfico.
 ///
 /// [child] se pinta tal cual en el motor simulado; el motor MapLibre lo
@@ -196,9 +205,13 @@ class MapMarker {
     this.anchor = MapMarkerAnchor.center,
     this.draggable = false,
     this.rotation = 0,
+    this.rotateWithMap = false,
     this.iconKey,
     this.onTap,
-  });
+  }) : assert(
+         !rotateWithMap || (!draggable && onTap == null),
+         'Un marcador alineado al mapa vive en una capa propia sin gestos',
+       );
 
   /// Identificador estable: es el que viajan en los callbacks de drag/tap.
   final String id;
@@ -215,6 +228,17 @@ class MapMarker {
 
   /// Rotación del icono en grados, en sentido horario desde el norte.
   final double rotation;
+
+  /// `true` = [rotation] es un **rumbo geográfico** pegado al mapa: al girar
+  /// el mapa, el icono gira con él y sigue apuntando a lo largo de lo que
+  /// marca (p. ej. la flecha de sentido sobre el trazado de un micro).
+  ///
+  /// `false` (por defecto) = la rotación es respecto de la PANTALLA, que es lo
+  /// que quieren los pines y las insignias: con el mapa girado siguen
+  /// derechos. En MapLibre esto es `icon-rotation-alignment`, una propiedad de
+  /// CAPA (no por símbolo), así que estos marcadores viajan en una capa propia
+  /// del motor: no admiten arrastre ni toque.
+  final bool rotateWithMap;
 
   /// Clave de caché del icono rasterizado (por defecto, [id]).
   final String? iconKey;

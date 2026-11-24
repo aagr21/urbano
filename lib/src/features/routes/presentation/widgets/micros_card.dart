@@ -3,74 +3,97 @@ import 'package:material_ui/material_ui.dart';
 import '../../../../core/animation/motion.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_theme.dart';
-import '../../../../core/theme/html_design_tokens.dart' show HtmlDesignTokens;
 import '../../../../core/utils/extensions.dart';
+import '../../../../core/widgets/route_badge.dart';
 import '../../data/route_models.dart';
+import 'micro_bus_art.dart';
 
-/// Tarjeta de una línea — estilo de micros.html.
+/// Tarjeta de una línea del catálogo `/micros`.
 ///
-/// Badge cuadrado con color GTFS, nombre de línea, píldora de frecuencia,
-/// botón de favorito, mini micro SVG, extremos de ruta, paradas clave
-/// y botón "Ver recorrido".
+/// La identidad de la línea es su **numeral con el color GTFS** ([RouteBadge]),
+/// no un ícono genérico: es lo que el pasajero busca y lo que viaja con un
+/// [Hero] hasta la cabecera del detalle. Al lado, el recorrido y los datos que
+/// sí cambian de línea a línea (paradas, sentidos); debajo, los extremos reales
+/// del recorrido como un riel origen → destino. Toda la tarjeta es el botón:
+/// no hay pie «Ver recorrido» que repita lo mismo.
 class MicroCard extends StatelessWidget {
-  const MicroCard({super.key, required this.route, required this.onTap});
+  const MicroCard({
+    super.key,
+    required this.route,
+    required this.onTap,
+    this.heroPrefix,
+  });
 
   final RouteSummary route;
   final VoidCallback onTap;
 
+  /// Prefijo del [Hero] del badge; debe coincidir con el que usa el detalle
+  /// (`?from=micros` ↔ `route-badge-micros-<id>`).
+  final String? heroPrefix;
+
   @override
   Widget build(BuildContext context) {
+    final colors = context.colors;
     final text = context.text;
     final dark = Theme.of(context).brightness == Brightness.dark;
     final accent = AppColors.fromHex(route.color);
-    final stripe = AppColors.legible(
-      accent,
-      dark ? HtmlDesignTokens.slate800 : HtmlDesignTokens.white,
-    );
-    final hairline = dark
-        ? HtmlDesignTokens.slate700
-        : HtmlDesignTokens.slate200.withValues(alpha: 0.7);
+    final fill = AppColors.tint(accent, colors.surface, dark ? 0.18 : 0.07);
+    final ink = AppColors.legible(accent, fill);
+    final keyStops = route.keyStops;
+    final hasEnds = keyStops != null && keyStops.length >= 2;
+    final radius = BorderRadius.circular(AppRadius.lg);
+
+    final facts = <String>[
+      if (route.stopCount > 0) '${route.stopCount} paradas',
+      if (route.directionsCount > 1)
+        'Ida y vuelta'
+      else if (route.directionsCount == 1)
+        'Solo ida',
+    ];
 
     return PressScale(
-      scale: 0.99,
-      child: Container(
+      scale: 0.985,
+      child: DecoratedBox(
         decoration: BoxDecoration(
-          color: dark ? HtmlDesignTokens.slate800 : HtmlDesignTokens.white,
-          borderRadius: BorderRadius.circular(AppRadius.xl),
-          border: Border.all(color: hairline),
+          borderRadius: radius,
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.04),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
+              color: colors.shadow.withValues(alpha: dark ? 0.22 : 0.05),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
             ),
           ],
         ),
         child: Material(
-          color: Colors.transparent,
+          color: colors.surface,
+          clipBehavior: Clip.antiAlias,
+          shape: RoundedRectangleBorder(
+            borderRadius: radius,
+            side: BorderSide(
+              color: dark
+                  ? AppColors.lineDark
+                  : colors.outlineVariant.withValues(alpha: 0.7),
+            ),
+          ),
           child: InkWell(
             onTap: onTap,
-            borderRadius: BorderRadius.circular(AppRadius.xl),
             child: Stack(
               children: [
-                // Left colored stripe
+                // Filete del color real de la línea: la tarjeta se reconoce
+                // de un vistazo sin leer el numeral. El `Material` recorta
+                // sus esquinas, así no asoma fuera del borde redondeado.
                 Positioned(
                   left: 0,
                   top: 0,
                   bottom: 0,
-                  child: Container(
-                    width: 4,
-                    decoration: BoxDecoration(
-                      color: stripe,
-                      borderRadius: const BorderRadius.horizontal(
-                        left: Radius.circular(AppRadius.xl),
-                      ),
-                    ),
+                  child: ColoredBox(
+                    color: accent,
+                    child: const SizedBox(width: 5),
                   ),
                 ),
                 Padding(
                   padding: const EdgeInsets.fromLTRB(
-                    16,
+                    AppSpace.md + 5,
                     AppSpace.md,
                     AppSpace.md,
                     AppSpace.md,
@@ -78,229 +101,70 @@ class MicroCard extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Header: frequency + favorite
                       Row(
                         children: [
-                          // Frequency pill
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 10,
-                              vertical: 4,
-                            ),
-                            decoration: BoxDecoration(
-                              color: HtmlDesignTokens.emerald50,
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(
-                                color: HtmlDesignTokens.emerald100,
-                              ),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Container(
-                                  width: 6,
-                                  height: 6,
-                                  decoration: const BoxDecoration(
-                                    color: HtmlDesignTokens.emerald500,
-                                    shape: BoxShape.circle,
-                                  ),
-                                ),
-                                const SizedBox(width: 6),
-                                Text(
-                                  'En frecuencia',
-                                  style: text.labelSmall?.copyWith(
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.w700,
-                                    color: HtmlDesignTokens.emerald700,
-                                  ),
-                                ),
-                              ],
-                            ),
+                          RouteBadge(
+                            label: route.shortName,
+                            colorHex: route.color,
+                            textColorHex: route.textColor,
+                            size: RouteBadgeSize.large,
+                            heroTag: heroPrefix == null
+                                ? null
+                                : 'route-badge-$heroPrefix-${route.id}',
                           ),
-                          const SizedBox(width: 8),
-                          // Favorite button
-                          Icon(
-                            Icons.star_border_rounded,
-                            size: 18,
-                            color: dark
-                                ? HtmlDesignTokens.slate500
-                                : HtmlDesignTokens.slate300,
-                          ),
-                        ],
-                      ),
-                      const Divider(
-                        height: 16,
-                        color: HtmlDesignTokens.slate100,
-                      ),
-                      // Body: mini bus + endpoints + key stops
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          // Mini bus illustration
-                          Container(
-                            width: 64,
-                            height: 56,
-                            padding: const EdgeInsets.all(4),
-                            decoration: BoxDecoration(
-                              color: AppColors.tint(
-                                accent,
-                                dark
-                                    ? HtmlDesignTokens.slate700
-                                    : HtmlDesignTokens.slate50,
-                                0.1,
-                              ),
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(
-                                color: AppColors.tint(
-                                  accent,
-                                  dark
-                                      ? HtmlDesignTokens.slate600
-                                      : HtmlDesignTokens.slate200,
-                                  0.5,
-                                ),
-                              ),
-                            ),
-                            child: Center(child: _MiniBusSvg(color: accent)),
-                          ),
-                          const SizedBox(width: 14),
-                          // Endpoints + key stops
+                          const SizedBox(width: AppSpace.md),
                           Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                // Endpoints
-                                if (route.longName.isNotEmpty)
-                                  Row(
-                                    children: [
-                                      Expanded(
-                                        child: Text(
-                                          route.longName,
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                          style: text.labelMedium?.copyWith(
-                                            fontWeight: FontWeight.w700,
-                                            fontSize: 12,
-                                            color: dark
-                                                ? HtmlDesignTokens.slate200
-                                                : HtmlDesignTokens.slate800,
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                const SizedBox(height: 6),
-                                // Extremos de ruta: origen → destino
-                                // Si el backend devuelve keyStops, usa las
-                                // primeras/últimas paradas reales.
-                                // Si no (backend sin actualizar), muestra un
-                                // fallback con la cobertura de la ruta.
-                                if (route.keyStops != null &&
-                                    route.keyStops!.length >= 2)
-                                  _buildEndpointsRow(
-                                    context,
-                                    text,
-                                    accent,
-                                    dark,
-                                    route.keyStops!.first,
-                                    route.keyStops!.last,
-                                  )
-                                else
-                                  _buildFallbackCoverageRow(
-                                    context,
-                                    text,
-                                    accent,
-                                    dark,
-                                    route.stopCount,
-                                  ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 10),
-                      const Divider(
-                        height: 1,
-                        color: HtmlDesignTokens.slate100,
-                      ),
-                      const SizedBox(height: 10),
-                      // Footer: ida/vuelta pill + "Ver recorrido"
-                      Row(
-                        children: [
-                          // Ida y vuelta pill
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 10,
-                              vertical: 6,
-                            ),
-                            decoration: BoxDecoration(
-                              color: HtmlDesignTokens.slate100.withValues(
-                                alpha: 0.9,
-                              ),
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                const Icon(
-                                  Icons.swap_horiz_rounded,
-                                  size: 14,
-                                  color: HtmlDesignTokens.slate400,
-                                ),
-                                const SizedBox(width: 6),
                                 Text(
-                                  'Ida y vuelta',
-                                  style: text.labelSmall?.copyWith(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w600,
-                                    color: HtmlDesignTokens.slate500,
+                                  route.longName.isNotEmpty
+                                      ? route.longName
+                                      : route.shortName,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: text.titleSmall?.copyWith(
+                                    fontWeight: FontWeight.w700,
+                                    height: 1.2,
+                                    color: colors.onSurface,
                                   ),
                                 ),
+                                if (facts.isNotEmpty) ...[
+                                  const SizedBox(height: 3),
+                                  Text(
+                                    facts.join(' · '),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: text.labelSmall?.copyWith(
+                                      fontWeight: FontWeight.w600,
+                                      color: colors.onSurfaceVariant,
+                                    ),
+                                  ),
+                                ],
                               ],
                             ),
                           ),
-                          const Spacer(),
-                          // "Ver recorrido" button
-                          PressScale(
-                            scale: 0.97,
-                            child: InkWell(
-                              onTap: onTap,
-                              borderRadius: BorderRadius.circular(10),
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 14,
-                                  vertical: 6,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: HtmlDesignTokens.emerald50,
-                                  borderRadius: BorderRadius.circular(10),
-                                ),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Text(
-                                      'Ver recorrido',
-                                      style: text.labelSmall?.copyWith(
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w700,
-                                        color: HtmlDesignTokens.emerald700,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 4),
-                                    Text(
-                                      '→',
-                                      style: text.labelSmall?.copyWith(
-                                        fontSize: 14,
-                                        fontWeight: FontWeight.w700,
-                                        color: HtmlDesignTokens.emerald700,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ),
+                          const SizedBox(width: AppSpace.sm),
+                          _BusPlate(accent: accent, fill: fill),
                         ],
                       ),
+                      // Extremos reales del recorrido (primeras/últimas
+                      // paradas del feed). Sin ellas la tarjeta no
+                      // inventa un trayecto: lo de arriba ya la
+                      // identifica.
+                      if (hasEnds) ...[
+                        const SizedBox(height: AppSpace.md),
+                        _EndpointsRail(
+                          origin: _shortStopName(keyStops.first),
+                          destination: _shortStopName(keyStops.last),
+                          via: keyStops.length > 2
+                              ? _shortStopName(keyStops[1])
+                              : null,
+                          accent: accent,
+                          fill: fill,
+                          ink: ink,
+                        ),
+                      ],
                     ],
                   ),
                 ),
@@ -311,288 +175,145 @@ class MicroCard extends StatelessWidget {
       ),
     );
   }
-
-  /// Fallback cuando el backend no devuelve keyStops: muestra la cobertura
-  /// de la ruta ("242 paradas · Ida y vuelta") para que la tarjeta no quede vacía.
-  static Widget _buildFallbackCoverageRow(
-    BuildContext context,
-    TextTheme text,
-    Color accent,
-    bool dark,
-    int stopCount,
-  ) {
-    return Row(
-      children: [
-        Icon(Icons.route_rounded, size: 14, color: accent),
-        const SizedBox(width: 4),
-        Text(
-          '$stopCount paradas',
-          style: text.labelSmall?.copyWith(
-            fontSize: 10,
-            fontWeight: FontWeight.w600,
-            color: dark ? HtmlDesignTokens.slate300 : HtmlDesignTokens.slate600,
-          ),
-        ),
-        const SizedBox(width: 6),
-        Icon(
-          Icons.swap_horiz_rounded,
-          size: 12,
-          color: accent.withValues(alpha: 0.45),
-        ),
-        const SizedBox(width: 4),
-        Text(
-          'Ida y vuelta',
-          style: text.labelSmall?.copyWith(
-            fontSize: 10,
-            fontWeight: FontWeight.w600,
-            color: dark ? HtmlDesignTokens.slate400 : HtmlDesignTokens.slate500,
-          ),
-        ),
-      ],
-    );
-  }
-
-  /// Extremos de ruta: origen → destino (cuando el backend devuelve keyStops).
-  static Widget _buildEndpointsRow(
-    BuildContext context,
-    TextTheme text,
-    Color accent,
-    bool dark,
-    String origin,
-    String destination,
-  ) {
-    return Row(
-      children: [
-        // Origen
-        Expanded(
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-            decoration: BoxDecoration(
-              color: AppColors.tint(
-                accent,
-                dark ? HtmlDesignTokens.slate700 : HtmlDesignTokens.slate50,
-                0.08,
-              ),
-              borderRadius: BorderRadius.circular(AppRadius.pill),
-              border: Border.all(
-                color: AppColors.tint(
-                  accent,
-                  dark ? HtmlDesignTokens.slate600 : HtmlDesignTokens.slate200,
-                  0.35,
-                ),
-              ),
-            ),
-            child: Row(
-              children: [
-                Icon(Icons.trip_origin_rounded, size: 14, color: accent),
-                const SizedBox(width: 4),
-                Expanded(
-                  child: Text(
-                    _shortStopName(origin),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: text.labelSmall?.copyWith(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w600,
-                      color: dark
-                          ? HtmlDesignTokens.slate200
-                          : HtmlDesignTokens.slate700,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-        // Flecha de avance
-        Icon(
-          Icons.double_arrow_rounded,
-          size: 16,
-          color: accent.withValues(alpha: 0.55),
-        ),
-        const SizedBox(width: 6),
-        // Destino
-        Expanded(
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-            decoration: BoxDecoration(
-              color: AppColors.tint(
-                accent,
-                dark ? HtmlDesignTokens.slate700 : HtmlDesignTokens.slate50,
-                0.08,
-              ),
-              borderRadius: BorderRadius.circular(AppRadius.pill),
-              border: Border.all(
-                color: AppColors.tint(
-                  accent,
-                  dark ? HtmlDesignTokens.slate600 : HtmlDesignTokens.slate200,
-                  0.35,
-                ),
-              ),
-            ),
-            child: Row(
-              children: [
-                Icon(Icons.location_searching_rounded, size: 14, color: accent),
-                const SizedBox(width: 4),
-                Expanded(
-                  child: Text(
-                    _shortStopName(destination),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: text.labelSmall?.copyWith(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w600,
-                      color: dark
-                          ? HtmlDesignTokens.slate200
-                          : HtmlDesignTokens.slate700,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  /// Acorta nombres largos de paradas extrayendo el tramo principal
-  /// (equivalente al `_street()` del detalle del recorrido).
-  static String _shortStopName(String name) {
-    if (name.isEmpty) return name;
-    // "Avenida Los Pinos esquina Calle Las Palmeras" → "Av. Los Pinos"
-    // "Calle El Nogal esquina Calle Los Sauces" → "Calle El Nogal"
-    final parts = name.split(' esquina ');
-    if (parts.length >= 2) return parts[0];
-    // Truncar si sigue muy largo
-    if (name.length > 30) {
-      final words = name.split(' ');
-      if (words.length > 3) return '${words.take(3).join(' ')}…';
-    }
-    return name;
-  }
 }
 
-/// Mini micro SVG simplificado para las tarjetas de ruta.
-class _MiniBusSvg extends StatelessWidget {
-  const _MiniBusSvg({required this.color});
+/// Micro ilustrado con el color de la línea sobre una placa tonal: sustituye
+/// el chevron y el pie «Ver recorrido» como firma de «esto se abre».
+class _BusPlate extends StatelessWidget {
+  const _BusPlate({required this.accent, required this.fill});
 
-  final Color color;
+  final Color accent;
+  final Color fill;
 
   @override
   Widget build(BuildContext context) {
-    final glass = AppColors.onColor(color);
-    return SizedBox(
-      width: 48,
-      height: 26,
-      child: CustomPaint(
-        painter: _MiniBusPainter(
-          body: color,
-          glass: glass,
-          wheel: Color.lerp(color, AppColors.ink, 0.78)!,
-        ),
+    return Container(
+      width: 52,
+      height: 44,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: fill,
+        borderRadius: BorderRadius.circular(AppRadius.tile),
+      ),
+      child: MicroBusArt(color: accent, size: const Size(38, 26)),
+    );
+  }
+}
+
+/// Riel origen → destino con los extremos del recorrido sobre el tinte de la
+/// línea. Con una tercera parada clave se lee «vía …» debajo.
+class _EndpointsRail extends StatelessWidget {
+  const _EndpointsRail({
+    required this.origin,
+    required this.destination,
+    required this.accent,
+    required this.fill,
+    required this.ink,
+    this.via,
+  });
+
+  final String origin;
+  final String destination;
+  final String? via;
+  final Color accent;
+  final Color fill;
+  final Color ink;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    final text = context.text;
+    final label = text.labelMedium?.copyWith(
+      fontWeight: FontWeight.w700,
+      color: colors.onSurface,
+    );
+    final caption = text.labelSmall?.copyWith(
+      fontSize: 10,
+      fontWeight: FontWeight.w600,
+      letterSpacing: 0.3,
+      color: ink,
+    );
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(
+        AppSpace.md,
+        AppSpace.sm,
+        AppSpace.md,
+        AppSpace.sm,
+      ),
+      decoration: BoxDecoration(
+        color: fill,
+        borderRadius: BorderRadius.circular(AppRadius.tile),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(child: Text('DESDE', style: caption)),
+              const SizedBox(width: 28),
+              Expanded(
+                child: Text('HASTA', textAlign: TextAlign.end, style: caption),
+              ),
+            ],
+          ),
+          const SizedBox(height: 2),
+          Row(
+            children: [
+              Icon(Icons.trip_origin_rounded, size: 13, color: ink),
+              const SizedBox(width: 5),
+              Expanded(
+                child: Text(
+                  origin,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: label,
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 6),
+                child: Icon(Icons.double_arrow_rounded, size: 16, color: ink),
+              ),
+              Expanded(
+                child: Text(
+                  destination,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.end,
+                  style: label,
+                ),
+              ),
+              const SizedBox(width: 5),
+              Icon(Icons.location_on_rounded, size: 14, color: ink),
+            ],
+          ),
+          if (via != null && via != origin && via != destination) ...[
+            const SizedBox(height: 3),
+            Text(
+              'vía $via',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: text.labelSmall?.copyWith(
+                fontWeight: FontWeight.w500,
+                color: colors.onSurfaceVariant,
+              ),
+            ),
+          ],
+        ],
       ),
     );
   }
 }
 
-class _MiniBusPainter extends CustomPainter {
-  const _MiniBusPainter({
-    required this.body,
-    required this.glass,
-    required this.wheel,
-  });
-
-  final Color body;
-  final Color glass;
-  final Color wheel;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final s = size.width / 44;
-    canvas.scale(s, s);
-
-    // Body
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        const Rect.fromLTWH(2, 2, 38, 17),
-        const Radius.circular(3),
-      ),
-      Paint()..color = body,
-    );
-
-    // Windows
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        const Rect.fromLTWH(4, 4, 6, 5),
-        const Radius.circular(1),
-      ),
-      Paint()..color = glass.withValues(alpha: 0.9),
-    );
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        const Rect.fromLTWH(12, 4, 5, 5),
-        const Radius.circular(1),
-      ),
-      Paint()..color = glass.withValues(alpha: 0.9),
-    );
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        const Rect.fromLTWH(19, 4, 5, 5),
-        const Radius.circular(1),
-      ),
-      Paint()..color = glass.withValues(alpha: 0.9),
-    );
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        const Rect.fromLTWH(26, 4, 5, 5),
-        const Radius.circular(1),
-      ),
-      Paint()..color = glass.withValues(alpha: 0.9),
-    );
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        const Rect.fromLTWH(33, 4, 5, 5),
-        const Radius.circular(1),
-      ),
-      Paint()..color = glass.withValues(alpha: 0.9),
-    );
-
-    // Stripe
-    canvas.drawRect(
-      const Rect.fromLTWH(2, 11, 38, 3),
-      Paint()..color = wheel.withValues(alpha: 0.18),
-    );
-
-    // Headlight
-    canvas.drawCircle(
-      const Offset(4, 15),
-      1,
-      Paint()..color = HtmlDesignTokens.amber200,
-    );
-    // Taillight
-    canvas.drawCircle(
-      const Offset(38, 15),
-      1,
-      Paint()..color = HtmlDesignTokens.red500,
-    );
-
-    // Wheels
-    canvas.drawCircle(const Offset(10, 19), 3, Paint()..color = wheel);
-    canvas.drawCircle(
-      const Offset(10, 19),
-      1.2,
-      Paint()..color = glass.withValues(alpha: 0.85),
-    );
-    canvas.drawCircle(const Offset(32, 19), 3, Paint()..color = wheel);
-    canvas.drawCircle(
-      const Offset(32, 19),
-      1.2,
-      Paint()..color = glass.withValues(alpha: 0.85),
-    );
+/// Acorta nombres largos de paradas extrayendo el tramo principal
+/// («Avenida Los Pinos esquina Calle Las Palmeras» → «Avenida Los Pinos»).
+String _shortStopName(String name) {
+  if (name.isEmpty) return name;
+  final parts = name.split(' esquina ');
+  if (parts.length >= 2) return parts[0];
+  if (name.length > 30) {
+    final words = name.split(' ');
+    if (words.length > 3) return '${words.take(3).join(' ')}…';
   }
-
-  @override
-  bool shouldRepaint(_MiniBusPainter old) =>
-      old.body != body || old.glass != glass || old.wheel != wheel;
+  return name;
 }

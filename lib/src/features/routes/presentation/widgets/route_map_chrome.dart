@@ -11,19 +11,14 @@ import 'micro_bus_art.dart';
 /// Flecha de vuelta flotante del mapa a sangre.
 ///
 /// El mapa completo no tiene `AppBar` (el trazado manda), así que la salida es
-/// un botón circular oscuro sobre el propio mapa: el mismo gesto de todas las
+/// la flecha de vuelta de toda la app, flotando sobre el propio mapa: el mismo gesto de todas las
 /// pantallas, sin header que le robe alto al recorrido.
 class MapFloatingBack extends StatelessWidget {
   const MapFloatingBack({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: Colors.black.withValues(alpha: 0.55),
-      shape: const CircleBorder(),
-      clipBehavior: Clip.antiAlias,
-      child: const UrbanoBackButton(color: Colors.white),
-    );
+    return const UrbanoBackButton(floating: true);
   }
 }
 

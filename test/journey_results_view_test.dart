@@ -121,6 +121,8 @@ void main() {
       final v = container.read(journeyResultsProvider);
       expect(v.replanning, isTrue); // replanPending
       expect(v.options, isNotNull); // caché conservado durante el replan
+      // …pero el mapa ya no dibuja el itinerario viejo: solo pines.
+      expect(v.mapOption.departAt, isEmpty);
       expect(v.mapOrigin!.lat, dragged.latitude); // el pin sigue el dedo
     },
   );

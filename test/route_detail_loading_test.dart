@@ -79,7 +79,7 @@ void main() {
 
     // Baja hasta el final: los dos esqueletos viven bajo los botones de
     // sentido y las cápsulas de horario.
-    await tester.drag(find.byType(ListView), const Offset(0, -900));
+    await tester.drag(find.byType(CustomScrollView), const Offset(0, -900));
     await tester.pump();
 
     expect(find.byType(LoadingShimmer), findsWidgets);

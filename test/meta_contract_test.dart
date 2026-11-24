@@ -23,6 +23,7 @@ void main() {
       'maxCandidateStops': 15,
       'minTransitDistanceM': 150,
       'minBoardingPairDistanceM': 150,
+      'minFirstRideTransferM': 1000,
       'walkSpeedMPerMin': 80,
       'transferPenaltyMinutes': 10,
     },

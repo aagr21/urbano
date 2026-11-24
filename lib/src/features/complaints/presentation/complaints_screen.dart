@@ -86,7 +86,7 @@ class ComplaintsScreen extends ConsumerWidget {
               // Retroceso: la queja es una pantalla empujada, no una rama de
               // primer nivel. Vive en la fila del título para no sumar alto
               // ni taparlo: la primera tarjeta tiene que seguir entrando.
-              leading: const UrbanoBackButton(color: Colors.white),
+              leading: const UrbanoBackButton(),
             ),
           ),
           // Las pastillas se miden contra el fondo REALMENTE pintado de la

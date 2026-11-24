@@ -1,14 +1,21 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:latlong2/latlong.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:urbano/src/core/location/location_service.dart';
+import 'package:urbano/src/core/map/fake_map_engine.dart';
+import 'package:urbano/src/core/map/map.dart';
 import 'package:urbano/src/core/router/app_router.dart';
 import 'package:urbano/src/core/theme/app_theme.dart';
+import 'package:urbano/src/core/widgets/urbano_map.dart';
 import 'package:urbano/src/features/routes/data/route_models.dart';
 import 'package:urbano/src/features/routes/data/route_repository.dart';
 import 'package:urbano/src/features/routes/presentation/route_providers.dart';
 import 'package:urbano/src/features/routes/presentation/widgets/micro_bus_art.dart';
 import 'package:urbano/src/features/routes/presentation/widgets/route_map_chrome.dart';
 
+import 'helpers/fake_location_service.dart';
 import 'helpers/fake_route_repository.dart';
 
 RouteSummary _route() => const RouteSummary(
@@ -25,9 +32,13 @@ RouteSummary _route() => const RouteSummary(
 );
 
 /// Abre el detalle de la línea falsa con el router real de la app.
-Future<ProviderContainer> _pumpDetail(WidgetTester tester) async {
+Future<ProviderContainer> _pumpDetail(
+  WidgetTester tester, {
+  List<Override> overrides = const [],
+}) async {
   final container = ProviderContainer(
     overrides: [
+      ...overrides,
       routeRepositoryProvider.overrideWithValue(
         FakeRouteRepository([_route()]),
       ),
@@ -84,6 +95,14 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(find.text('Por dónde pasa'), findsOneWidget);
+      // El recorrido arranca plegado: las calles aparecen al pedirlas.
+      await tester.scrollUntilVisible(
+        find.byKey(const ValueKey('route-path-more')),
+        200,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await tester.tap(find.byKey(const ValueKey('route-path-more')));
+      await tester.pumpAndSettle();
       expect(find.text('Av. Monseñor Rivero'), findsOneWidget);
       expect(find.text('Av. Cristo Redentor'), findsOneWidget);
     },
@@ -153,5 +172,63 @@ void main() {
           .where((call) => call.endsWith('#1')),
       isNotEmpty,
     );
+  });
+
+  group('mapa a sangre · mi ubicación', () {
+    MapMarker? myDot(WidgetTester tester) {
+      for (final map in tester.widgetList<UrbanoMap>(find.byType(UrbanoMap))) {
+        for (final marker in map.markers) {
+          if (marker.id == 'route-map-my-location') return marker;
+        }
+      }
+      return null;
+    }
+
+    testWidgets(
+      'sin permiso hay botón de ubicación pero no se inventa el punto',
+      (tester) async {
+        final service = FakeLocationService();
+        addTearDown(service.dispose);
+        await _pumpDetail(
+          tester,
+          overrides: [locationServiceProvider.overrideWithValue(service)],
+        );
+        await tester.tap(find.text('Recorrido completo'));
+        await tester.pumpAndSettle();
+
+        expect(
+          find.byKey(const ValueKey('route-map-my-location')),
+          findsOneWidget,
+        );
+        expect(myDot(tester), isNull);
+      },
+    );
+
+    testWidgets('con permiso se dibuja el punto y el botón centra la cámara', (
+      tester,
+    ) async {
+      final service = FakeLocationService(
+        initialPermission: LocationPermission.whileInUse,
+      );
+      addTearDown(service.dispose);
+      await _pumpDetail(
+        tester,
+        overrides: [locationServiceProvider.overrideWithValue(service)],
+      );
+      await tester.tap(find.text('Recorrido completo'));
+      await tester.pumpAndSettle();
+
+      const me = LatLng(-17.7833, -63.1821);
+      expect(myDot(tester)?.point, me);
+
+      await tester.tap(find.byKey(const ValueKey('route-map-my-location')));
+      await tester.pumpAndSettle();
+
+      final engine = tester
+          .stateList<FakeMapEngineState>(find.byType(FakeMapEngine))
+          .last;
+      expect(engine.camera.center, me);
+      expect(tester.takeException(), isNull);
+    });
   });
 }

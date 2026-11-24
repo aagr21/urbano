@@ -361,16 +361,17 @@ void main() {
     // `push` agrega una página: el lugar real está en `state.uri`, no en la
     // configuración base del shell.
     expect(router.state.uri.path, '/micros');
-    expect(find.text('Red Urbana de Micros'), findsOneWidget);
+    expect(find.text('Red urbana de micros'), findsOneWidget);
     expect(find.textContaining('Busca por número'), findsOneWidget);
     expect(
       find.byKey(const ValueKey('micros-card-101 ANGOSTURA')),
       findsOneWidget,
     );
-    expect(find.text('Ver recorrido'), findsOneWidget);
+    // Sin pie «Ver recorrido»: toda la tarjeta es el botón.
+    expect(find.text('Ver recorrido'), findsNothing);
 
     // Cada tarjeta lleva al detalle de la línea.
-    await tester.tap(find.text('Ver recorrido'));
+    await tester.tap(find.text('Micro 101 ANGOSTURA').first);
     await tester.pumpAndSettle();
     expect(router.state.uri.path, '/routes/101%20ANGOSTURA');
     expect(find.text('101 ANGOSTURA'), findsWidgets);
@@ -414,6 +415,11 @@ void main() {
       expect(find.text('Origen'), findsOneWidget);
       expect(find.text('Destino'), findsOneWidget);
       expect(find.text('Planificar viaje'), findsNWidgets(2)); // título + botón
+      // El origen por defecto es «Mi ubicación»: el punto GPS queda por
+      // detrás, pero el valor del campo nunca muestra coordenadas.
+      expect(find.text('Mi ubicación'), findsOneWidget);
+      expect(find.text('GPS'), findsOneWidget);
+      expect(find.textContaining('-17.'), findsNothing);
     },
   );
 

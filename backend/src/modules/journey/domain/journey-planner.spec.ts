@@ -5,6 +5,8 @@ import {
   nextRunDeparture,
   orientBusLegGeometry,
   connectWalkAndBusGeometry,
+  dropShortFirstRideTransfers,
+  totalWalkMeters,
 } from './journey-planner';
 import { CandidateStop, JourneyOption, TripSchedule } from './journey.model';
 
@@ -227,8 +229,9 @@ describe('journey-planner (lógica pura)', () => {
         [STOP_LON + 0.01, -17.8],
       ];
       const option = optionWith(lejos);
-      const before = (option.legs[0] as { geometry?: { coordinates: number[][] } })
-        .geometry?.coordinates;
+      const before = (
+        option.legs[0] as { geometry?: { coordinates: number[][] } }
+      ).geometry?.coordinates;
 
       connectWalkAndBusGeometry([option]);
 
@@ -320,10 +323,12 @@ describe('journey-planner (lógica pura)', () => {
       expect(options).toHaveLength(1);
       const opt = options[0];
       expect(opt.type).toBe('direct');
-      // walk 80m=1min → notBefore 06:01 → k=1 → depart 06:05, arrive bus 06:35, +walk 160m=2min → 06:37
-      expect(opt.departAt).toBe('06:05:00');
+      // walk 80m=1min → notBefore 06:01 → k=1 → micro 06:05, arrive bus 06:35, +walk 160m=2min → 06:37.
+      // Puerta a puerta: se sale del origen 1 min antes del micro (06:04).
+      expect(opt.departAt).toBe('06:04:00');
       expect(opt.arriveAt).toBe('06:37:00');
-      expect(opt.durationMinutes).toBe(32);
+      expect(opt.durationMinutes).toBe(33);
+      expect((opt.legs[1] as { departAt: string }).departAt).toBe('06:05:00');
       expect(opt.legs).toHaveLength(3);
       expect(opt.legs[0].kind).toBe('walk');
       expect(opt.legs[1].kind).toBe('bus');
@@ -485,6 +490,181 @@ describe('journey-planner (lógica pura)', () => {
       expect(options[0].durationMinutes).toBe(35);
       expect(options[1].type).toBe('transfer');
       expect(options[1].durationMinutes).toBe(30);
+    });
+  });
+
+  describe('caminata mínima y primer micro de un transbordo', () => {
+    const t = (h: number, m = 0) => h * 3600 + m * 60;
+    /** ~1 m por cada 0.000009° de latitud: helpers para medir en metros. */
+    const north = (meters: number) => -17.78 + meters / 111_320;
+
+    const stop = (
+      stopId: string,
+      arr: number,
+      i: number,
+      latMeters?: number
+    ) => ({
+      stopId,
+      sequence: i + 1,
+      arrivalSec: arr,
+      departureSec: arr,
+      ...(latMeters === undefined
+        ? {}
+        : { lat: north(latMeters), lon: -63.15 }),
+    });
+
+    const trip = (
+      tripId: string,
+      stops: TripSchedule['stops'],
+      directionId = 0
+    ): TripSchedule => ({
+      tripId,
+      routeId: tripId,
+      routeShortName: tripId,
+      routeColor: 'D35400',
+      directionId,
+      headsign: null,
+      startTimeSec: t(6),
+      endTimeSec: t(8),
+      headwaySeconds: 300,
+      stops,
+    });
+
+    const cand = (
+      stopId: string,
+      distanceMeters: number,
+      latMeters: number
+    ): CandidateStop => ({
+      stopId,
+      name: stopId,
+      lat: north(latMeters),
+      lon: -63.15,
+      distanceMeters,
+    });
+
+    it('no hace caminar hasta una parada más adelante de la MISMA línea', () => {
+      // El usuario está a 100 m de S1; S5 (450 m) es la parada SIGUIENTE del
+      // mismo micro. Antes la duración contaba desde que sale el micro, así
+      // que subir en S5 "duraba" 2 min menos y ganaba: se caminaban 450 m
+      // por un tramo que el micro ya recorría.
+      const t1 = trip('T1', [
+        stop('S1', t(6), 0, 0),
+        stop('S5', t(6, 2), 1, 450),
+        stop('S4', t(6, 30), 2, 5000),
+      ]);
+      const options = planJourneys({
+        originStops: [cand('S1', 100, 0), cand('S5', 450, 450)],
+        destStops: [cand('S4', 0, 5000)],
+        trips: [t1],
+        timeSec: t(5, 50),
+        maxResults: 5,
+      });
+      // Una sola opción por micro, subiendo en la parada cercana.
+      expect(options).toHaveLength(1);
+      expect(options[0].walkToStop.id).toBe('S1');
+      expect(totalWalkMeters(options[0])).toBe(100);
+      // Puerta a puerta: 2 min a pie + 30 min de micro.
+      expect(options[0].departAt).toBe('05:58:00');
+      expect(options[0].durationMinutes).toBe(32);
+    });
+
+    it('descarta transbordos cuyo primer micro recorre < 1 km', () => {
+      // TA solo lleva 200 m (S1 → S2) antes de bajarse para tomar TB.
+      const ta = trip('TA', [
+        stop('S1', t(6), 0, 0),
+        stop('S2', t(6, 2), 1, 200),
+      ]);
+      const tb = trip(
+        'TB',
+        [stop('S2', t(6, 5), 0, 200), stop('S4', t(6, 30), 1, 5000)],
+        1
+      );
+      const options = planJourneys({
+        originStops: [cand('S1', 0, 0)],
+        destStops: [cand('S4', 0, 5000)],
+        trips: [ta, tb],
+        timeSec: t(6),
+        maxResults: 5,
+      });
+      expect(options.filter((o) => o.type === 'transfer')).toHaveLength(0);
+    });
+
+    it('conserva transbordos cuyo primer micro recorre ≥ 1 km', () => {
+      const ta = trip('TA', [
+        stop('S1', t(6), 0, 0),
+        stop('S6', t(6, 3), 1, 600),
+        stop('S2', t(6, 6), 2, 1200),
+      ]);
+      const tb = trip(
+        'TB',
+        [stop('S2', t(6, 10), 0, 1200), stop('S4', t(6, 30), 1, 5000)],
+        1
+      );
+      const options = planJourneys({
+        originStops: [cand('S1', 0, 0)],
+        destStops: [cand('S4', 0, 5000)],
+        trips: [ta, tb],
+        timeSec: t(6),
+        maxResults: 5,
+      });
+      const transfer = options.find((o) => o.type === 'transfer');
+      expect(transfer).toBeDefined();
+      expect(transfer!.legs[1]).toMatchObject({
+        fromStopId: 'S1',
+        toStopId: 'S2',
+      });
+    });
+
+    it('dropShortFirstRideTransfers mide la geometría del primer micro (OTP)', () => {
+      const transferWith = (firstRideMeters: number): JourneyOption => ({
+        type: 'transfer',
+        departAt: '06:00:00',
+        arriveAt: '06:30:00',
+        durationMinutes: 30,
+        walkToStop: { id: 'S1', name: 'S1', distanceMeters: 0 },
+        walkFromStop: { id: 'S4', name: 'S4', distanceMeters: 0 },
+        legs: [
+          {
+            kind: 'bus',
+            routeId: 'A',
+            routeShortName: 'A',
+            routeColor: null,
+            tripId: 'TA',
+            fromStopId: 'S1',
+            toStopId: 'S2',
+            departAt: '06:00:00',
+            arriveAt: '06:05:00',
+            stops: 2,
+            geometry: {
+              type: 'LineString',
+              coordinates: [
+                [-63.15, north(0)],
+                [-63.15, north(firstRideMeters)],
+              ],
+            },
+          },
+          {
+            kind: 'bus',
+            routeId: 'B',
+            routeShortName: 'B',
+            routeColor: null,
+            tripId: 'TB',
+            fromStopId: 'S2',
+            toStopId: 'S4',
+            departAt: '06:10:00',
+            arriveAt: '06:30:00',
+            stops: 2,
+          },
+        ],
+      });
+      const kept = dropShortFirstRideTransfers([
+        transferWith(200),
+        transferWith(1500),
+      ]);
+      expect(kept).toHaveLength(1);
+      expect(
+        kept[0].legs[0].kind === 'bus' && kept[0].legs[0].geometry
+      ).toBeTruthy();
     });
   });
 

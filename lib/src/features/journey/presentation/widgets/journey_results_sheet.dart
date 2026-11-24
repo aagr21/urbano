@@ -103,7 +103,10 @@ class JourneyResultsSheet extends StatelessWidget {
                       onClear: onClear,
                     ),
                   ),
-                  const Divider(height: 1),
+                  Divider(
+                    height: 1,
+                    color: colors.outlineVariant.withValues(alpha: 0.6),
+                  ),
                   Expanded(
                     child: CustomScrollView(
                       controller: scrollController,
@@ -113,13 +116,42 @@ class JourneyResultsSheet extends StatelessWidget {
                             hasScrollBody: false,
                             child: Center(
                               child: Padding(
-                                padding: EdgeInsets.all(24 + bottomInset),
-                                child: Text(
-                                  _emptyBody,
-                                  textAlign: TextAlign.center,
-                                  style: context.text.bodyMedium?.copyWith(
-                                    color: colors.onSurfaceVariant,
-                                  ),
+                                padding: EdgeInsets.fromLTRB(
+                                  AppSpace.xl,
+                                  AppSpace.lg,
+                                  AppSpace.xl,
+                                  AppSpace.xl + bottomInset,
+                                ),
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Container(
+                                      width: 56,
+                                      height: 56,
+                                      decoration: BoxDecoration(
+                                        color: colors.primary.withValues(
+                                          alpha: 0.12,
+                                        ),
+                                        shape: BoxShape.circle,
+                                      ),
+                                      child: Icon(
+                                        endpointsTooClose
+                                            ? Icons.directions_walk_rounded
+                                            : Icons.wrong_location_outlined,
+                                        size: 28,
+                                        color: colors.primary,
+                                      ),
+                                    ),
+                                    const SizedBox(height: AppSpace.md),
+                                    Text(
+                                      _emptyBody,
+                                      textAlign: TextAlign.center,
+                                      style: context.text.bodyMedium?.copyWith(
+                                        color: colors.onSurfaceVariant,
+                                        height: 1.4,
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
                             ),
@@ -127,10 +159,10 @@ class JourneyResultsSheet extends StatelessWidget {
                         else
                           SliverPadding(
                             padding: EdgeInsets.fromLTRB(
-                              16,
-                              12,
-                              16,
-                              24 + bottomInset,
+                              AppSpace.lg,
+                              AppSpace.lg,
+                              AppSpace.lg,
+                              AppSpace.xl + bottomInset,
                             ),
                             sliver: SliverList(
                               delegate: SliverChildBuilderDelegate((
@@ -138,7 +170,13 @@ class JourneyResultsSheet extends StatelessWidget {
                                 index,
                               ) {
                                 if (index.isOdd) {
-                                  return const SizedBox(height: 12);
+                                  // Tras la mejor opción, más aire: separa la
+                                  // recomendación del resto.
+                                  return SizedBox(
+                                    height: index == 1
+                                        ? AppSpace.xl
+                                        : AppSpace.md,
+                                  );
                                 }
                                 final itemIndex = index ~/ 2;
                                 final item = options[itemIndex];
@@ -158,14 +196,18 @@ class JourneyResultsSheet extends StatelessWidget {
                                   onToggle: () => onOptionSelected(itemIndex),
                                 );
                                 // La primera opción es la mejor rankeada por
-                                // el planificador: lleva un título grande
-                                // ENCIMA de la tarjeta, no una píldora dentro.
-                                if (itemIndex != 0) return card;
+                                // el planificador: lleva un título ENCIMA de
+                                // la tarjeta, no una píldora dentro. Las demás
+                                // se agrupan bajo «Otras opciones».
+                                if (itemIndex > 1) return card;
                                 return Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    const _BestOptionHeading(),
-                                    const SizedBox(height: 10),
+                                    if (itemIndex == 0)
+                                      const _BestOptionHeading()
+                                    else
+                                      const _SectionLabel('Otras opciones'),
+                                    const SizedBox(height: AppSpace.sm),
                                     card,
                                   ],
                                 );
@@ -219,9 +261,9 @@ class JourneyResultsSheet extends StatelessWidget {
             'esa hora. Prueba otra hora u otro punto.';
 }
 
-/// Cabecera fija: asa + resumen de UNA sola fila (opción, tipo, duración y
-/// acción de quitar) + horario. Nada de bloques apilados: el alto es el mínimo
-/// para que la lista de tarjetas se lleve el espacio.
+/// Cabecera fija: asa + resumen de la opción dibujada en el mapa. Con la
+/// hoja recogida (0.18) es lo único que se ve, así que dice lo esencial en
+/// dos líneas: duración y tipo, y el horario.
 class _SheetHeader extends StatelessWidget {
   const _SheetHeader({
     required this.options,
@@ -243,16 +285,22 @@ class _SheetHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.colors;
     final text = context.text;
+    final muted = colors.onSurfaceVariant;
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 8, 8, 8),
+      padding: const EdgeInsets.fromLTRB(
+        AppSpace.lg + 4,
+        AppSpace.sm,
+        AppSpace.sm,
+        AppSpace.md,
+      ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Center(
             child: Container(
-              width: 40,
+              width: 36,
               height: 4,
               decoration: BoxDecoration(
                 color: colors.outlineVariant,
@@ -260,171 +308,102 @@ class _SheetHeader extends StatelessWidget {
               ),
             ),
           ),
-          const SizedBox(height: 6),
-          if (bare)
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    emptyTitle,
-                    style: text.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                ),
-                _ClearButton(onClear: onClear),
-              ],
-            )
-          else
-            Reveal(
-              // Cambiar de opción re-entra el resumen: el número y los
-              // horarios que se leen acaban de cambiar.
-              key: ValueKey('sheet-summary-$selectedIndex'),
-              slide: 4,
-              duration: Motion.quick,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Wrap(
-                          spacing: 8,
-                          runSpacing: 4,
-                          crossAxisAlignment: WrapCrossAlignment.center,
+          const SizedBox(height: AppSpace.sm),
+          Row(
+            children: [
+              Expanded(
+                child: bare
+                    ? Text(
+                        emptyTitle,
+                        style: text.titleLarge?.copyWith(
+                          fontWeight: FontWeight.w800,
+                        ),
+                      )
+                    : Reveal(
+                        // Cambiar de opción re-entra el resumen: el número y
+                        // los horarios que se leen acaban de cambiar.
+                        key: ValueKey('sheet-summary-$selectedIndex'),
+                        slide: 4,
+                        duration: Motion.quick,
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 8,
-                                vertical: 3,
+                            Text(
+                              options.length > 1
+                                  ? 'Opción ${selectedIndex + 1} de '
+                                        '${options.length} · en el mapa'
+                                  : 'Tu viaje · en el mapa',
+                              style: text.labelSmall?.copyWith(
+                                color: colors.primary,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: 0.3,
                               ),
-                              decoration: BoxDecoration(
-                                color: colors.primary.withValues(alpha: 0.12),
-                                borderRadius: BorderRadius.circular(
-                                  AppRadius.pill,
-                                ),
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
+                            ),
+                            const SizedBox(height: 2),
+                            // Un solo `Text.rich`: «38 min · Directo» no debe
+                            // competir con el «38 min» de la tarjeta.
+                            Text.rich(
+                              TextSpan(
                                 children: [
-                                  Icon(
-                                    Icons.map_rounded,
-                                    size: 13,
-                                    color: colors.primary,
-                                  ),
-                                  const SizedBox(width: 4),
-                                  Text(
-                                    'Opción ${selectedIndex + 1} '
-                                    'de ${options.length}',
-                                    style: text.labelSmall?.copyWith(
+                                  TextSpan(
+                                    text: Fmt.duration(
+                                      selectedOption.durationMinutes,
+                                    ),
+                                    style: text.titleLarge?.copyWith(
                                       fontWeight: FontWeight.w800,
-                                      color: colors.primary,
+                                    ),
+                                  ),
+                                  TextSpan(
+                                    text: '  ·  ${selectedOption.type.label}',
+                                    style: text.titleSmall?.copyWith(
+                                      color: muted,
+                                      fontWeight: FontWeight.w600,
                                     ),
                                   ),
                                 ],
                               ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                             ),
-                            Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(
-                                  Icons.schedule_rounded,
-                                  size: 15,
-                                  color: colors.onSurfaceVariant,
-                                ),
-                                const SizedBox(width: 4),
-                                Text(
-                                  '${selectedOption.type.label} · '
-                                  '${Fmt.duration(selectedOption.durationMinutes)}',
-                                  style: text.titleMedium?.copyWith(
-                                    fontWeight: FontWeight.w800,
+                            const SizedBox(height: 2),
+                            Text.rich(
+                              TextSpan(
+                                style: text.bodySmall?.copyWith(color: muted),
+                                children: [
+                                  const TextSpan(text: 'Sale '),
+                                  _strong(
+                                    GtfsTime.toHm(selectedOption.departAt),
+                                    text,
+                                    colors.onSurface,
                                   ),
-                                ),
-                              ],
+                                  const TextSpan(text: '  ·  Llega '),
+                                  _strong(
+                                    GtfsTime.toHm(selectedOption.arriveAt),
+                                    text,
+                                    colors.onSurface,
+                                  ),
+                                ],
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                             ),
                           ],
                         ),
                       ),
-                      _ClearButton(onClear: onClear),
-                    ],
-                  ),
-                  const SizedBox(height: 2),
-                  Row(
-                    children: [
-                      Icon(
-                        Icons.login_rounded,
-                        size: 14,
-                        color: colors.primary,
-                      ),
-                      const SizedBox(width: 4),
-                      Flexible(
-                        child: Text.rich(
-                          _timeSpan(
-                            'Sale ',
-                            GtfsTime.toHm(selectedOption.departAt),
-                            text,
-                            muted: colors.onSurfaceVariant,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 6),
-                        child: Icon(
-                          Icons.arrow_forward_rounded,
-                          size: 13,
-                          color: colors.outline,
-                        ),
-                      ),
-                      Icon(
-                        Icons.logout_rounded,
-                        size: 14,
-                        color: colors.tertiary,
-                      ),
-                      const SizedBox(width: 4),
-                      Flexible(
-                        child: Text.rich(
-                          _timeSpan(
-                            'Llega ',
-                            GtfsTime.toHm(selectedOption.arriveAt),
-                            text,
-                            muted: colors.onSurfaceVariant,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
               ),
-            ),
+              _ClearButton(onClear: onClear),
+            ],
+          ),
         ],
       ),
     );
   }
 
-  TextSpan _timeSpan(
-    String label,
-    String time,
-    TextTheme text, {
-    required Color muted,
-  }) {
-    return TextSpan(
-      children: [
-        TextSpan(
-          text: label,
-          style: text.labelSmall?.copyWith(color: muted),
-        ),
-        TextSpan(
-          text: time,
-          style: text.labelLarge?.copyWith(fontWeight: FontWeight.w800),
-        ),
-      ],
-    );
-  }
+  TextSpan _strong(String value, TextTheme text, Color ink) => TextSpan(
+    text: value,
+    style: text.bodySmall?.copyWith(fontWeight: FontWeight.w800, color: ink),
+  );
 }
 
 /// Acción «quitar resultados» como ícono con tooltip: el botón con rótulo
@@ -436,11 +415,11 @@ class _ClearButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return IconButton(
+    return IconButton.filledTonal(
       tooltip: 'Quitar resultados',
       onPressed: onClear,
       visualDensity: VisualDensity.compact,
-      icon: const Icon(Icons.clear_all_rounded, size: 20),
+      icon: const Icon(Icons.close_rounded, size: 20),
     );
   }
 }
@@ -456,38 +435,46 @@ class _BestOptionHeading extends StatelessWidget {
     final colors = context.colors;
     final text = context.text;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(2, 2, 2, 0),
+      padding: const EdgeInsets.symmetric(horizontal: AppSpace.xs),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: colors.primary.withValues(alpha: 0.12),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(
-              Icons.workspace_premium_rounded,
-              size: 20,
+          Icon(
+            Icons.workspace_premium_rounded,
+            size: 18,
+            color: colors.primary,
+          ),
+          const SizedBox(width: 6),
+          // `titleSmall` en negrita: presenta la tarjeta, no compite con el
+          // resumen fijo de arriba (sigue siendo mayor que el chip de tipo).
+          Text(
+            'Mejor opción de viaje',
+            style: text.titleSmall?.copyWith(
+              fontWeight: FontWeight.w800,
               color: colors.primary,
             ),
           ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Mejor opción de viaje', style: text.titleLarge),
-                Text(
-                  'La mejor combinación de tiempo y transbordos',
-                  style: text.labelMedium?.copyWith(
-                    color: colors.onSurfaceVariant,
-                  ),
-                ),
-              ],
-            ),
-          ),
         ],
+      ),
+    );
+  }
+}
+
+/// Rótulo discreto de grupo («Otras opciones»).
+class _SectionLabel extends StatelessWidget {
+  const _SectionLabel(this.label);
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: AppSpace.xs),
+      child: Text(
+        label,
+        style: context.text.titleSmall?.copyWith(
+          fontWeight: FontWeight.w700,
+          color: context.colors.onSurfaceVariant,
+        ),
       ),
     );
   }

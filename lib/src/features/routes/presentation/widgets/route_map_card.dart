@@ -1,12 +1,19 @@
+import 'dart:math' as math;
+
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../../../../core/animation/motion.dart';
+import '../../../../core/location/compass_service.dart';
+import '../../../../core/location/location_fab.dart';
 import '../../../../core/map/map.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/utils/extensions.dart';
+import '../../../../core/utils/location.dart';
 import '../../../../core/widgets/empty_state.dart';
+import '../../../../core/widgets/my_location_dot.dart';
 import '../../../../core/widgets/urbano_map.dart';
 import '../../data/route_models.dart';
 import '../route_providers.dart';
@@ -65,68 +72,78 @@ class RouteMapCard extends StatelessWidget {
                   ),
                 ],
                 markers: [
-                  MapMarker(
+                  _EndDot.marker(
                     id: 'route-shape-start',
                     point: points.first,
-                    width: 22,
-                    height: 22,
-                    child: const _EndDot(color: AppColors.success),
+                    color: AppColors.success,
                   ),
                   // El micro sobre el trazado: la misma identidad del mapa
                   // completo, para que la vista previa no sea solo una línea.
                   if (points.length > 1)
-                    MapMarker(
+                    _RouteBusMarker.marker(
                       id: 'route-shape-bus',
                       point: _shapeMidpoint(points),
-                      width: 36,
-                      height: 36,
-                      child: _RouteBusMarker(color: routeColor),
+                      color: routeColor,
                     ),
-                  MapMarker(
+                  _EndDot.marker(
                     id: 'route-shape-end',
                     point: points.last,
-                    width: 22,
-                    height: 22,
-                    child: const _EndDot(color: AppColors.danger),
+                    color: AppColors.danger,
                   ),
                 ],
               ),
               // Único acceso al recorrido completo: el detalle ya no repite
               // controles de ida/vuelta más abajo.
+              // Arriba a la derecha: abajo tapaba el pin de llegada y el
+              // crédito del mapa. Sombra suave en vez de `elevation`, que
+              // dibujaba un contorno duro alrededor de la píldora.
               Positioned(
-                right: 12,
-                top: 12,
+                right: 10,
+                top: 10,
                 child: PressScale(
-                  child: Material(
-                    color: Colors.black.withValues(alpha: 0.55),
-                    borderRadius: BorderRadius.circular(AppRadius.pill),
-                    child: InkWell(
-                      onTap: onOpenFullMap,
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(AppRadius.pill),
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 8,
+                      boxShadow: const [
+                        BoxShadow(
+                          color: Color(0x29000000),
+                          blurRadius: 10,
+                          offset: Offset(0, 3),
                         ),
-                        // Único contenido claro posible sobre foto/mapa
-                        // oscuro: blanco.
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(
-                              Icons.fullscreen_rounded,
-                              size: 16,
-                              color: Colors.white,
-                            ),
-                            const SizedBox(width: 5),
-                            Text(
-                              'Recorrido completo',
-                              style: context.text.labelSmall?.copyWith(
-                                color: Colors.white,
-                                fontWeight: FontWeight.w700,
+                      ],
+                    ),
+                    child: Material(
+                      color: context.colors.surface,
+                      borderRadius: BorderRadius.circular(AppRadius.pill),
+                      child: InkWell(
+                        onTap: onOpenFullMap,
+                        borderRadius: BorderRadius.circular(AppRadius.pill),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 9,
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.open_in_full_rounded,
+                                size: 15,
+                                color: AppColors.legible(
+                                  routeColor,
+                                  context.colors.surface,
+                                ),
                               ),
-                            ),
-                          ],
+                              const SizedBox(width: 6),
+                              Text(
+                                'Recorrido completo',
+                                style: context.text.labelMedium?.copyWith(
+                                  color: context.colors.onSurface,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                     ),
@@ -156,7 +173,7 @@ LatLng _shapeMidpoint(List<LatLng> points) => points[points.length ~/ 2];
 /// mitad baja) y un tap lo expande sobre una barra pequeña; otro tap lo
 /// vuelve a guardar. El estado vive aquí, no en un provider: es efímero
 /// (muere con la página).
-class RouteFullMap extends StatefulWidget {
+class RouteFullMap extends ConsumerStatefulWidget {
   const RouteFullMap({
     super.key,
     required this.detail,
@@ -174,11 +191,45 @@ class RouteFullMap extends StatefulWidget {
   final String? directionLabel;
 
   @override
-  State<RouteFullMap> createState() => RouteFullMapState();
+  ConsumerState<RouteFullMap> createState() => RouteFullMapState();
 }
 
-class RouteFullMapState extends State<RouteFullMap> {
+class RouteFullMapState extends ConsumerState<RouteFullMap> {
+  final _map = UrbanoMapController();
   bool _overlayOpen = false;
+  bool _locating = false;
+
+  @override
+  void dispose() {
+    _map.dispose();
+    super.dispose();
+  }
+
+  /// Lleva la cámara a «mi ubicación» con el flujo completo del sistema
+  /// (GPS apagado / permiso pendiente / bloqueado).
+  ///
+  /// Lectura PUNTUAL, como el selector de punto: este mapa no enciende el
+  /// seguimiento continuo porque [followLocationProvider] es global y movería
+  /// también la cámara del planeador de Viaje, que sigue montado debajo. Cada
+  /// toque pide un fix fresco y el punto se queda donde se leyó.
+  Future<void> _goToMyLocation() async {
+    if (_locating) return;
+    setState(() => _locating = true);
+    try {
+      final granted = await ref
+          .read(locationControllerProvider.notifier)
+          .activate(context);
+      if (!granted || !mounted) return;
+      ref.invalidate(myLocationProvider);
+      final position = await ref.read(myLocationProvider.future);
+      if (position == null || !mounted) return;
+      _map.move(position, math.max(_map.zoom, 15.5));
+    } on LocationFailure {
+      // Sin fix: el recorrido sigue a la vista y el botón muestra el estado.
+    } finally {
+      if (mounted) setState(() => _locating = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -216,7 +267,8 @@ class RouteFullMapState extends State<RouteFullMap> {
                 // El mapa manda: de borde a borde, el trazado entero en el
                 // encuadre (ajuste a la caja).
                 Positioned.fill(
-                  child: UrbanoMap(
+                  child: _RouteLiveMap(
+                    controller: _map,
                     center: points.first,
                     // Hueco para el chrome flotante: la placa de identidad
                     // arriba y la píldora «Pasa por» abajo no deben tapar el
@@ -234,24 +286,20 @@ class RouteFullMapState extends State<RouteFullMap> {
                       ),
                     ],
                     markers: [
-                      MapMarker(
+                      _EndDot.marker(
                         id: 'full-shape-start',
                         point: points.first,
-                        width: 22,
-                        height: 22,
-                        child: const _EndDot(color: AppColors.success),
+                        color: AppColors.success,
                       ),
-                      MapMarker(
+                      _RouteBusMarker.marker(
                         id: 'full-shape-bus',
                         point: _shapeMidpoint(points),
-                        child: _RouteBusMarker(color: routeColor),
+                        color: routeColor,
                       ),
-                      MapMarker(
+                      _EndDot.marker(
                         id: 'full-shape-end',
                         point: points.last,
-                        width: 22,
-                        height: 22,
-                        child: const _EndDot(color: AppColors.danger),
+                        color: AppColors.danger,
                       ),
                     ],
                   ),
@@ -261,17 +309,34 @@ class RouteFullMapState extends State<RouteFullMap> {
                 SafeArea(
                   child: Padding(
                     padding: const EdgeInsets.fromLTRB(12, 10, 12, 0),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
                       children: [
-                        const MapFloatingBack(),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: RouteMapPlate(
-                            detail: detail,
-                            routeColor: routeColor,
-                            directionLabel: label,
-                          ),
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const MapFloatingBack(),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: RouteMapPlate(
+                                detail: detail,
+                                routeColor: routeColor,
+                                directionLabel: label,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 10),
+                        // Botón de ubicación con estados reales (GPS apagado,
+                        // permiso pendiente/bloqueado, listo). Arriba a la
+                        // derecha, como en Viaje: abajo vive «Pasa por», que
+                        // al abrirse crece y lo taparía.
+                        LocationFab(
+                          key: const ValueKey('route-map-my-location'),
+                          following: false,
+                          onFollowChanged: (enabled) {
+                            if (enabled) _goToMyLocation();
+                          },
                         ),
                       ],
                     ),
@@ -409,41 +474,148 @@ class _EndDot extends StatelessWidget {
 
   final Color color;
 
+  /// Diámetro visible del punto.
+  static const double _diameter = 22;
+
+  /// Marcador del extremo: la caja deja [kMarkerShadowMargin] de aire
+  /// alrededor del punto para que la sombra entre entera en la imagen nativa.
+  static MapMarker marker({
+    required String id,
+    required LatLng point,
+    required Color color,
+  }) => MapMarker(
+    id: id,
+    point: point,
+    width: _diameter + kMarkerShadowMargin * 2,
+    height: _diameter + kMarkerShadowMargin * 2,
+    iconKey: 'route-end-${color.toARGB32().toRadixString(16)}',
+    child: _EndDot(color: color),
+  );
+
   @override
-  Widget build(BuildContext context) => Container(
-    decoration: BoxDecoration(
-      color: color,
-      shape: BoxShape.circle,
-      border: Border.all(color: Colors.white, width: 3),
-      boxShadow: [
-        BoxShadow(color: Colors.black.withValues(alpha: 0.3), blurRadius: 6),
-      ],
+  Widget build(BuildContext context) => Center(
+    child: Container(
+      width: _diameter,
+      height: _diameter,
+      decoration: BoxDecoration(
+        color: color,
+        shape: BoxShape.circle,
+        border: Border.all(color: Colors.white, width: 3),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withValues(alpha: 0.3), blurRadius: 5),
+        ],
+      ),
     ),
   );
 }
 
-/// Micro de la línea sobre su propio trazo: disco del color GTFS con el ícono
-/// del bus en la tinta legible. Es el «acá va el micro» de los demás mapas.
+/// Micro de la línea sobre su propio trazo: disco del MISMO color que la
+/// polilínea con el ícono del bus en la tinta legible.
 class _RouteBusMarker extends StatelessWidget {
   const _RouteBusMarker({required this.color});
 
   final Color color;
 
+  /// Diámetro visible del disco.
+  static const double _diameter = 34;
+
+  /// Marcador del micro.
+  ///
+  /// - `iconKey` lleva el COLOR: la caché de imágenes del rasterizador es
+  ///   global y su clave salía del id (`route-shape-bus`, igual en todas las
+  ///   líneas), así que el primer recorrido abierto fijaba el color del disco
+  ///   para todos los demás.
+  /// - La caja deja [kMarkerShadowMargin] de aire: con el disco ocupando toda
+  ///   la imagen, la sombra se recortaba contra el cuadrado y solo quedaban
+  ///   sus cuatro esquinas, unas «puntas» oscuras alrededor del círculo.
+  static MapMarker marker({
+    required String id,
+    required LatLng point,
+    required Color color,
+  }) => MapMarker(
+    id: id,
+    point: point,
+    width: _diameter + kMarkerShadowMargin * 2,
+    height: _diameter + kMarkerShadowMargin * 2,
+    iconKey: 'route-bus-${color.toARGB32().toRadixString(16)}',
+    child: _RouteBusMarker(color: color),
+  );
+
   @override
-  Widget build(BuildContext context) => Container(
-    decoration: BoxDecoration(
-      color: color,
-      shape: BoxShape.circle,
-      border: Border.all(color: Colors.white, width: 2.5),
-      boxShadow: [
-        BoxShadow(color: Colors.black.withValues(alpha: 0.28), blurRadius: 8),
-      ],
-    ),
-    alignment: Alignment.center,
-    child: Icon(
-      Icons.directions_bus_rounded,
-      size: 19,
-      color: AppColors.onColor(color),
+  Widget build(BuildContext context) => Center(
+    child: Container(
+      width: _diameter,
+      height: _diameter,
+      decoration: BoxDecoration(
+        color: color,
+        shape: BoxShape.circle,
+        border: Border.all(color: Colors.white, width: 2.5),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withValues(alpha: 0.28), blurRadius: 5),
+        ],
+      ),
+      alignment: Alignment.center,
+      child: Icon(
+        Icons.directions_bus_rounded,
+        size: 19,
+        color: AppColors.onColor(color),
+      ),
     ),
   );
+}
+
+/// El mapa a sangre con el punto «mi ubicación».
+///
+/// Es un `Consumer` aparte por la misma regla que el planeador: la ubicación
+/// solo puede reconstruir el mapa, nunca la placa, el overlay ni los botones.
+/// El punto sale de la última posición conocida (o de la lectura puntual) y se
+/// dibuja solo con permiso y GPS listos; la cámara no lo persigue — la mueve
+/// el botón de ubicación.
+class _RouteLiveMap extends ConsumerWidget {
+  const _RouteLiveMap({
+    required this.controller,
+    required this.center,
+    required this.cameraFit,
+    required this.polylines,
+    required this.markers,
+  });
+
+  final UrbanoMapController controller;
+  final LatLng center;
+  final MapCameraFit cameraFit;
+  final List<MapPolyline> polylines;
+  final List<MapMarker> markers;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final me =
+        ref.watch(lastKnownLocationProvider) ??
+        ref.watch(myLocationProvider).valueOrNull;
+    final ready =
+        ref.watch(locationControllerProvider).status == LocationStatus.ready;
+    final shown = ready ? me : null;
+    final heading = shown != null
+        ? ref.watch(deviceHeadingProvider).valueOrNull ?? 0.0
+        : 0.0;
+
+    return UrbanoMap(
+      controller: controller,
+      center: center,
+      cameraFit: cameraFit,
+      polylines: polylines,
+      pulses: [
+        if (shown != null)
+          MapPulse(point: shown, color: context.colors.primary),
+      ],
+      markers: [
+        ...markers,
+        if (shown != null)
+          MyLocationDot.marker(
+            id: 'route-map-my-location',
+            point: shown,
+            heading: heading,
+          ),
+      ],
+    );
+  }
 }

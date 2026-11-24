@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert' show jsonEncode;
 import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
@@ -107,6 +108,13 @@ class MapLibreEngineState extends State<MapLibreEngine>
   final Set<String> _imagesLoaded = <String>{};
 
   String? _lineSignature;
+
+  /// Generación de estilo en la que se creó la capa de marcadores alineados
+  /// al mapa (`-1` = todavía no existe en el estilo actual).
+  int _alignedLayerGeneration = -1;
+
+  /// Firma de lo último escrito en la fuente alineada (evita reescribirla).
+  String? _alignedSignature;
 
   /// Auras de ubicación ([MapPulse]) como círculos nativos. El RADIUS/OPACITY
   /// lo anima `_pulseTimer` con actualizaciones del manager (llamada por
@@ -225,6 +233,7 @@ class MapLibreEngineState extends State<MapLibreEngine>
     _symbolImageKeys.clear();
     _pulseCircles.clear();
     _lineSignature = null;
+    _alignedSignature = null;
     unawaited(_allowSymbolOverlap());
     WidgetsBinding.instance.addPostFrameCallback((_) {
       // Al arrancar la app no hay ningún movimiento programático en vuelo:
