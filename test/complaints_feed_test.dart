@@ -1,3 +1,4 @@
+import 'package:flutter/gestures.dart' show kDoubleTapTimeout;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:image_picker/image_picker.dart';
@@ -303,6 +304,108 @@ void main() {
       expect(find.text('Apoyo'), findsOneWidget);
       expect(find.textContaining('gusta'), findsNothing);
     });
+
+    testWidgets('doble toque en la foto apoya el reporte y nunca lo quita', (
+      tester,
+    ) async {
+      await _openFeed(tester);
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(ComplaintsScreen)),
+      );
+      ComplaintSummary c3() => container
+          .read(complaintsFeedProvider)
+          .requireValue
+          .firstWhere((item) => item.id == 'c3');
+
+      final hero = find.byKey(const ValueKey('complaint-hero-c3'));
+      await tester.ensureVisible(hero);
+      await tester.pumpAndSettle();
+      expect(c3().likedByMe, isFalse);
+
+      Future<void> doubleTap() async {
+        await tester.tap(hero);
+        await tester.pump(const Duration(milliseconds: 60));
+        await tester.tap(hero);
+        await tester.pumpAndSettle();
+      }
+
+      await doubleTap();
+      expect(c3().likedByMe, isTrue, reason: 'el doble toque apoya');
+      expect(c3().likeCount, 1);
+      // Ni el gesto abre el detalle: es solo apoyo.
+      expect(find.byType(ComplaintDetailScreen), findsNothing);
+
+      // Un segundo doble toque NO deshace el apoyo (solo vuelve a latir).
+      await doubleTap();
+      expect(c3().likedByMe, isTrue, reason: 'el gesto rápido solo suma');
+      expect(c3().likeCount, 1);
+    });
+
+    testWidgets('un toque en la foto sigue abriendo el detalle', (
+      tester,
+    ) async {
+      await _openFeed(tester);
+      await tester.tap(find.byKey(const ValueKey('complaint-hero-c1')));
+      // Con un doble toque posible, el toque simple se confirma al vencer la
+      // ventana del doble toque (como en el teléfono): `pumpAndSettle` solo no
+      // avanza ese reloj, porque no hay frames pendientes.
+      await tester.pump(kDoubleTapTimeout);
+      await tester.pumpAndSettle();
+      expect(find.byType(ComplaintDetailScreen), findsOneWidget);
+    });
+
+    testWidgets('el feed cierra invitando a reportar y enseña el doble toque', (
+      tester,
+    ) async {
+      await _openFeed(tester);
+
+      final invite = find.byKey(const ValueKey('complaints-feed-invite'));
+      await tester.scrollUntilVisible(
+        invite,
+        200,
+        scrollable: find.byType(Scrollable).last,
+      );
+      await tester.pumpAndSettle();
+      // Va DESPUÉS de la última tarjeta: no se come la cortina.
+      expect(
+        tester.getRect(invite).top,
+        greaterThan(tester.getRect(find.byType(ComplaintPostCard).last).bottom),
+      );
+      expect(find.textContaining('Toca dos veces la foto'), findsOneWidget);
+      expect(find.textContaining('gusta'), findsNothing);
+
+      await tester.tap(find.byKey(const ValueKey('complaints-invite-create')));
+      await tester.pumpAndSettle();
+      expect(find.byType(CreateComplaintScreen), findsOneWidget);
+    });
+
+    testWidgets('sin reportes no hay invitación: el vacío ya invita', (
+      tester,
+    ) async {
+      await _openFeed(tester, items: const []);
+      expect(find.text('Todavía no hay reportes'), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('complaints-feed-invite')),
+        findsNothing,
+      );
+    });
+
+    testWidgets(
+      '«La comunidad reporta» va en una línea y se achica, no se corta',
+      (tester) async {
+        await _openFeedInShell(tester);
+        final title = tester.widget<Text>(find.text('La comunidad reporta'));
+        expect(title.maxLines, 1);
+        expect(title.overflow, isNot(TextOverflow.ellipsis));
+        expect(
+          find.ancestor(
+            of: find.text('La comunidad reporta'),
+            matching: find.byType(FittedBox),
+          ),
+          findsOneWidget,
+        );
+      },
+    );
 
     testWidgets(
       'a alto de teléfono la primera queja entra completa bajo la barra',

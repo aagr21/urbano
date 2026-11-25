@@ -113,6 +113,14 @@ Vercel URL**. Always pass it explicitly for targeted local runs
   — load it in `setUpAll` with `FontLoader('Inter')` over `assets/fonts/Inter-*.ttf` bytes
   (`dart:io` + cwd = package root), and remember `TextStyle(...)` without `fontFamily` silently
   drops the app's face (only `display/headline/title*` carry Inter via `AppTypography.apply`).
+- **Feed de quejas: el doble toque sobre la foto APOYA, nunca quita** (`complaint-hero-<id>`, solo
+  el héroe; el resto de la tarjeta abre el detalle al primer toque, sin la espera del doble toque).
+  Apoyar da `HapticFeedback.lightImpact` y el corazón que late. El feed cierra con
+  `ComplaintsFeedInvite` (`AsyncListView.footer`: solo con datos, nunca con vacío/error), que invita
+  a reportar y enseña el gesto; va al final, así que no toca la regla de la cortina. «La comunidad
+  reporta» es `FittedBox(scaleDown)` de una línea, igual que el título de la cabecera. En un test, un
+  toque simple sobre el héroe necesita `tester.pump(kDoubleTapTimeout)` antes de `pumpAndSettle`.
+  Locked by `test/complaints_feed_test.dart`.
 - **The word is `apoyo`, never "me gusta"** in any user-facing copy, comment or doc of the social
   layer (the heart's zero-state label is `Apoyo`, the header counts `apoyos`). Code and HTTP keep
   `like`/`liked`/`likeCount`/`setLiked`/`complaint_like`. Locked by

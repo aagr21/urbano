@@ -78,6 +78,7 @@ class AsyncListView<T> extends StatelessWidget {
     this.padding = const EdgeInsets.all(16),
     this.separated = true,
     this.itemCount,
+    this.footer,
   });
 
   final AsyncValue<List<T>> value;
@@ -93,6 +94,10 @@ class AsyncListView<T> extends StatelessWidget {
   /// Longitud distinta a la del payload (ej: tras filtrar).
   final int? itemCount;
 
+  /// Pieza que cierra la lista cuando HAY datos (no con vacío, error ni
+  /// esqueleto, que ya tienen su propio estado). Va después del último ítem.
+  final Widget? footer;
+
   @override
   Widget build(BuildContext context) {
     return AsyncValueView<List<T>>(
@@ -105,20 +110,22 @@ class AsyncListView<T> extends StatelessWidget {
       loadingCount: count,
       data: (items) {
         final length = itemCount ?? items.length;
+        final tail = footer;
+        Widget build(BuildContext context, int index) =>
+            index < length ? itemBuilder(context, items[index], index) : tail!;
+        final total = length + (tail == null ? 0 : 1);
         if (!separated) {
           return ListView.builder(
             padding: padding,
-            itemCount: length,
-            itemBuilder: (context, index) =>
-                itemBuilder(context, items[index], index),
+            itemCount: total,
+            itemBuilder: build,
           );
         }
         return ListView.separated(
           padding: padding,
-          itemCount: length,
+          itemCount: total,
           separatorBuilder: (_, _) => const SizedBox(height: 12),
-          itemBuilder: (context, index) =>
-              itemBuilder(context, items[index], index),
+          itemBuilder: build,
         );
       },
     );

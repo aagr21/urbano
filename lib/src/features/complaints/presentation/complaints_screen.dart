@@ -15,6 +15,7 @@ import 'complaints_cover_header.dart';
 import 'complaints_toolbar.dart';
 import 'create_complaint_screen.dart';
 import 'widgets/complaint_post_card.dart';
+import 'widgets/complaints_feed_invite.dart';
 import 'widgets/passenger_name_sheet.dart';
 
 /// El formulario de creación vive en su propio archivo; se re-exporta aquí para
@@ -120,11 +121,19 @@ class ComplaintsScreen extends ConsumerWidget {
                     ),
                   ),
                 ),
+                // Una sola línea: en un teléfono real el título partido en dos
+                // apretaba el contador y el orden. Se achica antes que cortarse
+                // (mismo criterio que el título de la cabecera).
                 Expanded(
-                  child: Text(
-                    'La comunidad reporta',
-                    style: context.text.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w800,
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      'La comunidad reporta',
+                      maxLines: 1,
+                      style: context.text.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w800,
+                      ),
                     ),
                   ),
                 ),
@@ -188,6 +197,12 @@ class ComplaintsScreen extends ConsumerWidget {
                   // La pantalla va edge-to-edge: la última tarjeta tiene que
                   // poder subir por encima del gesto/barra del sistema.
                   AppSpace.xxl + MediaQuery.viewPaddingOf(context).bottom,
+                ),
+                // El feed cierra con una invitación a reportar (y la pista del
+                // doble toque): con pocos reportes, ese hueco quedaba vacío.
+                footer: ComplaintsFeedInvite(
+                  index: visible.valueOrNull?.length ?? 0,
+                  onCreate: () => _openForm(context, ref, routes),
                 ),
                 itemBuilder: (context, complaint, index) => ComplaintPostCard(
                   complaint: complaint,

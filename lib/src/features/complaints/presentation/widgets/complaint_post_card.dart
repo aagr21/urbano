@@ -1,3 +1,4 @@
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -18,7 +19,7 @@ import 'like_button.dart';
 /// póster del motivo) con la insignia GTFS de la línea, las pastillas de motivo
 /// y estado, el número del micro y el `recorrido · hora` encima. Debajo queda el
 /// relato y el pie social con el apoyo y los comentarios. El toque abre el
-/// detalle.
+/// detalle; el doble toque sobre la foto apoya el reporte.
 class ComplaintPostCard extends ConsumerStatefulWidget {
   const ComplaintPostCard({
     super.key,
@@ -47,8 +48,23 @@ class _ComplaintPostCardState extends ConsumerState<ComplaintPostCard> {
   RouteSummary? get route => widget.route;
 
   void _toggleLike() {
-    if (!complaint.likedByMe) setState(() => _burst++);
+    if (!complaint.likedByMe) {
+      HapticFeedback.lightImpact();
+      setState(() => _burst++);
+    }
     ref.read(complaintsFeedProvider.notifier).toggleLike(complaint);
+  }
+
+  /// Doble toque sobre la foto: **apoya**, nunca quita el apoyo (como en las
+  /// redes: el gesto rápido solo suma). Si ya estaba apoyado, el corazón late
+  /// igual para confirmar que el gesto llegó.
+  void _supportFromPhoto() {
+    if (complaint.likedByMe) {
+      HapticFeedback.lightImpact();
+      setState(() => _burst++);
+      return;
+    }
+    _toggleLike();
   }
 
   void _openDetail(BuildContext context, WidgetRef ref) {
@@ -127,25 +143,33 @@ class _ComplaintPostCardState extends ConsumerState<ComplaintPostCard> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Stack(
-                      children: [
-                        ComplaintPostHero(
-                          complaint: complaint,
-                          routeName: routeName,
-                          routeColor: routeColor,
-                          meta: meta,
-                          accent: accent,
-                          photo: complaint.photoUrls.firstOrNull,
-                          // El feed omite el estado verificado para no crecer.
-                          showStatus: false,
-                        ),
-                        if (_burst > 0)
-                          Positioned.fill(
-                            child: IgnorePointer(
-                              child: _HeartBurst(key: ValueKey(_burst)),
-                            ),
+                    // El doble toque vive SOLO en el héroe: el resto de la
+                    // tarjeta abre el detalle al primer toque, sin la espera
+                    // que impone reconocer un doble toque.
+                    GestureDetector(
+                      key: ValueKey('complaint-hero-${complaint.id}'),
+                      onDoubleTap: _supportFromPhoto,
+                      onTap: () => _openDetail(context, ref),
+                      child: Stack(
+                        children: [
+                          ComplaintPostHero(
+                            complaint: complaint,
+                            routeName: routeName,
+                            routeColor: routeColor,
+                            meta: meta,
+                            accent: accent,
+                            photo: complaint.photoUrls.firstOrNull,
+                            // El feed omite el estado verificado para no crecer.
+                            showStatus: false,
                           ),
-                      ],
+                          if (_burst > 0)
+                            Positioned.fill(
+                              child: IgnorePointer(
+                                child: _HeartBurst(key: ValueKey(_burst)),
+                              ),
+                            ),
+                        ],
+                      ),
                     ),
                     if (complaint.description.trim().isNotEmpty)
                       Padding(
