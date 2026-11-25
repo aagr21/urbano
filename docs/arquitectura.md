@@ -35,9 +35,9 @@ lib/
       utils/                     # GTFS HH:mm:ss, debouncer, cache, ext.
                                  # (utils/location.dart re-exporta core/location)
     features/
-      home/      # header+buscador (rutas), stats, accesos, populares, mapa
-      routes/    # modelos/repos (detalle, shape, direcciones, salidas), detail
-                 # (el listado vive en el panel de micros de /journey)
+      home/      # banda oficial, cabecera, accesos, «¿A dónde vas?», historial
+      routes/    # modelos/repos (detalle, shape, direcciones), catálogo /micros
+                 # y detalle /routes/:id
       journey/   # pantalla-mapa única (planeador + exploración), hexagonal:
                  # domain (lugares, query, estado, política de drop),
                  # application (controller Riverpod, vista de resultados,
@@ -188,8 +188,7 @@ del planeador, los **rieles del tramo se dibujan solos** al expandir una opción
 el color de la línea del GTFS, y cambian de color en el transbordo) y la **insignia
 de la ruta vuela** de la lista a la AppBar del detalle (Hero, con el prefijo
 viajando en la URL para que las ramas del shell no choquen). Además el **logo llega
-andando** y la insignia del panel de micros **flota** mientras haya recorridos
-dibujados. Está bajo prueba en `test/app_motion_test.dart`.
+andando**. Está bajo prueba en `test/app_motion_test.dart`.
 
 ## 🗺️ Motor del mapa (`lib/src/core/map/`)
 
@@ -221,16 +220,7 @@ atribución dibujada por la fachada aparece solo con el motor simulado.
 
 - **Controles**: zoom +/− en la columna derecha de la pantalla fusionada, el
   botón de **pantalla completa** (`fullscreen_rounded`, oculta paneles flotantes
-  y barra del shell dejando solo el mapa), el botón de
-  **micros** (abre un **panel lateral que se desliza desde la izquierda** con
-  el listado completo de líneas: buscador por numeral/nombre, insignias de
-  color y botones **Ida** / **Vuelta** por línea para dibujar cada sentido como
-  capa independiente). El panel **recuerda lo hecho mientras la app esté
-  abierta** —búsqueda, posición del scroll, líneas ya descargadas y headsign
-  consultados viven en `journeyMicrosSessionProvider`—, así que cerrarlo y
-  reabrirlo devuelve el mismo estado al instante (sin volver a pagar `/routes`;
-  "jalar para actualizar" fuerza la recarga) y tirar de él hacia la izquierda lo
-  cierra) y `LocationFab`
+  y barra del shell dejando solo el mapa), y `LocationFab`
   (seguimiento de ubicación con `myLocationEnabled` + `followMyLocation` y
   `onTrackingDismissed` si el usuario hace pan sobre el puck); el selector de
   punto reutiliza el mismo `LocationFab`; el mapa del viaje muestra leyenda

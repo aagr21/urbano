@@ -11,7 +11,6 @@ import '../../../core/map/map.dart';
 import '../../../core/utils/extensions.dart';
 import '../../../core/utils/location.dart';
 import '../../../core/utils/time_formatters.dart';
-import '../../routes/data/route_models.dart';
 import '../application/journey_leg_routes.dart';
 import '../application/trip_history_controller.dart';
 import 'journey_planner_controller.dart';
@@ -20,7 +19,6 @@ import 'journey_results_view.dart';
 import 'widgets/journey_live_map.dart';
 import 'widgets/journey_loading_overlay.dart';
 import 'widgets/journey_map_chips.dart';
-import 'widgets/journey_micros_sheet.dart';
 import 'widgets/journey_place_picker_sheet.dart';
 import 'widgets/journey_planner_card.dart';
 import 'widgets/journey_planner_close_button.dart';
@@ -75,54 +73,20 @@ class _JourneyPlannerScreenState extends ConsumerState<JourneyPlannerScreen> {
   /// consulta se vuelve a anotar.
   String? _historySignature;
 
-  /// `true` cuando se llegó aquí por «Micros» del home: se muestra solo el
-  /// mapa con el panel de catálogo/lugares, sin la píldora de origen/destino
-  /// ni la hoja de resultados del viaje.
-  bool _microsOnly = false;
-
   /// Abre/cierra el panel de origen/destino (con animación de despliegue).
   void _togglePanel() => setState(() => _panelOpen = !_panelOpen);
   @override
   void initState() {
     super.initState();
     _sheetController.addListener(_onSheetExtentChanged);
-    // «Ver todas» desde el home (ver [pendingMicrosPanelProvider]): la bandera
-    // llega puesta al llegar a la pestaña Viaje y aquí se convierte en la
-    // apertura del panel de micros.
+    // «Viajar» desde el home (ver [pendingPlannerPanelProvider]): la bandera
+    // llega puesta y aquí se convierte en desplegar el panel de origen/destino.
     //
     // `listenManual` + `fireImmediately` en vez de `ref.listen` en el `build`:
     // si esta rama NUNCA se había visitado, su primer `build` corre en el
-    // mismo frame del `go()`, de modo que el listener nacería con la bandera ya
-    // en `true` y sin ningún cambio posterior que lo disparara (el panel no se
-    // abriría hasta el segundo intento). `fireImmediately` evalúa el valor
-    // actual al suscribirse.
-    //
-    // Limpiar y abrir se difieren al frame siguiente: el `push` no debe
-    // cabalgar la transición de pestaña, y escribir el provider durante la
-    // construcción del árbol avisaría a los listeners a media build.
-    ref.listenManual(pendingMicrosPanelProvider, (_, next) {
-      if (!next) return;
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted) return;
-        ref.read(pendingMicrosPanelProvider.notifier).state = false;
-        _openMicrosSheet();
-      });
-    }, fireImmediately: true);
-    // «Solo micros» desde el home (ver [pendingMicrosOnlyProvider]): la
-    // bandera llega puesta al llegar a Viaje y aquí se activa el modo solo
-    // micros (mapa + panel, sin interfaz de planificación).
-    ref.listenManual(pendingMicrosOnlyProvider, (_, next) {
-      if (!next) return;
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted) return;
-        ref.read(pendingMicrosOnlyProvider.notifier).state = false;
-        setState(() => _microsOnly = true);
-      });
-    }, fireImmediately: true);
-    // «Viajar» desde el home (ver [pendingPlannerPanelProvider]): misma
-    // mecánica que el cajón de micros —bandera que se limpia en el frame
-    // siguiente—, pero aquí el gesto no abre una ruta: desplegar el panel de
-    // origen/destino que ya vive en la pantalla.
+    // mismo frame del `go()` y el listener nacería con la bandera ya en `true`
+    // sin ningún cambio posterior que lo disparara. Limpiar y abrir se
+    // difieren al frame siguiente para no escribir el provider a media build.
     ref.listenManual(pendingPlannerPanelProvider, (_, next) {
       if (!next) return;
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -332,30 +296,8 @@ class _JourneyPlannerScreenState extends ConsumerState<JourneyPlannerScreen> {
   /// El usuario marcó una opción en la hoja de resultados (o la expandió).
   void _selectOption(int itemIndex) => _planner.selectOption(itemIndex);
 
-  /// Resultado del toggle de una dirección del panel de micros: solo los dos
-  /// casos con problema llegan al usuario como snacks.
-  Future<void> _toggleRouteDirection(
-    RouteSummary route,
-    int directionId,
-  ) async {
-    final outcome = await _planner.toggleRouteDirection(route, directionId);
-    if (!mounted) return;
-    switch (outcome) {
-      case MicroRouteToggleOutcome.missingShape:
-        context.showSnack('Esta ruta no tiene forma cargada.');
-      case MicroRouteToggleOutcome.failed:
-        context.showSnack(
-          'No pudimos cargar el recorrido de esa línea.',
-          isError: true,
-        );
-      case MicroRouteToggleOutcome.toggledOn:
-      case MicroRouteToggleOutcome.toggledOff:
-        break;
-    }
-  }
-
   // ------------------------------------------------------------------
-  // Mapa: movimiento de cámara y panel de micros
+  // Mapa: movimiento de cámara
   // ------------------------------------------------------------------
   void _onMapMoved(MapCamera camera, bool hasGesture) {
     if ((_mapBearing - camera.bearing).abs() > 0.1) {
@@ -365,34 +307,6 @@ class _JourneyPlannerScreenState extends ConsumerState<JourneyPlannerScreen> {
     // Sella el momento del gesto: la ventana de la barrera anti-zoom nace
     // con el gesto, no con el drop del pin (la ventana vive en el controller).
     _planner.noteGestureCameraMoved();
-  }
-
-  /// Panel de micros: dibujar/borrar los recorridos (ida/vuelta) de las líneas.
-  ///
-  /// Antes de entrar, cualquier panel viejo que siga en el stack de Viaje
-  /// sale: «Ver todas» presionado de nuevo (o con el cajón a medio cerrar)
-  /// debe **reemplazar** el panel, no apilar otro encima — el cajón se
-  /// identifica por su nombre de ruta, así que si no hay resto, `popUntil`
-  /// no saca nada.
-  Future<void> _openMicrosSheet() {
-    final navigator = Navigator.of(context);
-    navigator.popUntil(
-      (route) => route.settings.name != 'journey-micros-panel',
-    );
-    return showJourneyMicrosPanel(
-      context,
-      ref: ref,
-      onToggleDirection: _toggleRouteDirection,
-      onClearAll: () => _planner.clearMicros(),
-      // Encuadra el mapa sobre el lugar marcado y sus paradas para que el pin
-      // recién clavado se vea (el mapa vive debajo del cajón).
-      onFramePlaces: (points) {
-        if (points.isEmpty) return;
-        _journeyMapKey.currentState?.fitToPoints([
-          for (final p in points) LatLng(p.lat, p.lon),
-        ]);
-      },
-    );
   }
 
   void _onSheetExtentChanged() {
@@ -487,13 +401,6 @@ class _JourneyPlannerScreenState extends ConsumerState<JourneyPlannerScreen> {
                     20,
                     mapBottomPad,
                   ),
-                  extraPolylines: planner.routeLines.values.toList(
-                    growable: false,
-                  ),
-                  extraMarkers: [
-                    ...planner.routeMarkers.values,
-                    ...planner.placeMarkers,
-                  ],
                   onEndpointMoved: (isOrigin, point) => _planner
                       .endpointDragged(isOrigin: isOrigin, point: point),
                   // Tocar el pin de origen/destino lo edita: abre el selector
@@ -578,7 +485,6 @@ class _JourneyPlannerScreenState extends ConsumerState<JourneyPlannerScreen> {
                       selectedIndex: selectedIndex,
                       replanning: replanning,
                       refreshFailed: refreshFailed,
-                      loadingRoutes: planner.loadingRoutes,
                       onRetryRefresh: () => ref
                           .read(journeyResultsProvider.notifier)
                           .retryRefresh(),
@@ -646,7 +552,7 @@ class _JourneyPlannerScreenState extends ConsumerState<JourneyPlannerScreen> {
               //    arrastrando los pines, o con «Quitar resultados». Se saca
               //    del árbol (no se vuelve transparente) para que tampoco
               //    se trague los gestos del mapa en esa franja.
-              if (!_microsOnly && !hasResults)
+              if (!hasResults)
                 AnimatedPositioned(
                   duration: Motion.fade,
                   curve: Curves.easeOutCubic,

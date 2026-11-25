@@ -30,16 +30,6 @@ void main() {
       expect(GtfsTime.toMinutes('06:07:18'), 367);
       expect(GtfsTime.toMinutes(null), isNull);
     });
-
-    test('diffMinutes', () {
-      expect(GtfsTime.diffMinutes('06:00:00', '06:38:00'), 38);
-      expect(GtfsTime.diffMinutes(null, '06:00:00'), isNull);
-    });
-
-    test('range', () {
-      expect(GtfsTime.range('06:00:00', '22:00:00'), '06:00 – 22:00');
-      expect(GtfsTime.range(null, null), '--:-- – --:--');
-    });
   });
 
   group('Fmt', () {
@@ -60,25 +50,6 @@ void main() {
       expect(Fmt.duration(65), '1 h 05 min');
       expect(Fmt.duration(120), '2 h');
       expect(Fmt.duration(null), '—');
-    });
-
-    test('headway en segundos', () {
-      expect(Fmt.headway(300), 'cada 5 min');
-      expect(Fmt.headway(60), 'cada min');
-      expect(Fmt.headway(0), '—');
-      expect(Fmt.headway(null), '—');
-    });
-
-    test('number con separador es-BO', () {
-      expect(Fmt.number(31461), '31.461');
-      expect(Fmt.number(154), '154');
-      expect(Fmt.number(null), '—');
-    });
-
-    test('greeting según la hora', () {
-      expect(Fmt.greeting(DateTime(2026, 10, 14, 8)), 'Buenos días');
-      expect(Fmt.greeting(DateTime(2026, 10, 14, 15)), 'Buenas tardes');
-      expect(Fmt.greeting(DateTime(2026, 10, 14, 21)), 'Buenas noches');
     });
   });
 

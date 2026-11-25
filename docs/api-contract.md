@@ -146,9 +146,10 @@ Colores hex **sin** `#` (ej: `D35400`), tal como vienen en GTFS.
 ### Stops
 
 > **Nota (app móvil):** la app Flutter no consume `/stops/:id`; SÍ consume
-> `/routes/:id/stops` («Pasa por», detalle) y ahora `/stops/search` y
-> `/stops/nearby`: el modo **Lugares** del panel de micros
-> («¿qué línea pasa por aquí?» + cercanía por GPS).
+> `/routes/:id/stops` («Pasa por», detalle), `/stops/search` (buscar un lugar
+> en la hoja de Lugares) y `/stops/nearby` (la vista «Micros cerca», `/nearby`).
+> Tampoco consume `/routes/:id/departures`, `/trips/:id`, `/meta` ni `/stats`:
+> existen para herramientas y para el smoke de producción.
 
 - `GET /stops/nearby?lat=&lon=&radius=400&limit=10`
     - `radius` en metros, máx 2000. Orden por distancia. Incluye rutas que sirven la parada:

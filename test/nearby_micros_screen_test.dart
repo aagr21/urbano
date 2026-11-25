@@ -9,7 +9,6 @@ import 'package:urbano/src/core/router/app_router.dart';
 import 'package:urbano/src/core/theme/app_theme.dart';
 import 'package:urbano/src/core/utils/location.dart';
 import 'package:urbano/src/core/widgets/urbano_map.dart';
-import 'package:urbano/src/features/home/presentation/home_providers.dart';
 import 'package:urbano/src/features/journey/application/trip_history_controller.dart';
 import 'package:urbano/src/features/journey/presentation/journey_markers.dart';
 import 'package:urbano/src/features/nearby/domain/nearby_micros.dart';
@@ -154,7 +153,6 @@ void main() {
           (ref, query) async =>
               const Paged<RouteSummary>(items: [], meta: Meta(total: 0)),
         ),
-        featuredRouteShapeProvider.overrideWith((ref) async => null),
         tripHistoryControllerProvider.overrideWith(
           () => TripHistoryController(MemoryTripHistoryStore()),
         ),

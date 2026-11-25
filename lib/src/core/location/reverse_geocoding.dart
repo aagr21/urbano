@@ -30,19 +30,6 @@ class ReverseGeocodeResult {
   final String? country;
   final String? postcode;
 
-  /// Formato legible: "Calle X, Zona Y, Ciudad"
-  String get formatted {
-    final parts = <String>[];
-    if (road != null && road!.isNotEmpty) parts.add(road!);
-    if (neighbourhood != null && neighbourhood!.isNotEmpty) {
-      parts.add(neighbourhood!);
-    }
-    if (suburb != null && suburb!.isNotEmpty) parts.add(suburb!);
-    if (city != null && city!.isNotEmpty) parts.add(city!);
-    if (parts.isEmpty) return displayName;
-    return parts.join(', ');
-  }
-
   /// Versión corta: solo calle + zona/barrio
   String get shortFormatted {
     final parts = <String>[];

@@ -22,9 +22,6 @@ class MarkerRasterizer {
   /// Solo para tests: limpia la caché global de iconos.
   static void clearCache() => _cache.clear();
 
-  static bool isCached(MapMarker marker) =>
-      _cache.containsKey(marker.imageCacheKey);
-
   /// PNG del icono o `null` si el widget no pudo capturarse.
   ///
   /// [pixelRatio] es la densidad con la que se rasteriza (Android/iOS usan

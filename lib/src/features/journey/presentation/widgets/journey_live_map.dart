@@ -42,8 +42,6 @@ class LiveMapLayer extends ConsumerWidget {
     required this.destination,
     required this.hasResults,
     required this.fitPadding,
-    required this.extraPolylines,
-    required this.extraMarkers,
     required this.onEndpointMoved,
     required this.onEndpointTapped,
     this.onPositionChanged,
@@ -59,8 +57,6 @@ class LiveMapLayer extends ConsumerWidget {
   final JourneyPoint? destination;
   final bool hasResults;
   final EdgeInsets fitPadding;
-  final List<MapPolyline> extraPolylines;
-  final List<MapMarker> extraMarkers;
   final void Function(bool isOrigin, LatLng point) onEndpointMoved;
   final void Function(bool isOrigin) onEndpointTapped;
   final MapPositionChangedCallback? onPositionChanged;
@@ -146,7 +142,6 @@ class LiveMapLayer extends ConsumerWidget {
     // no es marcador: viaja en [extraPulses] (la pintan los motores en capas
     // nativas, véase [MapPulse]) para no re-rasterizar.
     final markers = [
-      ...extraMarkers,
       if (locationReady && shownPoint != null)
         MyLocationDot.marker(
           id: 'my-location-last',
@@ -182,7 +177,6 @@ class LiveMapLayer extends ConsumerWidget {
         showOrigin: hasResults || origin != null,
         showDestination: hasResults || destination != null,
         fitPadding: fitPadding,
-        extraPolylines: extraPolylines,
         onOriginMoved: (point) => onEndpointMoved(true, point),
         onDestinationMoved: (point) => onEndpointMoved(false, point),
         // Tocar el pin de origen/destino lo edita: abre el selector encima del

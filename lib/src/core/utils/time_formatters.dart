@@ -1,5 +1,3 @@
-import 'package:intl/intl.dart';
-
 /// Formateadores de tiempo GTFS (`HH:mm:ss`, permitido `> 24:00:00`).
 class GtfsTime {
   GtfsTime._();
@@ -21,18 +19,6 @@ class GtfsTime {
     if (parts == null) return fallback;
     return '${parts.$1.toString().padLeft(2, '0')}:'
         '${parts.$2.toString().padLeft(2, '0')}';
-  }
-
-  /// `06:00:00` + `22:00:00` → `06:00 – 22:00`.
-  static String range(String? start, String? end) =>
-      '${toHm(start)} – ${toHm(end)}';
-
-  /// Diferencia en minutos entre dos horas GTFS (`to - from`).
-  static int? diffMinutes(String? from, String? to) {
-    final a = toMinutes(from);
-    final b = toMinutes(to);
-    if (a == null || b == null) return null;
-    return b - a;
   }
 
   static (int, int)? _parts(String? value) => parseHm(value);
@@ -58,8 +44,6 @@ class GtfsTime {
 class Fmt {
   Fmt._();
 
-  static final NumberFormat _int = NumberFormat('#,##0', 'es');
-
   /// `123.4` → `123 m`; `1500` → `1,5 km`.
   static String distance(double? meters) {
     if (meters == null) return '—';
@@ -76,23 +60,5 @@ class Fmt {
     final m = minutes % 60;
     if (m == 0) return '$h h';
     return '$h h ${m.toString().padLeft(2, '0')} min';
-  }
-
-  /// Headway GTFS en segundos → `5 min`.
-  static String headway(int? seconds) {
-    if (seconds == null || seconds <= 0) return '—';
-    final minutes = (seconds / 60).round();
-    return minutes <= 1 ? 'cada min' : 'cada $minutes min';
-  }
-
-  /// Número con separador es-BO: `31461` → `31.461`.
-  static String number(int? value) => value == null ? '—' : _int.format(value);
-
-  /// Saludo según la hora local.
-  static String greeting([DateTime? now]) {
-    final hour = (now ?? DateTime.now()).hour;
-    if (hour < 12) return 'Buenos días';
-    if (hour < 19) return 'Buenas tardes';
-    return 'Buenas noches';
   }
 }

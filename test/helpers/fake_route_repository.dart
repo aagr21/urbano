@@ -14,20 +14,18 @@ import 'package:urbano/src/features/routes/data/route_repository.dart';
 /// - Catalogo por páginas con filtro `q` insensible a mayúsculas.
 /// - `detail` derivado del catálogo (ida/vuelta + shape de 2 puntos) con
 ///   [headsigns] configurables, o un detalle fijo por id vía [details].
-/// - [stops]/[departures] con fixtures directos (vacío por defecto).
+/// - [stops] con fixtures directos (vacío por defecto).
 /// - [listError]/[detailError] para simular no-red o 5xx.
 class FakeRouteRepository implements RouteRepository {
   FakeRouteRepository(
     this.routes, {
     this.details,
     List<RouteStop> stops = const [],
-    List<Departure> departures = const [],
     this.listError,
     this.detailError,
     this.headsigns = const ('Ida', 'Vuelta'),
     this.shape,
-  }) : stopsFixture = stops,
-       departuresFixture = departures;
+  }) : stopsFixture = stops;
 
   /// Catálogo servido por páginas (páginas vacías cuando se agota).
   final List<RouteSummary> routes;
@@ -35,9 +33,8 @@ class FakeRouteRepository implements RouteRepository {
   /// Detalles fijos por id; si el id no está, se deriva del catálogo.
   final Map<String, RouteDetail>? details;
 
-  /// Paradas/salidas servidas por los métodos de la interfaz.
+  /// Paradas servidas por [stops].
   final List<RouteStop> stopsFixture;
-  final List<Departure> departuresFixture;
 
   /// Errores simulados (no-red/5xx) por llamada a listado/detalle.
   final Object? listError;
@@ -139,15 +136,6 @@ class FakeRouteRepository implements RouteRepository {
           ),
     );
   }
-
-  @override
-  Future<List<Departure>> departures(
-    String id, {
-    String? stopId,
-    int? directionId,
-    String? time,
-    String? date,
-  }) async => departuresFixture;
 
   @override
   Future<List<RouteStop>> stops(String id, {int directionId = 0}) async =>

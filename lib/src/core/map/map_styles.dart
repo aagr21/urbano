@@ -25,11 +25,4 @@ abstract class UrbanoMapStyles {
   /// estilo).
   static String attribution({required bool dark}) =>
       '© OpenStreetMap · © MapTiler';
-
-  /// Fondo del mapa según el tema (para la carga nativa y el simulado).
-  ///
-  /// El oscuro replica el `background` de *dataviz-dark*: `hsl(0, 0%, 16%)`
-  /// = `#292929`, así la carga nativa funde sin destello con el estilo.
-  static String backgroundHex({required bool dark}) =>
-      dark ? '#292929' : '#E8EEF5';
 }

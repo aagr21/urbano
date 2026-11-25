@@ -9,7 +9,6 @@ import 'package:urbano/src/core/router/app_router.dart';
 import 'package:urbano/src/core/theme/app_theme.dart';
 import 'package:urbano/src/core/theme/theme_mode_controller.dart';
 import 'package:urbano/src/core/utils/location.dart';
-import 'package:urbano/src/features/home/presentation/home_providers.dart';
 import 'package:urbano/src/features/home/presentation/home_screen.dart';
 import 'package:urbano/src/features/home/presentation/widgets/home_header.dart';
 import 'package:urbano/src/features/journey/application/trip_history_controller.dart';
@@ -46,16 +45,6 @@ List<Override> _overrides({TripHistoryStore? history}) => [
     (ref, query) async =>
         Paged<RouteSummary>(items: [_route()], meta: const Meta(total: 154)),
   ),
-  globalSearchProvider.overrideWith(
-    (ref, query) async => GlobalSearchResult(
-      routes: Paged<RouteSummary>(
-        items: [_route()],
-        meta: const Meta(total: 1),
-      ),
-    ),
-  ),
-  // El mini mapa del home no debe pedir geometrías en los tests.
-  featuredRouteShapeProvider.overrideWith((ref) async => null),
   // Historial de viajes sin plugins: el home lo lee al montarse.
   tripHistoryControllerProvider.overrideWith(
     () => TripHistoryController(history ?? MemoryTripHistoryStore()),
