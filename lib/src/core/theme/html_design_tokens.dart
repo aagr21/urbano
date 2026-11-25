@@ -154,6 +154,9 @@ class HtmlDesignTokens {
   /// `#4F46E5` — Índigo, paleta cíclica de destinos.
   static const indigo600 = Color(0xFF4F46E5);
 
+  /// `#EEF2FF` — Índigo muy claro, fondo de la píldora del acceso Micros.
+  static const indigo50 = Color(0xFFEEF2FF);
+
   /// `#8B5CF6` — Púrpura, paleta cíclica.
   static const purple500 = Color(0xFF8B5CF6);
 
