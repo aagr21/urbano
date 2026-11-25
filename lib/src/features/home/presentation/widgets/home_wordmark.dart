@@ -1,31 +1,37 @@
-// Wordmark «Urbano» de la cabecera: Fredoka + el trazo de ruta animado.
+// Wordmark «Urbano» de la cabecera: Fredoka + el recorrido que llega al pin.
 
 import 'package:material_ui/material_ui.dart';
 
 import '../../../../core/animation/motion.dart';
 import '../../../../core/config/env.dart';
+import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/html_design_tokens.dart' show HtmlDesignTokens;
 import '../../../../core/theme/typography.dart';
 import '../../../../core/utils/extensions.dart';
 
-/// **Wordmark de la portada**: «Urbano» como un recorrido.
+/// **Wordmark de la portada**: «Urbano» como un viaje, con el mismo dibujo que
+/// el ícono de la app (`tools/app_icon.py`): sale de una parada y llega a un
+/// pin coral.
 ///
-/// Tres capas que cuentan la marca sin decir nada:
-///  * las letras en Fredoka con un degradado de verde profundo a esmeralda
-///    (en oscuro, de la tinta del tema a menta), en vez de un color plano;
-///  * debajo, el **trazo del recorrido**: una línea que nace bajo la «U», se
-///    dibuja una sola vez al llegar (`Ambient(cycles: 1)`, reposa trazada) y
-///    termina en el punto final;
-///  * ese punto es la **parada**: un aro con centro de la superficie y halo,
-///    el destino de la línea.
+/// Tres capas:
+///  * las letras en Fredoka con un degradado de marca (verde profundo → verde
+///    Urbano → esmeralda en claro; blanco → menta → aqua en oscuro);
+///  * debajo, el **recorrido**: nace en un aro hueco bajo la «U» (la parada
+///    donde se sube) y se dibuja una sola vez al llegar (`Ambient(cycles: 1)`,
+///    reposa trazado) hasta la punta del pin;
+///  * el **pin coral** del destino, que cae con un rebote cuando el trazo lo
+///    alcanza. Es el único acento cálido de la cabecera, a propósito.
 ///
 /// El texto sigue siendo un `Text('Urbano')` (los tests lo buscan así): el
-/// degradado lo pone un `ShaderMask`, no una imagen.
+/// degradado lo pone un `ShaderMask`, no una imagen. Trazo, parada y pin viven
+/// fuera del layout: la cabecera mide lo mismo que con el wordmark anterior.
 class HomeWordmark extends StatelessWidget {
   const HomeWordmark({super.key});
 
   static const double _fontSize = 34;
-  static const double _stop = 9;
+
+  /// Caja del pin: gota de radio 5,5 con la punta 1,6 radios bajo el centro.
+  static const Size _pin = Size(13, 16);
 
   /// Alto de la caja del trazo (la curva oscila ±2 px dentro de ella).
   static const double _stroke = 6;
@@ -36,21 +42,22 @@ class HomeWordmark extends StatelessWidget {
     final text = context.text;
     final dark = Theme.of(context).brightness == Brightness.dark;
 
-    final inkTop = dark ? colors.onSurface : HtmlDesignTokens.darkWordmark;
-    final inkBottom = dark
-        ? HtmlDesignTokens.emerald300
-        : HtmlDesignTokens.emerald600;
-    final route = dark
-        ? HtmlDesignTokens.emerald400
-        : HtmlDesignTokens.emerald500;
+    final ink = dark
+        ? [colors.onSurface, HtmlDesignTokens.emerald300, AppColors.aqua]
+        : [
+            AppColors.primaryDark,
+            AppColors.primary,
+            HtmlDesignTokens.emerald500,
+          ];
+    final route = dark ? HtmlDesignTokens.teal300 : HtmlDesignTokens.teal600;
 
     final word = ShaderMask(
       blendMode: BlendMode.srcIn,
       shaderCallback: (bounds) => LinearGradient(
         begin: Alignment.topLeft,
         end: Alignment.bottomRight,
-        colors: [inkTop, inkTop, inkBottom],
-        stops: const [0, 0.35, 1],
+        colors: ink,
+        stops: const [0.15, 0.6, 1],
       ).createShader(bounds),
       child: Text(
         Env.appName,
@@ -59,7 +66,7 @@ class HomeWordmark extends StatelessWidget {
         style: AppTypography.wordmark(
           text.headlineMedium?.copyWith(
             // El color real lo pone el degradado; este solo da opacidad.
-            color: inkTop,
+            color: ink.first,
             fontSize: _fontSize,
             height: 1,
             letterSpacing: -0.6,
@@ -70,30 +77,33 @@ class HomeWordmark extends StatelessWidget {
 
     return Ambient(
       cycles: 1,
-      period: const Duration(milliseconds: 1400),
+      period: const Duration(milliseconds: 1500),
       child: word,
       builder: (context, t, _, child) {
-        final draw = Curves.easeInOutCubic.transform(t);
-        // La parada «llega» cuando el trazo la alcanza.
-        final stopIn = Curves.easeOutBack.transform(
-          ((t - 0.7) / 0.3).clamp(0.0, 1.0),
+        final draw = Curves.easeInOutCubic.transform(
+          (t / 0.75).clamp(0.0, 1.0),
         );
+        // El pin «llega» cuando el trazo lo alcanza: cae desde arriba con rebote.
+        final land = ((t - 0.62) / 0.38).clamp(0.0, 1.0);
+        final pinScale = Curves.easeOutBack.transform(land);
+        final pinDrop = (1 - Curves.easeOutCubic.transform(land)) * -10;
         return Stack(
           clipBehavior: Clip.none,
           children: [
-            // El trazo corre sobre la línea base y termina en el centro de la
-            // parada. Vive fuera del layout: no empuja el lema.
+            // Recorrido sobre la línea base, de la parada a la punta del pin.
             Positioned(
-              left: 2,
-              right: _stop / 2,
+              left: 0,
+              right: _pin.width / 2,
               bottom: -_stroke / 2,
               height: _stroke,
               child: IgnorePointer(
                 child: CustomPaint(
                   painter: WordmarkRouteStrokePainter(
                     progress: draw,
-                    from: route.withValues(alpha: 0.12),
+                    from: route.withValues(alpha: 0.35),
                     to: route,
+                    origin: route,
+                    originFill: colors.surface,
                   ),
                 ),
               ),
@@ -103,13 +113,17 @@ class HomeWordmark extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
                 Flexible(child: child!),
-                const SizedBox(width: 3),
-                // Centro de la parada en la línea base, igual que el trazo.
-                Transform.translate(
-                  offset: const Offset(0, _stop / 2),
-                  child: Transform.scale(
-                    scale: stopIn,
-                    child: WordmarkStopDot(color: route, size: _stop),
+                const SizedBox(width: 2),
+                // La punta del pin toca la línea base, donde termina el trazo.
+                Opacity(
+                  opacity: land == 0 ? 0 : 1,
+                  child: Transform.translate(
+                    offset: Offset(0, pinDrop),
+                    child: Transform.scale(
+                      scale: pinScale,
+                      alignment: Alignment.bottomCenter,
+                      child: const WordmarkPin(size: _pin),
+                    ),
                   ),
                 ),
               ],
@@ -121,55 +135,84 @@ class HomeWordmark extends StatelessWidget {
   }
 }
 
-/// Parada al final del trazo: aro del color de la ruta, centro de la
-/// superficie (se lee igual en claro y oscuro) y un halo suave.
-class WordmarkStopDot extends StatelessWidget {
-  const WordmarkStopDot({super.key, required this.color, required this.size});
+/// Pin coral del destino: la misma gota del ícono de la app, con borde claro y
+/// ojo blanco. Decorativo (el wordmark ya se lee como «Urbano»).
+class WordmarkPin extends StatelessWidget {
+  const WordmarkPin({super.key, required this.size});
 
-  final Color color;
-  final double size;
+  final Size size;
 
   @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        color: context.colors.surface,
-        shape: BoxShape.circle,
-        border: Border.all(color: color, width: 2.4),
-        boxShadow: [
-          BoxShadow(
-            color: color.withValues(alpha: 0.45),
-            blurRadius: 8,
-            spreadRadius: 1,
-          ),
-        ],
-      ),
-    );
-  }
+  Widget build(BuildContext context) => ExcludeSemantics(
+    child: CustomPaint(size: size, painter: const _PinPainter()),
+  );
 }
 
-/// Trazo del recorrido bajo el wordmark: una curva suave (sube apenas y
-/// vuelve) que se dibuja de izquierda a derecha hasta [progress] y se aclara
-/// hacia su origen, como una línea que viene de lejos.
+class _PinPainter extends CustomPainter {
+  const _PinPainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    // Gota: círculo de radio r arriba y punta 1,6 r bajo su centro, abajo del
+    // todo (mismas proporciones que `PIN_PATH` en tools/app_icon.py).
+    final r = size.height / 2.6;
+    final cx = size.width / 2;
+    final cy = r;
+    final tip = size.height;
+    final path = Path()
+      ..moveTo(cx, tip)
+      ..cubicTo(cx - r * 0.3, cy + r * 1.15, cx - r, cy + r * 0.6, cx - r, cy)
+      ..arcToPoint(Offset(cx + r, cy), radius: Radius.circular(r))
+      ..cubicTo(cx + r, cy + r * 0.6, cx + r * 0.3, cy + r * 1.15, cx, tip)
+      ..close();
+
+    canvas.drawShadow(path, AppColors.accent, 3, false);
+    canvas.drawPath(
+      path,
+      Paint()
+        ..shader = const LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [Color(0xFFFF7A55), AppColors.accent],
+        ).createShader(Offset.zero & size),
+    );
+    canvas.drawCircle(Offset(cx, cy), r * 0.42, Paint()..color = Colors.white);
+  }
+
+  @override
+  bool shouldRepaint(_PinPainter oldDelegate) => false;
+}
+
+/// Recorrido bajo el wordmark: una curva suave (sube apenas y vuelve) que se
+/// dibuja de izquierda a derecha hasta [progress], se aclara hacia su origen y
+/// arranca en una parada —un aro hueco ([origin] con centro [originFill]),
+/// como en un diagrama de metro—.
 class WordmarkRouteStrokePainter extends CustomPainter {
   const WordmarkRouteStrokePainter({
     required this.progress,
     required this.from,
     required this.to,
+    this.origin,
+    this.originFill,
   });
 
   final double progress;
   final Color from;
   final Color to;
 
+  /// Aro de la parada de origen; `null` = sin parada.
+  final Color? origin;
+  final Color? originFill;
+
+  static const double _originRadius = 3.2;
+
   @override
   void paint(Canvas canvas, Size size) {
     if (progress <= 0 || size.width <= 0) return;
     final y = size.height / 2;
+    final start = origin == null ? 0.0 : _originRadius + 1;
     final path = Path()
-      ..moveTo(0, y)
+      ..moveTo(start, y)
       ..cubicTo(
         size.width * 0.3,
         y + 2.2,
@@ -180,16 +223,40 @@ class WordmarkRouteStrokePainter extends CustomPainter {
       );
     final metric = path.computeMetrics().first;
     final drawn = metric.extractPath(0, metric.length * progress);
-    final paint = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2.2
-      ..strokeCap = StrokeCap.round
-      ..shader = LinearGradient(colors: [from, to])
-          .createShader(Offset.zero & size);
-    canvas.drawPath(drawn, paint);
+    canvas.drawPath(
+      drawn,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2.4
+        ..strokeCap = StrokeCap.round
+        ..shader = LinearGradient(colors: [from, to])
+            .createShader(Offset.zero & size),
+    );
+
+    final ring = origin;
+    if (ring != null) {
+      final center = Offset(start, y);
+      canvas.drawCircle(
+        center,
+        _originRadius,
+        Paint()..color = originFill ?? Colors.transparent,
+      );
+      canvas.drawCircle(
+        center,
+        _originRadius,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 2
+          ..color = ring,
+      );
+    }
   }
 
   @override
   bool shouldRepaint(WordmarkRouteStrokePainter old) =>
-      old.progress != progress || old.from != from || old.to != to;
+      old.progress != progress ||
+      old.from != from ||
+      old.to != to ||
+      old.origin != origin ||
+      old.originFill != originFill;
 }
