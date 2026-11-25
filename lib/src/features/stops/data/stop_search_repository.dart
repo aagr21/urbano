@@ -12,7 +12,15 @@ abstract class StopSearchRepository {
   Future<List<StopHit>> search(String q);
 
   /// Paradas ordenadas por distancia al punto dado, con `distanceMeters`.
-  Future<List<StopHit>> nearby({required double lat, required double lon});
+  ///
+  /// [radiusMeters] acota la búsqueda (el backend acepta 1-2000; sin valor
+  /// usa su default de 400 m) y [limit] el número de paradas (máx. 50).
+  Future<List<StopHit>> nearby({
+    required double lat,
+    required double lon,
+    int? radiusMeters,
+    int limit = 30,
+  });
 }
 
 class RemoteStopSearchRepository implements StopSearchRepository {
@@ -42,14 +50,24 @@ class RemoteStopSearchRepository implements StopSearchRepository {
   }
 
   @override
-  Future<List<StopHit>> nearby({required double lat, required double lon}) {
-    final key = 'stop-nearby|$lat|$lon';
+  Future<List<StopHit>> nearby({
+    required double lat,
+    required double lon,
+    int? radiusMeters,
+    int limit = 30,
+  }) {
+    final key = 'stop-nearby|$lat|$lon|$radiusMeters|$limit';
     final cached = _cache.read<List<StopHit>>(key);
     if (cached != null) return Future.value(cached);
     return _api
         .fetchList<StopHit>(
           Endpoints.stopsNearby,
-          query: compactQuery({'lat': lat, 'lon': lon, 'limit': 30}),
+          query: compactQuery({
+            'lat': lat,
+            'lon': lon,
+            'radius': radiusMeters,
+            'limit': limit,
+          }),
           fromJson: _fromJson,
         )
         .then((hits) {

@@ -7,6 +7,8 @@ import '../../features/home/presentation/home_screen.dart';
 import '../../features/info/presentation/info_screen.dart';
 import '../../features/journey/presentation/journey_planner_screen.dart';
 import '../../features/journey/presentation/map_picker_screen.dart';
+import '../../features/nearby/domain/nearby_micros.dart';
+import '../../features/nearby/presentation/nearby_micros_screen.dart';
 import '../../features/routes/presentation/micros_screen.dart';
 import '../../features/routes/presentation/route_detail_screen.dart';
 import '../../features/routes/presentation/route_direction_map_screen.dart';
@@ -97,6 +99,25 @@ GoRouter get _router => GoRouter(
           title: params['title'] ?? 'Punto en el mapa',
           initial: lat != null && lon != null ? (lat: lat, lon: lon) : null,
         );
+      },
+    ),
+    // «Micros cerca»: líneas que pasan cerca de un punto (acceso Lugares).
+    // Pantalla propia a sangre, encima del shell; la consulta viaja en la URL.
+    GoRoute(
+      path: '/nearby',
+      name: 'nearby',
+      builder: (context, state) {
+        final query = NearbyQuery.fromParams(state.uri.queryParameters);
+        if (query == null) {
+          return const Scaffold(
+            body: EmptyState(
+              icon: Icons.wrong_location_outlined,
+              title: 'Falta el punto',
+              message: 'Elige un lugar desde Lugares para ver los micros.',
+            ),
+          );
+        }
+        return NearbyMicrosScreen(query: query);
       },
     ),
     GoRoute(
@@ -219,6 +240,10 @@ class UrbanoRoutes {
     final path = '/routes/${Uri.encodeComponent(routeId)}';
     return from == null ? path : '$path?from=${Uri.encodeComponent(from)}';
   }
+
+  /// «Micros cerca» de un punto (la consulta completa viaja en la URL).
+  static String nearby(NearbyQuery query) =>
+      Uri(path: '/nearby', queryParameters: query.toParams()).toString();
 
   /// Mapa de un sentido concreto del recorrido (`0` = ida, `1` = vuelta).
   static String routeMap(String routeId, {required int directionId}) =>

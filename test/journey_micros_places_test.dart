@@ -39,6 +39,8 @@ class FakeStopSearchRepository implements StopSearchRepository {
   Future<List<StopHit>> nearby({
     required double lat,
     required double lon,
+    int? radiusMeters,
+    int limit = 30,
   }) async {
     calls.add('nearby=$lat,$lon');
     return hits;

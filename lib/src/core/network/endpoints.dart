@@ -30,8 +30,9 @@ class Endpoints {
   static String routeDepartures(String id) => '${route(id)}/departures';
 
   /// Paradas: búsqueda por nombre y cercanas a un punto. La app las consume
-  /// para el modo «Lugares» del panel de micros («¿qué línea pasa por aquí?»)
-  /// y el cardinal «cerca de mí».
+  /// para el modo «Lugares» del panel de micros («¿qué línea pasa por aquí?»),
+  /// el cardinal «cerca de mí» y la vista «Micros cerca» (`/nearby`, con
+  /// `radius`).
   static const String stopSearch = '/stops/search';
   static const String stopsNearby = '/stops/nearby';
   static String trip(String id) => '$trips/${Uri.encodeComponent(id)}';
