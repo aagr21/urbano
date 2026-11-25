@@ -20,6 +20,9 @@ Flutter app (repo root):
   de iOS desde `assets/brand/splash-frame0.svg` (necesita `resvg` o `rsvg-convert`; solo cuando
   cambie la pose del frame 0). La splash de Android es Kotlin con Canvas
   (`SplashCanvasView`): no hay JSON ni Lottie que sincronizar.
+- Ícono de la app: `tools/make-app-icon.sh` lo regenera en todas las plataformas. El diseño vive
+  en `tools/app_icon.py` (SVG en `assets/brand/app-icon/`, PNG intermedios ignorados) y la
+  config en `icons_launcher.yaml`; nunca edites los PNG de `android/`/`ios/` a mano.
 
 Backend (always `cd backend` first — the boot order matters):
 
