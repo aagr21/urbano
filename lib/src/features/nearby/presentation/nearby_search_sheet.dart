@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:material_ui/material_ui.dart';
 
+import '../../../core/location/place_search.dart';
 import '../../../core/location/reverse_geocoding.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/extensions.dart';
@@ -163,6 +164,11 @@ class _NearbySearchSheetState extends ConsumerState<_NearbySearchSheet> {
     final stopHits = _query.length >= _minStopQuery
         ? ref.watch(stopNameSearchProvider(_query))
         : null;
+    // Calles y lugares de OpenStreetMap (Photon, acotado a Santa Cruz).
+    final street = _field.text.trim();
+    final osmHits = street.length >= placeSearchMinChars
+        ? ref.watch(placeSearchProvider(street))
+        : null;
 
     return ConstrainedBox(
       constraints: BoxConstraints(maxHeight: media.size.height * 0.88),
@@ -185,7 +191,7 @@ class _NearbySearchSheetState extends ConsumerState<_NearbySearchSheet> {
                     onChanged: _onChanged,
                     textInputAction: TextInputAction.search,
                     decoration: InputDecoration(
-                      hintText: 'Busca una plaza, mercado o parada',
+                      hintText: 'Busca una calle, lugar o parada',
                       prefixIcon: const Icon(Icons.search_rounded),
                       suffixIcon: _field.text.isEmpty
                           ? null
@@ -240,6 +246,56 @@ class _NearbySearchSheetState extends ConsumerState<_NearbySearchSheet> {
                   vertical: AppSpace.sm,
                 ),
                 children: [
+                  if (osmHits != null) ...[
+                    const NearbySectionLabel('Calles y lugares'),
+                    ...switch (osmHits) {
+                      AsyncData(:final value) when value.isEmpty => [
+                        const NearbyHintRow(
+                          text: 'Ninguna calle o lugar coincide.',
+                          icon: Icons.search_off_rounded,
+                        ),
+                      ],
+                      AsyncData(:final value) => [
+                        for (final hit in value)
+                          NearbyPlaceRow(
+                            key: ValueKey('nearby-osm-${hit.name}'),
+                            icon: hit.icon,
+                            title: hit.name,
+                            subtitle: hit.subtitle,
+                            selected:
+                                _picked?.lat == hit.lat &&
+                                _picked?.lon == hit.lon,
+                            onTap: () => _pick(
+                              NearbyPickedPlace(
+                                label: hit.name,
+                                lat: hit.lat,
+                                lon: hit.lon,
+                                icon: hit.icon,
+                                detail: hit.subtitle,
+                              ),
+                            ),
+                          ),
+                        // Atribución de los datos de OSM, obligatoria.
+                        const NearbyHintRow(
+                          text: osmAttribution,
+                          icon: Icons.copyright_rounded,
+                        ),
+                      ],
+                      AsyncError() => [
+                        const NearbyHintRow(
+                          text: 'No pudimos buscar calles ahora.',
+                          icon: Icons.cloud_off_rounded,
+                        ),
+                      ],
+                      _ => [
+                        const NearbyHintRow(
+                          text: 'Buscando calles y lugares…',
+                          icon: Icons.hourglass_top_rounded,
+                        ),
+                      ],
+                    },
+                    const SizedBox(height: AppSpace.sm),
+                  ],
                   if (stopHits != null) ...[
                     const NearbySectionLabel('Paradas'),
                     ...switch (stopHits) {

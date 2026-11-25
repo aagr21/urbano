@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:urbano/src/core/location/place_search.dart';
 import 'package:urbano/src/core/map/map.dart';
 import 'package:urbano/src/core/network/api_client.dart';
 import 'package:urbano/src/core/router/app_router.dart';
@@ -21,6 +22,7 @@ import 'package:urbano/src/features/stops/data/stop_search_repository.dart';
 
 import 'helpers/contrast.dart';
 import 'helpers/fake_location_service.dart';
+import 'helpers/fake_place_search_service.dart';
 import 'helpers/fake_route_repository.dart';
 import 'helpers/memory_trip_history_store.dart';
 
@@ -126,6 +128,7 @@ void main() {
     List<StopHit>? hits,
     String initial = '/',
     bool dark = false,
+    PlaceSearchService? places,
   }) async {
     tester.view.physicalSize = const Size(1080, 2340);
     tester.view.devicePixelRatio = 2.75;
@@ -139,6 +142,8 @@ void main() {
     );
     final container = ProviderContainer(
       overrides: [
+        if (places != null)
+          placeSearchServiceProvider.overrideWithValue(places),
         stopSearchRepositoryProvider.overrideWithValue(stops),
         routeRepositoryProvider.overrideWithValue(routes),
         locationServiceProvider.overrideWithValue(FakeLocationService()),
@@ -215,6 +220,31 @@ void main() {
       expect(find.byType(NearbyMicrosScreen), findsOneWidget);
       expect(find.text('2 líneas pasan cerca'), findsOneWidget);
       expect(stops.calls, contains('nearby r=1000 limit=50'));
+    });
+
+    testWidgets('escribir sugiere calles de OSM y se pueden elegir', (
+      tester,
+    ) async {
+      await pumpApp(
+        tester,
+        places: FakePlaceSearchService(santaCruzSuggestions),
+      );
+      await tester.tap(find.byKey(const ValueKey('home-tile-places')));
+      await tester.pumpAndSettle();
+
+      await tester.enterText(find.byType(TextField).last, 'monseñor');
+      await tester.pumpAndSettle();
+      expect(find.text('CALLES Y LUGARES'), findsOneWidget);
+      final row = find.byKey(
+        const ValueKey('nearby-osm-Avenida Monseñor Rivero'),
+      );
+      expect(row, findsOneWidget);
+      expect(find.text(osmAttribution), findsOneWidget);
+
+      await tester.tap(row);
+      await tester.pumpAndSettle();
+      final submit = find.byKey(const ValueKey('nearby-submit'));
+      expect(tester.widget<ButtonStyleButton>(submit).onPressed, isNotNull);
     });
 
     testWidgets('«Mi ubicación» usa el GPS como punto', (tester) async {

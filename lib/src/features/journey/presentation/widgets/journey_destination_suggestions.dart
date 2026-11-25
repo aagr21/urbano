@@ -3,7 +3,10 @@
 // populares y la salida al mapa. Es solo presentación: la hoja decide qué
 // mostrar y qué hacer con cada toque.
 
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
+
+import '../../../../core/location/place_search.dart';
 
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_theme.dart' show AppRadius, AppSpace;
@@ -33,6 +36,8 @@ class DestinationSuggestionPanel extends StatelessWidget {
     required this.onPickPoi,
     required this.onPickOnMap,
     this.onUseGps,
+    this.online,
+    this.onPickSuggestion,
   });
 
   final String query;
@@ -43,11 +48,24 @@ class DestinationSuggestionPanel extends StatelessWidget {
   /// Fila «Mi ubicación»: solo en el origen y mientras haya punto GPS.
   final VoidCallback? onUseGps;
 
+  /// Calles y lugares de OpenStreetMap para lo escrito (`null` = no se
+  /// consultó, p. ej. con menos de [placeSearchMinChars] letras).
+  final AsyncValue<List<PlaceSuggestion>>? online;
+  final ValueChanged<PlaceSuggestion>? onPickSuggestion;
+
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
     final text = context.text;
     final gps = onUseGps;
+    // Lo de OSM que ya está entre los lugares populares no se repite.
+    final local = {for (final poi in pois) poi.name.toLowerCase()};
+    final osm = [
+      for (final hit in online?.valueOrNull ?? const <PlaceSuggestion>[])
+        if (!local.contains(hit.name.toLowerCase())) hit,
+    ];
+    final searching = online?.isLoading ?? false;
+    final pick = onPickSuggestion;
 
     final rows = <Widget>[
       if (gps != null)
@@ -64,7 +82,16 @@ class DestinationSuggestionPanel extends StatelessWidget {
           subtitle: poi.ringOrZone ?? poi.category,
           onTap: () => onPickPoi(poi),
         ),
-      if (pois.isEmpty && gps == null)
+      for (final hit in osm)
+        _SuggestionTile(
+          key: ValueKey('place-suggestion-${hit.name}'),
+          icon: hit.icon,
+          title: hit.name,
+          subtitle: hit.subtitle,
+          onTap: pick == null ? () {} : () => pick(hit),
+        ),
+      if (searching) const _HintRow(text: 'Buscando calles y lugares…'),
+      if (pois.isEmpty && osm.isEmpty && !searching && gps == null)
         Padding(
           padding: const EdgeInsets.fromLTRB(
             AppSpace.md,
@@ -85,6 +112,8 @@ class DestinationSuggestionPanel extends StatelessWidget {
         title: 'Elegir en el mapa',
         onTap: onPickOnMap,
       ),
+      // Atribución de los datos de OSM, obligatoria cuando se muestran.
+      if (osm.isNotEmpty) const _HintRow(text: osmAttribution, small: true),
     ];
 
     return Padding(
@@ -126,8 +155,38 @@ class DestinationSuggestionPanel extends StatelessWidget {
   }
 }
 
+/// Fila de aviso sin acción (buscando, atribución).
+class _HintRow extends StatelessWidget {
+  const _HintRow({required this.text, this.small = false});
+
+  final String text;
+  final bool small;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    return Padding(
+      padding: EdgeInsets.fromLTRB(
+        AppSpace.md,
+        small ? AppSpace.xs : AppSpace.sm + 1,
+        AppSpace.md,
+        small ? AppSpace.xs : AppSpace.sm + 1,
+      ),
+      child: Text(
+        text,
+        style: (small ? context.text.labelSmall : context.text.labelMedium)
+            ?.copyWith(
+              color: colors.onSurfaceVariant,
+              fontWeight: FontWeight.w600,
+            ),
+      ),
+    );
+  }
+}
+
 class _SuggestionTile extends StatelessWidget {
   const _SuggestionTile({
+    super.key,
     required this.icon,
     required this.title,
     required this.onTap,

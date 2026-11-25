@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:material_ui/material_ui.dart';
 
+import '../../../../core/location/place_search.dart';
 import '../../../../core/location/reverse_geocoding.dart';
 import '../../../../core/theme/app_theme.dart' show AppRadius, AppSpace;
 import '../../../../core/theme/html_design_tokens.dart' show HtmlDesignTokens;
@@ -286,6 +287,8 @@ class _DestinationSheetContentState
       // El GPS siempre está a un toque mientras haya punto, escriba lo que
       // escriba el usuario.
       onUseGps: _gpsOrigin != null ? _useGpsOrigin : null,
+      online: _online(_originQuery),
+      onPickSuggestion: (hit) => _pickSuggestion(hit, isOrigin: true),
     );
   }
 
@@ -298,16 +301,39 @@ class _DestinationSheetContentState
       pois: matchPopularPlaces(_destinationQuery),
       onPickPoi: (poi) => _pickPoi(poi, isOrigin: false),
       onPickOnMap: _pickDestinationFromMap,
+      online: _online(_destinationQuery),
+      onPickSuggestion: (hit) => _pickSuggestion(hit, isOrigin: false),
     );
   }
 
-  void _pickPoi(SantaCruzPoi poi, {required bool isOrigin}) {
-    final place = JourneyPlacePoi(
+  /// Calles y lugares de OSM para lo escrito, o `null` si aún es muy corto.
+  AsyncValue<List<PlaceSuggestion>>? _online(String query) =>
+      query.trim().length < placeSearchMinChars
+      ? null
+      : ref.watch(placeSearchProvider(query.trim()));
+
+  void _pickSuggestion(PlaceSuggestion hit, {required bool isOrigin}) =>
+      _pickPlace(
+        JourneyPlacePoi(
+          name: hit.name,
+          lat: hit.lat,
+          lon: hit.lon,
+          subtitle: hit.subtitle,
+        ),
+        isOrigin: isOrigin,
+      );
+
+  void _pickPoi(SantaCruzPoi poi, {required bool isOrigin}) => _pickPlace(
+    JourneyPlacePoi(
       name: poi.name,
       lat: poi.lat,
       lon: poi.lon,
       subtitle: poi.ringOrZone ?? poi.category,
-    );
+    ),
+    isOrigin: isOrigin,
+  );
+
+  void _pickPlace(JourneyPlacePoi place, {required bool isOrigin}) {
     setState(() {
       if (isOrigin) {
         _origin = place;
@@ -337,18 +363,33 @@ class _DestinationSheetContentState
     });
   }
 
+  /// Primera sugerencia de OSM ya llegada para lo escrito (Enter sin lugar
+  /// popular que coincida).
+  PlaceSuggestion? _firstOnline(String value) =>
+      value.trim().length < placeSearchMinChars
+      ? null
+      : ref.read(placeSearchProvider(value.trim())).valueOrNull?.firstOrNull;
+
   void _submitOrigin(String value) {
     final matches = matchPopularPlaces(value);
+    final online = _firstOnline(value);
     if (matches.isNotEmpty) {
       _pickPoi(matches.first, isOrigin: true);
     } else if (_wantsGps(value)) {
       _useGpsOrigin();
+    } else if (online != null) {
+      _pickSuggestion(online, isOrigin: true);
     }
   }
 
   void _submitDestination(String value) {
     final matches = matchPopularPlaces(value);
-    if (matches.isNotEmpty) _pickPoi(matches.first, isOrigin: false);
+    final online = _firstOnline(value);
+    if (matches.isNotEmpty) {
+      _pickPoi(matches.first, isOrigin: false);
+    } else if (online != null) {
+      _pickSuggestion(online, isOrigin: false);
+    }
   }
 
   @override

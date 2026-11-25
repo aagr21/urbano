@@ -4,6 +4,7 @@ import 'package:geolocator/geolocator.dart' show LocationPermission;
 import 'package:latlong2/latlong.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:urbano/src/core/location/location_service.dart';
+import 'package:urbano/src/core/location/place_search.dart';
 import 'package:urbano/src/core/theme/app_theme.dart';
 import 'package:urbano/src/core/utils/location.dart';
 import 'package:urbano/src/features/journey/application/saved_trips_controller.dart';
@@ -13,6 +14,7 @@ import 'package:urbano/src/features/journey/presentation/widgets/journey_destina
 import 'package:urbano/src/features/journey/presentation/widgets/journey_plan_button.dart';
 
 import 'helpers/fake_location_service.dart';
+import 'helpers/fake_place_search_service.dart';
 import 'helpers/memory_trip_history_store.dart';
 
 class _MemorySavedTripsStore implements SavedTripsStore {
@@ -59,7 +61,10 @@ class _Harness extends ConsumerWidget {
   }
 }
 
-Future<void> _pumpSheet(WidgetTester tester) async {
+Future<void> _pumpSheet(
+  WidgetTester tester, {
+  PlaceSearchService? places,
+}) async {
   tester.view.physicalSize = const Size(1080, 2340);
   tester.view.devicePixelRatio = 2.75;
   addTearDown(tester.view.reset);
@@ -67,6 +72,8 @@ Future<void> _pumpSheet(WidgetTester tester) async {
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
+        if (places != null)
+          placeSearchServiceProvider.overrideWithValue(places),
         locationServiceProvider.overrideWithValue(
           FakeLocationService(initialPermission: LocationPermission.whileInUse),
         ),
@@ -187,6 +194,77 @@ void main() {
         isFalse,
         reason: 'escribir no basta: hay que fijar un lugar concreto',
       );
+    });
+
+    testWidgets('sugiere calles de OSM y elegir una fija el destino', (
+      tester,
+    ) async {
+      final places = FakePlaceSearchService(santaCruzSuggestions);
+      await _pumpSheet(tester, places: places);
+
+      await tester.enterText(
+        find.byKey(const ValueKey('journey-destination-input')),
+        'monseñor',
+      );
+      await tester.pumpAndSettle();
+
+      final row = find.byKey(
+        const ValueKey('place-suggestion-Avenida Monseñor Rivero'),
+      );
+      expect(row, findsOneWidget);
+      expect(find.text('Centro'), findsOneWidget);
+      expect(find.text(osmAttribution), findsOneWidget);
+      expect(places.queries, ['monseñor']);
+
+      await tester.ensureVisible(row);
+      await tester.tap(row);
+      await tester.pumpAndSettle();
+      expect(
+        _inputText(tester, 'journey-destination-input'),
+        'Avenida Monseñor Rivero',
+      );
+      expect(find.text(osmAttribution), findsNothing);
+    });
+
+    testWidgets('un lugar popular no se repite entre las sugerencias de OSM', (
+      tester,
+    ) async {
+      await _pumpSheet(
+        tester,
+        places: FakePlaceSearchService(santaCruzSuggestions),
+      );
+      await tester.enterText(
+        find.byKey(const ValueKey('journey-destination-input')),
+        'plaza 24',
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Plaza 24 de Septiembre'), findsOneWidget);
+    });
+
+    testWidgets('Enter sin lugar popular toma la primera calle de OSM', (
+      tester,
+    ) async {
+      await _pumpSheet(
+        tester,
+        places: FakePlaceSearchService(santaCruzSuggestions),
+      );
+      final input = find.byKey(const ValueKey('journey-destination-input'));
+      await tester.enterText(input, 'ventura');
+      await tester.pumpAndSettle();
+      await tester.testTextInput.receiveAction(TextInputAction.done);
+      await tester.pumpAndSettle();
+      expect(_inputText(tester, 'journey-destination-input'), 'Ventura Mall');
+    });
+
+    testWidgets('con menos de 3 letras no consulta OSM', (tester) async {
+      final places = FakePlaceSearchService(santaCruzSuggestions);
+      await _pumpSheet(tester, places: places);
+      await tester.enterText(
+        find.byKey(const ValueKey('journey-destination-input')),
+        'av',
+      );
+      await tester.pumpAndSettle();
+      expect(places.queries, isEmpty);
     });
   });
 }

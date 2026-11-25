@@ -227,6 +227,18 @@ platform view; the merged map/result-sheet design is deliberate (see README).
   entran sin scroll; el historial con filas se sigue leyendo con
   `scrollUntilVisible`/`ensureVisible`.
 
+- **Sugerencias de calles al escribir = Photon (OSM), nunca Nominatim.** `core/location/place_search.dart`:
+  `placeSearchProvider(query)` (≥ `placeSearchMinChars` = 3 letras, pausa de 350 ms tras la última tecla,
+  `CancelToken` al seguir escribiendo, caché de 2 min) sobre `PlaceSearchService`; la implementación es
+  `PhotonPlaceSearchService` (photon.komoot.io, caja de Santa Cruz, sesgo al centro) y `parsePhotonResults`
+  quita el ruido (landuse/natural/boundary/waterway, otras ciudades) y deja una sugerencia por nombre. La
+  política del Nominatim público PROHÍBE autocompletar (sigue usándose solo para la dirección inversa).
+  Lo usan los campos origen/destino del planificador (`DestinationSuggestionPanel.online`, debajo de los
+  lugares populares, sin repetirlos; Enter toma la primera) y la hoja de Lugares (sección «Calles y
+  lugares»). Con sugerencias a la vista se muestra `osmAttribution` (licencia de OSM). Bajo `flutter test`
+  el servicio por defecto no sale a la red y la pausa es cero; los tests lo reemplazan con
+  `test/helpers/fake_place_search_service.dart`.
+
 - **«Lugares» = «Micros cerca» (`lib/src/features/nearby/`).** El acceso abre
   `showNearbySearchSheet` (escribir lugar/parada, «Mi ubicación» o «Marcar en el mapa» vía
   `/journey/pick`, radio 300/500/1000 m) y su «Buscar cerca» empuja `/nearby?lat=&lon=&label=&r=`
