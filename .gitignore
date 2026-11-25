@@ -55,3 +55,11 @@ app.*.map.json
 # Mediciones de arranque en dispositivo real (screenrecord + logcat). Efímeras:
 # videos y logs de un modelo de teléfono concreto; no son fuente ni doc.
 .measure/
+
+# Artefactos efímeros de tests: los PNG de fallo y las imágenes maestras se
+# regeneran al correr; no son fuente (el repo no tiene tests golden).
+test/failures/
+test/goldens/
+
+# Estado local de agentes/herramientas (worktrees anidados, sesiones).
+.kilo/

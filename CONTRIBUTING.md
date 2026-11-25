@@ -71,7 +71,9 @@ Verifica cambios de backend con `npm test` + `npm run build`.
 
 1. `dart format lib test && flutter analyze lib test && flutter test` en verde.
 2. `cd backend && npm test && npm run build` en verde.
-3. Si tocaste `assets/lottie/splash.json`, corre `tools/sync-splash-lottie.sh`.
+3. Si cambiaste el arte de la splash (`SplashCanvasView` en Android o `_SplashCover` en Dart),
+   actualiza también `assets/brand/splash-frame0.svg` y regenera el PNG de iOS con
+   `tools/make-ios-splash-frame0.sh`.
 4. Mantén `docs/api-contract.md`, `core/network/endpoints.dart` y las anotaciones
    Swagger en sincronía si cambiaste un endpoint.
 ```
