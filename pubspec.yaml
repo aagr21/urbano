@@ -18,7 +18,6 @@ dependencies:
 
     # HTTP
     dio: ^5.7.0
-    http: ^1.3.0
 
     # Navegación
     go_router: ^14.6.2
@@ -45,12 +44,6 @@ dev_dependencies:
         sdk: flutter
     flutter_lints: ^6.0.0
     icons_launcher: ^3.1.0
-    # Solo el guard test (`test/splash_lottie_asset_test.dart`) decodifica el JSON
-    # de la splash con el motor Dart. La app NO usa Lottie en runtime: en Android lo
-    # reproduce la splash NATIVA (`com.airbnb.android:lottie` en `build.gradle.kts`)
-    # y en iOS el launch screen es un PNG estático. Por eso vive acá, no en
-    # `dependencies`: así la librería Dart de Lottie no entra en el binario.
-    lottie: ^3.8.2
 
 flutter:
     uses-material-design: true
@@ -62,8 +55,8 @@ flutter:
         - assets/images/
 
     # Fuentes empaquetadas e inscritas como manifiesto `fonts:` (no como assets
-    # crudos): Inter para cuerpo/labels y Outfit para el wordmark y los títulos
-    # destacados. Al declararlas aquí, Flutter las incluye una sola vez como
+    # crudos): Inter para cuerpo/labels, Outfit para los títulos destacados y
+    # Fredoka para el wordmark. Al declararlas aquí, Flutter las incluye una sola vez como
     # fuentes y la app arranca offline, sin parpadeo y sin descargas de red.
     # `AppTypography` apunta a estas familias por `fontFamily`, sin `google_fonts`.
     fonts:
@@ -91,3 +84,9 @@ flutter:
                 weight: 700
               - asset: assets/fonts/Outfit-ExtraBold.ttf
                 weight: 800
+        # Fredoka (OFL) SOLO para el wordmark «Urbano»: terminaciones
+        # redondeadas, amables, que riman con la parada del logotipo.
+        - family: Fredoka
+          fonts:
+              - asset: assets/fonts/Fredoka-Bold.ttf
+                weight: 700
