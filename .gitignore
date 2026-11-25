@@ -63,3 +63,6 @@ test/goldens/
 
 # Estado local de agentes/herramientas (worktrees anidados, sesiones).
 .kilo/
+
+# PNG intermedios del ícono: los regenera tools/make-app-icon.sh desde los SVG.
+assets/brand/app-icon/*.png
