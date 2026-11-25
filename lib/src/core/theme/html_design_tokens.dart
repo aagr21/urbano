@@ -69,6 +69,9 @@ class HtmlDesignTokens {
   /// `#2DD4BF` — Teal claro, brillo ambiental del hero banner.
   static const teal300 = Color(0xFF2DD4BF);
 
+  /// `#5EEAD4` — Aqua suave: el «ano» del wordmark en oscuro.
+  static const teal200 = Color(0xFF5EEAD4);
+
   /// `#0F766E` — Teal más oscuro, bordes de parada.
   static const teal700 = Color(0xFF0F766E);
 
@@ -278,6 +281,9 @@ class HtmlDesignTokens {
 
   /// `#084236` — Verde oscuro, wordmark del header.
   static const darkWordmark = Color(0xFF084236);
+
+  /// `#0F2E2A` — Tinta casi negra (verdosa) del «Urb» del wordmark en claro.
+  static const wordmarkInk = Color(0xFF0F2E2A);
 
   // ── Colores de micro (HTML) ──
 

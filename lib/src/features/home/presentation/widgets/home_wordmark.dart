@@ -1,4 +1,4 @@
-// Wordmark «Urbano» de la cabecera: Fredoka + el recorrido que llega al pin.
+// Wordmark «Urbano» de la cabecera: Outfit bicolor + el recorrido al pin.
 
 import 'package:material_ui/material_ui.dart';
 
@@ -14,16 +14,16 @@ import '../../../../core/utils/extensions.dart';
 /// pin coral.
 ///
 /// Tres capas:
-///  * las letras en Fredoka con un degradado de marca (verde profundo → verde
-///    Urbano → esmeralda en claro; blanco → menta → aqua en oscuro);
+///  * las letras en Outfit Bold, bicolor y planas: «Urb» en tinta casi negra y
+///    «ano» en verde Urbano (en oscuro, blanco y aqua);
 ///  * debajo, el **recorrido**: nace en un aro hueco bajo la «U» (la parada
 ///    donde se sube) y se dibuja una sola vez al llegar (`Ambient(cycles: 1)`,
 ///    reposa trazado) hasta la punta del pin;
 ///  * el **pin coral** del destino, que cae con un rebote cuando el trazo lo
 ///    alcanza. Es el único acento cálido de la cabecera, a propósito.
 ///
-/// El texto sigue siendo un `Text('Urbano')` (los tests lo buscan así): el
-/// degradado lo pone un `ShaderMask`, no una imagen. Trazo, parada y pin viven
+/// El texto sigue siendo «Urbano» entero (un `Text.rich`, que los tests y los
+/// lectores de pantalla leen igual): el bicolor son dos `TextSpan`. Trazo, parada y pin viven
 /// fuera del layout: la cabecera mide lo mismo que con el wordmark anterior.
 class HomeWordmark extends StatelessWidget {
   const HomeWordmark({super.key});
@@ -42,37 +42,35 @@ class HomeWordmark extends StatelessWidget {
     final text = context.text;
     final dark = Theme.of(context).brightness == Brightness.dark;
 
-    final ink = dark
-        ? [colors.onSurface, HtmlDesignTokens.emerald300, AppColors.aqua]
-        : [
-            AppColors.primaryDark,
-            AppColors.primary,
-            HtmlDesignTokens.emerald500,
-          ];
+    // Bicolor de marca: «Urb» en tinta casi negra y «ano» en verde Urbano
+    // (blanco y aqua en oscuro). Sin degradado: plano se lee más limpio.
+    final head = dark ? colors.onSurface : HtmlDesignTokens.wordmarkInk;
+    final tail = dark ? HtmlDesignTokens.teal200 : AppColors.primary;
     final route = dark ? HtmlDesignTokens.teal300 : HtmlDesignTokens.teal600;
-
-    final word = ShaderMask(
-      blendMode: BlendMode.srcIn,
-      shaderCallback: (bounds) => LinearGradient(
-        begin: Alignment.topLeft,
-        end: Alignment.bottomRight,
-        colors: ink,
-        stops: const [0.15, 0.6, 1],
-      ).createShader(bounds),
-      child: Text(
-        Env.appName,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: AppTypography.wordmark(
-          text.headlineMedium?.copyWith(
-            // El color real lo pone el degradado; este solo da opacidad.
-            color: ink.first,
-            fontSize: _fontSize,
-            height: 1,
-            letterSpacing: -0.6,
-          ),
-        ),
+    final style = AppTypography.wordmark(
+      text.headlineMedium?.copyWith(
+        color: head,
+        fontSize: _fontSize,
+        height: 1,
       ),
+    );
+    const name = Env.appName;
+
+    // Un solo `Text.rich`: los tests (y los lectores de pantalla) siguen
+    // leyendo «Urbano» entero.
+    final word = Text.rich(
+      TextSpan(
+        children: [
+          TextSpan(text: name.substring(0, 3)),
+          TextSpan(
+            text: name.substring(3),
+            style: TextStyle(color: tail),
+          ),
+        ],
+      ),
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: style,
     );
 
     return Ambient(

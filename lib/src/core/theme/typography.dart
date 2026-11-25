@@ -18,10 +18,6 @@ class AppTypography {
   /// Outfit, para wordmark y títulos destacados (400..800 empaquetados).
   static const String _wordmarkFamily = 'Outfit';
 
-  /// Fredoka (OFL), SOLO para la marca «Urbano» (wordmark de la portada):
-  /// redondeada y amable. Los títulos siguen en Outfit.
-  static const String _brandFamily = 'Fredoka';
-
   static const FontWeight display = FontWeight.w800;
   static const FontWeight bold = FontWeight.w700;
   static const FontWeight semiBold = FontWeight.w600;
@@ -123,13 +119,13 @@ class AppTypography {
     );
   }
 
-  /// El logotipo "Urbano": Outfit ExtraBold (la única excepción
-  /// tipográfica de la app, para que la marca tenga voz propia).
+  /// El logotipo «Urbano»: Outfit Bold apretado (la misma familia de los
+  /// títulos, así la marca habla como el resto de la app). El bicolor
+  /// «Urb» + «ano» lo arma `HomeWordmark`.
   static TextStyle wordmark(TextStyle? style) =>
       (style ?? const TextStyle()).copyWith(
-        fontFamily: _brandFamily,
-        // Fredoka se empaqueta solo en 700: pedir 800 sintetizaría negrita.
+        fontFamily: _wordmarkFamily,
         fontWeight: bold,
-        letterSpacing: -0.35,
+        letterSpacing: -0.6,
       );
 }
