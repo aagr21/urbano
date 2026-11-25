@@ -34,6 +34,18 @@ android {
             // TODO: Add your own signing config for the release build.
             // Signing with the debug keys for now, so `flutter run --release` works.
             signingConfig = signingConfigs.getByName("debug")
+
+            // Solo ABI de teléfonos reales. `--target-platform android-arm64`
+            // recorta el motor de Flutter pero NO los `.so` que traen los AAR de
+            // los plugins (MapLibre): el APK arm64 seguía llevando
+            // `lib/x86_64/libmaplibre.so` (~11 MB, solo emuladores) y
+            // `lib/armeabi-v7a/…` (~8 MB) aunque el teléfono sea arm64. Esto no
+            // toca la app instalada en un teléfono; para emuladores queda el
+            // build de debug, que conserva todas las ABI.
+            ndk {
+                abiFilters.clear()
+                abiFilters += listOf("arm64-v8a", "armeabi-v7a")
+            }
         }
     }
 }

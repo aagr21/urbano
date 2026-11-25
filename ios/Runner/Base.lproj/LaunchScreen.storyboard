@@ -13,22 +13,20 @@
   del sistema operativo SIEMPRE es una imagen quieta.
 
   Lo que sí se puede —y es lo que hace este archivo— es que esa imagen quieta sea
-  el PRIMER FOTOGRAMA de la animación que va a reproducir Flutter. Así el cambio
-  launch screen → Lottie no se lee como un corte, porque no cambia nada:
+  el PRIMER FOTOGRAMA de la portada de carga que pinta Flutter. Así el cambio
+  launch screen → `SplashGate` no se lee como un corte, porque no cambia nada:
 
    * El fondo es `#008C7B` (`urbano_primary`), el promedio del degradado de marca
      que pinta `SplashGate` y el mismo color del campo nativo de Android. Medido
      con `screenrecord`: si aquí quedara el `#00584F` del template, el primer
      frame de Flutter se vería como un parpadeo de verde oscuro a verde claro.
    * La imagen es `LaunchImage` (en `Assets.xcassets`), render de
-     `assets/lottie/splash-frame0.svg`, o sea el frame 0 literal de
-     `assets/lottie/splash.json`, el mismo JSON que en Android reproduce la splash
-     nativa en Kotlin (`SplashActivity`). Se regenera con
+     `assets/brand/splash-frame0.svg`: el mismo frame 0 que pinta la portada de
+     Dart y que la splash nativa de Android dibuja con Canvas. Se regenera con
      `tools/make-ios-splash-frame0.sh`.
    * Tamaño y posición copy-pasteados de `_SplashCover` (lib/src/core/widgets/
-     splash_gate.dart), que en iOS monta ese JSON como líder de la columna de
-     carga:
-        ancho  = 0,40 × ancho de pantalla   (`lottieSide`)
+     splash_gate.dart), que es quien dibuja el dial, «Cargando» y la barra:
+        ancho  = 0,40 × ancho de pantalla   (`_dialSize` del lienzo)
         centerY ≈ 0,35 × alto de pantalla. De dónde sale el 0,35, sobre un
         iPhone de 393x852 con insets 59/34:
           alto de la Column ≈ 157 (lienzo) + 24 + ~60 (textos) + 24 + 4 (barra)
@@ -38,14 +36,14 @@
         Es una APROXIMACIÓN (la altura de los textos no es constante): se AJUSTA EN
         EL SIMULADOR mirando si el aro se queda quieto en el momento del handoff,
         y se recalcula si cambia la columna.
-   * `contentMode="scaleAspectFit"` + constraints cuadradas: el lienzo del JSON es
+   * `contentMode="scaleAspectFit"` + constraints cuadradas: el lienzo del SVG es
      360x360 y no debe deformarse en elíptico, igual que `CENTER_INSIDE` en
      `SplashActivity`.
 
-  El Lottie en sí se reproduce en Dart (`_SplashLottie` dentro de `SplashGate`,
-  activado solo cuando `defaultTargetPlatform == TargetPlatform.iOS`), NO en
-  `AppDelegate`: ahí todavía no hay nada que animar (la app sigue en el launch
-  screen) y meter un `UIView` encima es justo lo que Review rechaza.
+  No hay ninguna animación Lottie en iOS: `LaunchScreen` es estático (arriba) y la
+  portada móvil la pinta `SplashGate` en Dart con `_RingsPainter`/`_Dial`/`_Loader`.
+  El repintado en `AppDelegate` sería justo lo que Review rechaza: ahí todavía no
+  hay nada que animar.
 -->
 <document type="com.apple.InterfaceBuilder3.CocoaTouch.Storyboard.XIB" version="3.0" toolsVersion="23504" targetRuntime="iOS.CocoaTouch" propertyAccessControl="none" useAutolayout="YES" launchScreen="YES" colorMatched="YES" initialViewController="01J-lp-oVM">
     <device id="retina6_12" orientation="portrait" appearance="light"/>

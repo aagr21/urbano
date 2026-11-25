@@ -1,18 +1,18 @@
 #!/usr/bin/env bash
-# Regenera la imagen estática del launch screen de iOS a partir del SVG que copia
-# el frame 0 de `assets/lottie/splash.json`.
+# Regenera la imagen estática del launch screen de iOS a partir del SVG de marca.
 #
 # Por qué hace falta una imagen y no un drawable vectorial: el launch screen de
 # iOS es una INSTANTÁNEA que el sistema guarda antes de que la app tenga proceso.
 # No puede ejecutar código ni animar (una animación ahí se rechaza en la App
 # Store), así que la única forma de que el arranque se vea continuo es pintar en
-# el storyboard el mismo frame 0 que después reproduce el Lottie dentro de Flutter.
+# el storyboard el mismo frame 0 que después pinta `SplashGate` en Dart (y la
+# splash nativa de Android con Canvas).
 #
 # Necesita `resvg` (o `rsvg-convert`) en el PATH. Se corre a mano, no en CI: los
 # PNG generados están commiteados para que Xcode compile sin dependencias.
 set -eu
 cd "$(dirname "$0")/.." || exit 1
-SRC="assets/lottie/splash-frame0.svg"
+SRC="assets/brand/splash-frame0.svg"
 OUT="ios/Runner/Assets.xcassets/LaunchImage.imageset"
 
 render() { # <px> <archivo destino>

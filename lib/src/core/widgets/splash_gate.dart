@@ -9,12 +9,13 @@ import '../theme/app_theme.dart';
 import '../theme/typography.dart';
 import '../utils/extensions.dart';
 
-/// `assets/lottie/splash.json` ya NO se reproduce dentro de Flutter: es la
-/// animación de la splash NATIVA de Android (`SplashActivity`, Kotlin) y la
-/// fuente del frame 0 estático del `LaunchScreen` de iOS. La portada que se ve
-/// aquí es la misma en todas las plataformas (pintada con `_RingsPainter`,
-/// `_Dial`, `_Loader`), así que el texto «Cargando» y la barra horneados en el
-/// JSON no se duplican en iOS: el JSON vive solo en la fase anterior a Flutter.
+/// La portada de la app es la misma en todas las plataformas y se pinta aquí
+/// (`_RingsPainter`, `_Dial`, `_Loader`), sin ninguna librería de animación
+/// Lottie: Android la repite en Kotlin con `SplashCanvasView` (Canvas puro)
+/// antes de que Flutter arranque, y iOS muestra un PNG estático del mismo
+/// frame 0 en `LaunchScreen.storyboard`. El texto «Cargando» y la barra no se
+/// duplican en iOS porque el PNG se genera con el mismo arte (ver
+/// `assets/brand/splash-frame0.svg` y `tools/make-ios-splash-frame0.sh`).
 
 /// Etapa real del arranque, que es la que se lee bajo «Cargando».
 enum BootStage {
