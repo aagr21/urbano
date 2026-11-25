@@ -46,6 +46,14 @@ Al crear el proyecto en Vercel, selecciona `backend/` como **Root Directory**.
 No se ejecuta ninguna importación GTFS durante el despliegue: la base de datos
 debe contener previamente sus tablas y datos.
 
+Cada push a `master` despliega producción desde Git. Con Root Directory `.` ese
+build salía vacío y la API quedaba en 404; no lo vuelvas a poner en `.`. Para un
+despliegue manual con la CLI, lánzalo desde la **raíz del repo** (no desde
+`backend/`, que Vercel resolvería como `backend/backend`):
+`VERCEL_ORG_ID=<team> VERCEL_PROJECT_ID=<proyecto backend> npx vercel deploy --prod`
+(la raíz está enlazada a otro proyecto, `urbano`). Las variables `DB_*` existen
+solo en Production, así que un preview arranca sin base de datos.
+
 Configura estas variables en Vercel, sin subirlas a Git:
 
 ```env
