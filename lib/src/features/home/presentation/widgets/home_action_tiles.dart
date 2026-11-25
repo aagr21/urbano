@@ -11,8 +11,8 @@ import '../../../../core/theme/app_theme.dart';
 import '../../../../core/theme/html_design_tokens.dart' show HtmlDesignTokens;
 import '../../../../core/utils/extensions.dart';
 import '../../../journey/application/journey_planner_controller.dart';
-import '../../../journey/application/journey_providers.dart';
 import '../../../journey/presentation/widgets/journey_destination_sheet.dart';
+import '../../../nearby/presentation/nearby_search_sheet.dart';
 import 'home_action_illustrations.dart';
 
 /// Los cuatro accesos de la portada en una retícula de 2 × 2.
@@ -28,8 +28,9 @@ import 'home_action_illustrations.dart';
 ///
 /// - **Micros** abre el catálogo completo en su propia pantalla (`/micros`).
 /// - **Viajes** abre el sheet de origen/destino con destinos recientes.
-/// - **Lugares** entra al planificador con el panel de origen/destino abierto
-///   (elegir un punto es elegir un lugar).
+/// - **Lugares** abre la hoja «¿Qué micro pasa cerca?» (escribir, GPS o
+///   mapa + radio) y, con «Buscar cerca», la vista `/nearby` con las líneas
+///   que pasan por ahí, su sentido y su recorrido con flechas.
 /// - **Denuncias** cambia a la rama del feed.
 ///
 /// La entrada en cascada la pone el home (`Reveal`); aquí solo vive el pulsado.
@@ -38,9 +39,10 @@ class HomeActionTiles extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    void openPlaces() {
-      ref.read(pendingPlannerPanelProvider.notifier).state = true;
-      context.go('/journey');
+    Future<void> openPlaces() async {
+      final query = await showNearbySearchSheet(context);
+      if (query == null || !context.mounted) return;
+      await context.push(UrbanoRoutes.nearby(query));
     }
 
     Future<void> openJourneySheet() async {
@@ -113,7 +115,7 @@ class HomeActionTiles extends ConsumerWidget {
                     badgeInk: HtmlDesignTokens.greenDark,
                     art: HomeActionArt.places,
                     title: 'Lugares',
-                    subtitle: 'Paradas y puntos',
+                    subtitle: 'Qué micro pasa cerca',
                     phaseOffset: 0.5,
                     arrowHoverBg: HtmlDesignTokens.green50,
                     arrowHoverInk: HtmlDesignTokens.greenDark,
