@@ -387,14 +387,14 @@ platform view; the merged map/result-sheet design is deliberate (see README).
   child is deferred in BOTH motion modes — the static cover still has to hide the mount. Anything else
   that could delay the first frame — pre-warming network, decoding assets, `runApp` awaits — goes
   after boot, not into `main()`.
-- **`SplashActivity` (la splash animada de Android) tiene tres trampas que ya costaron sangre:**
+- **`SplashActivity` (la splash animada de Android) tiene cuatro trampas que ya costaron sangre:**
   (1) `SplashTheme` DEBE heredar de `@android:style/Theme.DeviceDefault.NoActionBar`, NUNCA de
   `Theme.AppCompat.*`. Los atributos `android:windowSplashScreen*` de API 12+ solo los lee el
   sistema si el theme del arranque desciende de DeviceDefault (que en 31+ hereda de
   `Theme.DeviceDefault.SplashScreen`); con AppCompat el bloque se ignora y Android **vuelve a
   pintar su propia pantalla con el ícono del launcher** — literalmente «se ve el logo al
   arrancar», la queja que abrió este trabajo. Por eso la splash no usa ningún `View` de AppCompat:
-  es un `View` pelado (`SplashCanvasView`) sobre Canvas, que no mira el theme.
+  es un `SurfaceView` pelado (`SplashCanvasView`) sobre Canvas, que no mira el theme.
   (2) `windowBackground` sigue pintando el campo plano ANTES de la animación — no se puede animar
   ahí, por eso existe la Activity. (3) La Activity pre-calienta el `FlutterEngine`
   (`FlutterEngineCache` + `MainActivity.getCachedEngineId()`): sin eso la splash animada _retarda_
@@ -402,6 +402,15 @@ platform view; the merged map/result-sheet design is deliberate (see README).
   plugin ... already registered` ×7 — redundancia inofensiva y necesaria, porque `main()` lee
   SharedPreferences durante `executeDartEntrypoint`, antes del attach. El handoff es idempotente y
   se diagnostica solo con `adb logcat -s UrbanoSplash` (`anim`/`techo`/`atrás`).
+  (4) Ese pre-calentado **bloquea el hilo principal** (~0,65–0,8 s en profile/release, más de 1,5 s
+  en debug), así que la animación NO puede vivir en él: `SplashCanvasView` es un `SurfaceView` que
+  pinta desde su propio `HandlerThread` con su `Choreographer`, el reloj arranca en el primer frame
+  de ese hilo (no en `onCreate`) y el engine se levanta recién en `setOnFirstFrameListener`. Con
+  una `View` común y el warm en `onCreate`, el primer frame llegaba con la animación ya vencida y
+  solo se veía el campo verde. El arte copia las medidas de `SplashGate` (bloque en
+  `Alignment(0, -0.22)` del área segura, Inter leída de `flutter_assets`) y termina en su estado
+  de entrada (`Preparando la app`, barra al 10 %, anillos a medio trazar) para que el relevo no
+  retroceda; la Activity es edge-to-edge con las barras del `_chrome` de Dart.
   `UrbanoSplashApplication` sigue existiendo porque el manifest reemplaza el `${applicationName}`,
   pero ya no pre-calienta nada: `SplashCanvasView` pinta sin parseo ni caché de composición.
 - **`disableAnimations` removes MOTION, not the loading screen.** `SplashGate` always mounts the

@@ -3,12 +3,15 @@ package com.example.urbano
 import android.app.Activity
 import android.app.ActivityOptions
 import android.content.Intent
+import android.graphics.Color
+import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
 import android.util.Log
 import android.view.KeyEvent
+import android.view.View
 import android.widget.FrameLayout
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.embedding.engine.FlutterEngineCache
@@ -42,7 +45,8 @@ import io.flutter.plugins.GeneratedPluginRegistrant
  *  1. Campo plano del SO: `windowSplashScreenBackground` en API 12+,
  *     `android:windowBackground` en API 11 para abajo. SIN animación: es el
  *     precio de que el proceso nazca. Nadie puede animar esta fase.
- *  2. Esta actividad: Canvas animado, 1.5 s en una sola pasada.
+ *  2. Esta actividad: Canvas animado en su propio hilo (`SurfaceView`), 1,5 s
+ *     en una sola pasada contados desde su primer frame.
  *  3. [MainActivity] → Flutter → `SplashGate`, la portada que espera los datos
  *     reales (`bootReadinessProvider`).
  *
@@ -69,6 +73,7 @@ class SplashActivity : Activity() {
         // 0 = sin estilo de animación de ventana. Cualquier fundido o slide aquí
         // se leería como un corte entre dos pantallas del mismo verde.
         window.setWindowAnimations(0)
+        drawEdgeToEdge()
 
         val root = FrameLayout(this)
         // Mismo color que el campo del SO y que el primer frame de la portada de
@@ -96,9 +101,34 @@ class SplashActivity : Activity() {
             MAX_HOLD_MS,
         )
 
-        // Arrancar la animación y el engine en paralelo.
-        view.startAnimation()
-        warmFlutterEngine()
+        // El engine se levanta en cuanto el primer frame está en pantalla: bloquea
+        // el hilo principal ~0,8 s, pero la animación corre en el hilo de render
+        // de la vista, así que se ve entera y fluida mientras tanto. Hacerlo antes
+        // del primer frame retrasaba la splash hasta que no quedaba nada que ver.
+        view.setOnFirstFrameListener { handler.post { warmFlutterEngine() } }
+    }
+
+    /**
+     * Pinta bajo las barras del sistema, como hace Flutter con la portada de
+     * Dart: el degradado cubre la pantalla entera y [SplashCanvasView] acomoda
+     * el bloque de carga con los insets (su `SafeArea`). Sin esto, en API < 35 la
+     * vista quedaba recortada entre las barras y todo el bloque saltaba unos dp
+     * al entrar Flutter. Las barras copian el `_chrome` de `SplashGate`: estado
+     * transparente y navegación `primaryDark`.
+     */
+    @Suppress("DEPRECATION")
+    private fun drawEdgeToEdge() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            window.setDecorFitsSystemWindows(false)
+        } else {
+            window.decorView.systemUiVisibility =
+                View.SYSTEM_UI_FLAG_LAYOUT_STABLE or
+                    View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or
+                    View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+        }
+        // En API 35+ (edge-to-edge obligatorio) el sistema ignora estos colores.
+        window.statusBarColor = Color.TRANSPARENT
+        window.navigationBarColor = getColor(R.color.urbano_primary_dark)
     }
 
     /**
@@ -138,10 +168,12 @@ class SplashActivity : Activity() {
     private fun warmFlutterEngine() {
         if (FlutterEngineCache.getInstance().get(ENGINE_ID) != null) return
         try {
+            val t0 = SystemClock.uptimeMillis()
             val engine = FlutterEngine(applicationContext)
             GeneratedPluginRegistrant.registerWith(engine)
             engine.dartExecutor.executeDartEntrypoint(DartExecutor.DartEntrypoint.createDefault())
             FlutterEngineCache.getInstance().put(ENGINE_ID, engine)
+            Log.d(TAG, "engine pre-calentado en ${SystemClock.uptimeMillis() - t0} ms")
         } catch (error: Throwable) {
             // Sin pre-calentamiento el arranque es igual que antes de esta
             // actividad: más lento, pero correcto.
