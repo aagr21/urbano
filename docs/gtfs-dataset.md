@@ -91,11 +91,13 @@ aplica el paso 1. El detector vive en `backend/src/modules/gtfs-import/gtfs-shap
 
 ### Después de reparar
 
-- El zip original está respaldado en `backend/gtfs.orig.zip`; `gtfs.zip` (raíz), `backend/gtfs.zip`
-  y `backend/otp-data/gtfs.zip` deben quedar siempre con el mismo md5 (el reparado).
+- El zip original está respaldado en `backend/gtfs.orig.zip`; `backend/gtfs.zip` y
+  `backend/otp-data/gtfs.zip` deben quedar siempre con el mismo md5 (el reparado).
 - Reimportar (`npm run import:gtfs`) **y**, si se usa OTP, reconstruir su grafo
   (`docker compose run --rm otp --build --save`), porque OTP compila los shapes en `graph.obj`.
 - En producción (Vercel) no hay OTP: el trazado sale de la base PostGIS, así que basta la
-  reimportación contra la base de Alwaysdata (`DB_HOST` de `backend/.env`).
+  reimportación contra la base de Alwaysdata. Esa base se configura en
+  `backend/.env.production` y **nunca** en `backend/.env`: el import hace `TRUNCATE` y
+  `backend/.env` es el entorno local (PostGIS de Docker, puerto 5436).
 - Los conteos de la tabla anterior no cambian con la reparación: solo se reordenan filas y se
   reasigna `trips.txt → shape_id`.

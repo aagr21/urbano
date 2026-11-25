@@ -64,6 +64,11 @@ OTP_URL=
 OTP_TIMEOUT_MS=8000
 ```
 
+> `backend/.env` es **siempre local** (PostGIS de Docker, puerto 5436). Las
+> credenciales de Alwaysdata viven en `backend/.env.production` (ignorado por
+> Git) o en las variables del proyecto en Vercel. `npm run import:gtfs` hace
+> `TRUNCATE`, así que correrlo con `.env` apuntando a la base real la vacía.
+
 La cuenta de PostgreSQL debe permitir conexiones externas y tener disponibles
 las extensiones `postgis` y `pg_trgm`. Verifica primero
 `GET /api/v1/health` después del primer despliegue.

@@ -10,3 +10,11 @@ export const SERVICE_REPOSITORY = Symbol('SERVICE_REPOSITORY');
 
 /** TTL (ms) por defecto de la caché en memoria de endpoints de lectura. */
 export const CACHE_TTL_MS = 60_000;
+
+/**
+ * TTL (ms) de `/journey`: es el endpoint más caro (OTP2 + PostGIS) y su
+ * respuesta sólo depende de las coordenadas y de la hora de consulta, así que
+ * una ventana corta absorbe replanificaciones repetidas sin servir datos
+ * viejos de forma perceptible (la clave de caché es la URL completa).
+ */
+export const JOURNEY_CACHE_TTL_MS = 30_000;

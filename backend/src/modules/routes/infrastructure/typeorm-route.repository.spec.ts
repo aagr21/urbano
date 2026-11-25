@@ -161,14 +161,27 @@ describe('TypeOrmRouteRepository', () => {
     expect(sql).not.toContain('substring');
   });
 
-  it('findAll con filtro de texto aplica LIKE en minúsculas a short y long name', async () => {
+  it('findAll con filtro de texto parametriza el patrón (nunca lo concatena)', async () => {
     const ds = new FakeDataSource().next([{ total: 0 }]).next([]);
 
     await repo(ds).findAll(query({ q: '  Centro  ' }));
 
-    const sql = ds.queryCalls[1].sql;
-    expect(sql).toContain("LOWER(r.route_short_name) LIKE '%centro%'");
-    expect(sql).toContain("LOWER(r.route_long_name) LIKE '%centro%'");
+    const [count, page] = ds.queryCalls;
+    // El texto viaja como parámetro: el SQL sólo lleva el marcador $N.
+    expect(count.sql).toContain('ILIKE $1');
+    expect(count.params).toEqual(['%Centro%']);
+    expect(page.sql).toContain('ILIKE $3');
+    expect(page.params).toEqual([20, 0, '%Centro%']);
+    expect(page.sql).not.toContain('Centro');
+  });
+
+  it('findAll escapa los comodines de LIKE que vienen del cliente', async () => {
+    const ds = new FakeDataSource().next([{ total: 0 }]).next([]);
+
+    await repo(ds).findAll(query({ q: '50%_off\\' }));
+
+    // % y _ se escapan para que el usuario busque el carácter, no un comodín.
+    expect(ds.queryCalls[1].params).toEqual([20, 0, '%50\\%\\_off\\\\%']);
   });
 
   it('findAll con q en blanco NO filtra (solo espacios ⇒ sin cláusula where)', async () => {
@@ -176,9 +189,11 @@ describe('TypeOrmRouteRepository', () => {
 
     await repo(ds).findAll(query({ q: '   ' }));
 
-    const sql = ds.queryCalls[1].sql;
-    // No debe contener LIKE si q está en blanco
-    expect(sql).not.toContain('LIKE');
+    const [count, page] = ds.queryCalls;
+    // No debe contener ILIKE si q está en blanco, y no se pasan parámetros extra.
+    expect(page.sql).not.toContain('ILIKE');
+    expect(count.params).toEqual([]);
+    expect(page.params).toEqual([20, 0]);
   });
 
   it('findById arma detalle con direcciones y shapes agrupados por shapeId', async () => {

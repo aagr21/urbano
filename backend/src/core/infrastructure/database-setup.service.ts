@@ -21,6 +21,15 @@ export class DatabaseSetupService implements OnModuleInit {
       this.logger.warn('No hay base de datos configurada; saltando setup de esquema');
       return;
     }
+    // En serverless (Vercel) este setup son ~25 round-trips a una base remota
+    // en CADA arranque en frío, y la base ya está preparada por el deploy.
+    // `DB_BOOTSTRAP=on` lo fuerza (base nueva, migración de esquema).
+    if (process.env.VERCEL === '1' && process.env.DB_BOOTSTRAP !== 'on') {
+      this.logger.log(
+        'Setup de esquema omitido en Vercel (DB_BOOTSTRAP=on para forzarlo)'
+      );
+      return;
+    }
     await this.ensureExtensions();
     await this.ensureComplaintsTables();
     await this.ensureSpatialTypmods();

@@ -1,5 +1,5 @@
 import { Type } from 'class-transformer';
-import { IsIn, IsOptional, Matches } from 'class-validator';
+import { IsIn, IsOptional, Matches, MaxLength } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { PaginationDto } from '../../../core/common/dto/pagination.dto';
 
@@ -10,6 +10,7 @@ const DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
 export class ListRoutesQueryDto extends PaginationDto {
   @ApiPropertyOptional({ description: 'Búsqueda insensible a mayúsculas sobre shortName/longName' })
   @IsOptional()
+  @MaxLength(80)
   q?: string;
 
   @ApiPropertyOptional({ enum: ['name', 'shortName', 'longName', 'stopCount'], default: 'name' })

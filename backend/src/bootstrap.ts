@@ -20,17 +20,25 @@ export async function createApp(): Promise<INestApplication> {
 
   configureApp(app, config);
 
-  const swaggerConfig = new DocumentBuilder()
-    .setTitle('Urbano API')
-    .setDescription(
-      'API de transporte público (micros urbanos) de Santa Cruz de la Sierra',
-    )
-    .setVersion('1.0.0')
-    .build();
-  const document = SwaggerModule.createDocument(app, swaggerConfig);
-  SwaggerModule.setup('docs', app, document, {
-    customSiteTitle: 'Urbano API Docs',
-  });
+  // En Vercel cada arranque en frío paga el coste completo: construir el
+  // documento Swagger recorre todos los controladores y DTOs y no hace falta
+  // en producción. `SWAGGER_ENABLED=true` lo fuerza (p. ej. para publicar
+  // /docs desde un despliegue).
+  const swaggerEnabled =
+    process.env.VERCEL !== '1' || process.env.SWAGGER_ENABLED === 'true';
+  if (swaggerEnabled) {
+    const swaggerConfig = new DocumentBuilder()
+      .setTitle('Urbano API')
+      .setDescription(
+        'API de transporte público (micros urbanos) de Santa Cruz de la Sierra',
+      )
+      .setVersion('1.0.0')
+      .build();
+    const document = SwaggerModule.createDocument(app, swaggerConfig);
+    SwaggerModule.setup('docs', app, document, {
+      customSiteTitle: 'Urbano API Docs',
+    });
+  }
 
   await app.init();
   return app;

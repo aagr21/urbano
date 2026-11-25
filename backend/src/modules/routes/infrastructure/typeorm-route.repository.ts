@@ -42,15 +42,26 @@ export class TypeOrmRouteRepository implements RouteRepositoryPort {
 
     const offset = (query.page - 1) * query.limit;
 
-    const likePattern = query.q && query.q.trim() !== ''
-      ? `AND (LOWER(r.route_short_name) LIKE '%${query.q.trim().toLowerCase()}%' OR LOWER(r.route_long_name) LIKE '%${query.q.trim().toLowerCase()}%')`
-      : '';
+    // El texto de búsqueda NUNCA se concatena: viaja como parámetro ($N) y sus
+    // comodines LIKE se escapan, porque `q` llega del cliente. `ILIKE` (en vez
+    // de `LOWER(...) LIKE`) es lo que sí puede usar los índices GIN de
+    // pg_trgm creados en `DatabaseSetupService`.
+    const pattern =
+      query.q && query.q.trim() !== ''
+        ? `%${query.q.trim().replace(/[\\%_]/g, '\\$&')}%`
+        : null;
+    const likeClause = (paramIndex: number): string =>
+      pattern
+        ? `AND (r.route_short_name ILIKE $${paramIndex} ESCAPE '\\'` +
+          ` OR r.route_long_name ILIKE $${paramIndex} ESCAPE '\\')`
+        : '';
 
     // Total sin paginación
-    const totalResult = await this.dataSource.query(`
-      SELECT COUNT(*)::int AS total FROM route r
-      WHERE 1=1 ${likePattern}
-    `);
+    const totalResult = await this.dataSource.query(
+      `SELECT COUNT(*)::int AS total FROM route r
+       WHERE 1=1 ${likeClause(1)}`,
+      pattern ? [pattern] : [],
+    );
     const total = Number(totalResult[0]?.total ?? 0);
 
     // Items con paradas clave — las primeras 3 paradas distintas por
@@ -82,10 +93,10 @@ export class TypeOrmRouteRepository implements RouteRepositoryPort {
               ) sub
              ) AS "keyStops"
       FROM route r
-      WHERE 1=1 ${likePattern}
+      WHERE 1=1 ${likeClause(3)}
       ORDER BY ${sortColumn}, r.route_id ASC
       LIMIT $1 OFFSET $2
-    `, [query.limit, offset]);
+    `, pattern ? [query.limit, offset, pattern] : [query.limit, offset]);
 
     return {
       items: rows.map((row: any) => ({
