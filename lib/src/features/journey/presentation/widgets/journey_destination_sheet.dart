@@ -3,9 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:material_ui/material_ui.dart';
 
-import '../../../../core/animation/motion.dart';
 import '../../../../core/location/reverse_geocoding.dart';
-import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_theme.dart' show AppRadius, AppSpace;
 import '../../../../core/theme/html_design_tokens.dart' show HtmlDesignTokens;
 import '../../../../core/utils/extensions.dart';
@@ -17,7 +15,9 @@ import '../../data/popular_places.dart';
 import '../../data/saved_trips.dart';
 import '../../data/trip_history.dart';
 import '../../domain/journey_place.dart';
+import 'journey_destination_recents.dart';
 import 'journey_destination_sheet_header.dart';
+import 'journey_destination_suggestions.dart';
 import 'journey_endpoint_field.dart';
 import 'journey_plan_button.dart';
 import 'journey_recent_destinations.dart';
@@ -271,21 +271,6 @@ class _DestinationSheetContentState
     });
   }
 
-  /// Hitos populares que coinciden con lo escrito (nombre, categoría o zona).
-  List<SantaCruzPoi> _matches(String query) {
-    final q = query.trim().toLowerCase();
-    if (q.isEmpty) return const [];
-    return kSantaCruzPopularPlaces
-        .where(
-          (poi) =>
-              poi.name.toLowerCase().contains(q) ||
-              poi.category.toLowerCase().contains(q) ||
-              (poi.ringOrZone?.toLowerCase().contains(q) ?? false),
-        )
-        .take(4)
-        .toList(growable: false);
-  }
-
   bool _wantsGps(String query) =>
       _gpsOrigin != null &&
       'mi ubicación'.contains(query.trim().toLowerCase()) &&
@@ -293,10 +278,11 @@ class _DestinationSheetContentState
 
   Widget? _originSuggestions() {
     if (!_originFocus.hasFocus || _originQuery.trim().isEmpty) return null;
-    return _buildSuggestionPanel(
-      isOrigin: true,
+    return DestinationSuggestionPanel(
       query: _originQuery,
-      pois: _matches(_originQuery),
+      pois: matchPopularPlaces(_originQuery),
+      onPickPoi: (poi) => _pickPoi(poi, isOrigin: true),
+      onPickOnMap: _pickOriginFromMap,
       // El GPS siempre está a un toque mientras haya punto, escriba lo que
       // escriba el usuario.
       onUseGps: _gpsOrigin != null ? _useGpsOrigin : null,
@@ -307,165 +293,11 @@ class _DestinationSheetContentState
     if (!_destinationFocus.hasFocus || _destinationQuery.trim().isEmpty) {
       return null;
     }
-    return _buildSuggestionPanel(
-      isOrigin: false,
+    return DestinationSuggestionPanel(
       query: _destinationQuery,
-      pois: _matches(_destinationQuery),
-    );
-  }
-
-  /// Panel de sugerencias debajo del campo: «Mi ubicación» (solo origen),
-  /// hitos populares y la salida al mapa.
-  Widget _buildSuggestionPanel({
-    required bool isOrigin,
-    required String query,
-    required List<SantaCruzPoi> pois,
-    VoidCallback? onUseGps,
-  }) {
-    final colors = context.colors;
-    final text = context.text;
-
-    Widget tile({
-      required IconData icon,
-      required String title,
-      String? subtitle,
-      required VoidCallback onTap,
-    }) {
-      return InkWell(
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(
-            AppSpace.md,
-            AppSpace.sm + 1,
-            AppSpace.md,
-            AppSpace.sm + 1,
-          ),
-          child: Row(
-            children: [
-              Container(
-                width: 30,
-                height: 30,
-                decoration: BoxDecoration(
-                  color: AppColors.tint(colors.primary, colors.surface, 0.12),
-                  borderRadius: BorderRadius.circular(AppRadius.sm),
-                ),
-                child: Icon(
-                  icon,
-                  size: 15,
-                  color: AppColors.legible(
-                    colors.primary,
-                    AppColors.tint(colors.primary, colors.surface, 0.12),
-                  ),
-                ),
-              ),
-              const SizedBox(width: AppSpace.sm + 2),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: text.labelLarge?.copyWith(
-                        fontWeight: FontWeight.w700,
-                        color: colors.onSurface,
-                      ),
-                    ),
-                    if (subtitle != null && subtitle.isNotEmpty)
-                      Text(
-                        subtitle,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: text.labelSmall?.copyWith(
-                          color: colors.onSurfaceVariant,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-              Icon(Icons.north_west_rounded, size: 13, color: colors.outline),
-            ],
-          ),
-        ),
-      );
-    }
-
-    final rows = <Widget>[
-      if (onUseGps != null)
-        tile(
-          icon: Icons.near_me_rounded,
-          title: 'Mi ubicación',
-          subtitle: 'Usar tu GPS como punto',
-          onTap: onUseGps,
-        ),
-      for (final poi in pois)
-        tile(
-          icon: poi.icon,
-          title: poi.name,
-          subtitle: poi.ringOrZone ?? poi.category,
-          onTap: () => _pickPoi(poi, isOrigin: isOrigin),
-        ),
-      if (pois.isEmpty && onUseGps == null)
-        Padding(
-          padding: const EdgeInsets.fromLTRB(
-            AppSpace.md,
-            AppSpace.sm + 2,
-            AppSpace.md,
-            AppSpace.sm + 2,
-          ),
-          child: Text(
-            'Sin coincidencias para «${query.trim()}». Prueba otro nombre o elige en el mapa.',
-            style: text.labelSmall?.copyWith(
-              color: colors.onSurfaceVariant,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ),
-      tile(
-        icon: Icons.map_outlined,
-        title: 'Elegir en el mapa',
-        onTap: isOrigin ? _pickOriginFromMap : _pickDestinationFromMap,
-      ),
-    ];
-
-    return Padding(
-      padding: const EdgeInsets.only(top: 6),
-      child: Material(
-        color: colors.surface,
-        borderRadius: BorderRadius.circular(AppRadius.input),
-        child: Container(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(AppRadius.input),
-            border: Border.all(color: colors.outlineVariant, width: 0.8),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(
-                  alpha: Theme.of(context).brightness == Brightness.dark
-                      ? 0.2
-                      : 0.06,
-                ),
-                blurRadius: 16,
-                offset: const Offset(0, 6),
-              ),
-            ],
-          ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(AppRadius.input),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                for (var i = 0; i < rows.length; i++) ...[
-                  if (i > 0) Divider(height: 1, color: colors.outlineVariant),
-                  rows[i],
-                ],
-              ],
-            ),
-          ),
-        ),
-      ),
+      pois: matchPopularPlaces(_destinationQuery),
+      onPickPoi: (poi) => _pickPoi(poi, isOrigin: false),
+      onPickOnMap: _pickDestinationFromMap,
     );
   }
 
@@ -506,7 +338,7 @@ class _DestinationSheetContentState
   }
 
   void _submitOrigin(String value) {
-    final matches = _matches(value);
+    final matches = matchPopularPlaces(value);
     if (matches.isNotEmpty) {
       _pickPoi(matches.first, isOrigin: true);
     } else if (_wantsGps(value)) {
@@ -515,13 +347,12 @@ class _DestinationSheetContentState
   }
 
   void _submitDestination(String value) {
-    final matches = _matches(value);
+    final matches = matchPopularPlaces(value);
     if (matches.isNotEmpty) _pickPoi(matches.first, isOrigin: false);
   }
 
   @override
   Widget build(BuildContext context) {
-    final text = context.text;
     final savedTrips =
         ref.watch(savedTripsControllerProvider).valueOrNull ??
         const <SavedTrip>[];
@@ -565,15 +396,20 @@ class _DestinationSheetContentState
                 _buildPlannerCard(context),
                 if (pageItems.isNotEmpty) ...[
                   const SizedBox(height: AppSpace.lg + AppSpace.xs),
-                  _buildRecentHeader(context, text, unified.length),
+                  DestinationRecentsHeader(count: unified.length),
                   const SizedBox(height: AppSpace.sm),
                   ..._buildUnifiedRecentTiles(pageItems),
                   if (totalPages > 1) ...[
                     const SizedBox(height: AppSpace.sm),
-                    _buildPagination(context, text, totalPages),
+                    DestinationRecentsPagination(
+                      page: _recentPage,
+                      totalPages: totalPages,
+                      onPrevious: () => setState(() => _recentPage--),
+                      onNext: () => setState(() => _recentPage++),
+                    ),
                   ],
                 ] else
-                  _buildEmptyRecents(context, text),
+                  const DestinationRecentsEmpty(),
               ],
             ),
           ),
@@ -662,83 +498,6 @@ class _DestinationSheetContentState
           onPressed: _canPlan() ? _planAndClose : null,
         ),
       ],
-    );
-  }
-
-  /// Encabezado de la sección de destinos recientes.
-  Widget _buildRecentHeader(BuildContext context, TextTheme text, int count) {
-    final colors = context.colors;
-    final dark = Theme.of(context).brightness == Brightness.dark;
-    final fill = AppColors.tint(
-      HtmlDesignTokens.emerald600,
-      colors.surface,
-      dark ? 0.18 : 0.1,
-    );
-    final ink = AppColors.legible(HtmlDesignTokens.emerald600, fill);
-
-    return Row(
-      children: [
-        Container(
-          width: 30,
-          height: 30,
-          decoration: BoxDecoration(
-            color: fill,
-            borderRadius: BorderRadius.circular(AppRadius.sm),
-          ),
-          child: Icon(Icons.history_rounded, size: 16, color: ink),
-        ),
-        const SizedBox(width: AppSpace.sm),
-        Expanded(
-          child: Text(
-            'Tus destinos recientes',
-            style: text.titleSmall?.copyWith(
-              fontWeight: FontWeight.w800,
-              color: colors.onSurface,
-            ),
-          ),
-        ),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
-          decoration: BoxDecoration(
-            color: colors.surfaceContainerHighest,
-            borderRadius: BorderRadius.circular(AppRadius.pill),
-          ),
-          child: Text(
-            '$count',
-            style: text.labelSmall?.copyWith(
-              color: colors.onSurfaceVariant,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  /// Aviso discreto cuando todavía no hay historial ni viajes guardados.
-  Widget _buildEmptyRecents(BuildContext context, TextTheme text) {
-    final colors = context.colors;
-    return Padding(
-      padding: const EdgeInsets.only(top: AppSpace.lg + AppSpace.xs),
-      child: Row(
-        children: [
-          Icon(
-            Icons.bookmark_border_rounded,
-            size: 16,
-            color: colors.onSurfaceVariant,
-          ),
-          const SizedBox(width: AppSpace.sm),
-          Expanded(
-            child: Text(
-              'Tus destinos recientes aparecerán aquí.',
-              style: text.labelSmall?.copyWith(
-                color: colors.onSurfaceVariant,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-        ],
-      ),
     );
   }
 
@@ -918,69 +677,6 @@ class _DestinationSheetContentState
           ),
         )
         .toList();
-  }
-
-  /// Controles de paginación con flechas e indicador de página.
-  Widget _buildPagination(
-    BuildContext context,
-    TextTheme text,
-    int totalPages,
-  ) {
-    final colors = context.colors;
-    final canGoPrev = _recentPage > 0;
-    final canGoNext = _recentPage < totalPages - 1;
-
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        PressScale(
-          scale: 0.95,
-          child: IconButton(
-            onPressed: canGoPrev
-                ? () {
-                    setState(() {
-                      _recentPage--;
-                    });
-                  }
-                : null,
-            icon: Icon(
-              Icons.chevron_left_rounded,
-              color: canGoPrev ? colors.primary : colors.outlineVariant,
-              size: 26,
-            ),
-            tooltip: 'Página anterior',
-          ),
-        ),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: AppSpace.md),
-          child: Text(
-            '${_recentPage + 1} / $totalPages',
-            style: text.labelMedium?.copyWith(
-              fontWeight: FontWeight.w700,
-              color: colors.onSurfaceVariant,
-            ),
-          ),
-        ),
-        PressScale(
-          scale: 0.95,
-          child: IconButton(
-            onPressed: canGoNext
-                ? () {
-                    setState(() {
-                      _recentPage++;
-                    });
-                  }
-                : null,
-            icon: Icon(
-              Icons.chevron_right_rounded,
-              color: canGoNext ? colors.primary : colors.outlineVariant,
-              size: 26,
-            ),
-            tooltip: 'Página siguiente',
-          ),
-        ),
-      ],
-    );
   }
 
   void _onRecentItemTap(RecentDestinationItem item) {

@@ -9,10 +9,6 @@ import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/extensions.dart';
-import '../../../core/widgets/empty_state.dart';
-import '../../../core/widgets/error_view.dart';
-import '../../../core/widgets/glass_card.dart';
-import '../../../core/widgets/loading_shimmer.dart';
 import '../../../core/widgets/urbano_map.dart';
 import '../../journey/presentation/journey_markers.dart';
 import '../../routes/data/route_models.dart';
@@ -21,7 +17,8 @@ import '../../routes/presentation/widgets/route_map_chrome.dart';
 import '../../stops/data/stop_search_models.dart';
 import '../application/nearby_providers.dart';
 import '../domain/nearby_micros.dart';
-import 'widgets/nearby_micro_card.dart';
+import 'nearby_map_overlays.dart';
+import 'nearby_results_sheet.dart';
 
 /// «Micros cerca»: qué líneas pasan cerca de un punto, en qué sentido y por
 /// dónde.
@@ -218,7 +215,7 @@ class _NearbyMicrosScreenState extends ConsumerState<NearbyMicrosScreen> {
                       const MapFloatingBack(),
                       const SizedBox(width: AppSpace.sm),
                       Expanded(
-                        child: _PlacePlate(
+                        child: NearbyPlacePlate(
                           label: query.label,
                           radius: _radius,
                           lines: data?.micros.length,
@@ -227,7 +224,7 @@ class _NearbyMicrosScreenState extends ConsumerState<NearbyMicrosScreen> {
                     ],
                   ),
                   const SizedBox(height: AppSpace.sm),
-                  _MapRoundButton(
+                  NearbyMapRoundButton(
                     key: const ValueKey('nearby-recenter'),
                     tooltip: 'Ver la zona',
                     icon: Icons.filter_center_focus_rounded,
@@ -244,7 +241,7 @@ class _NearbyMicrosScreenState extends ConsumerState<NearbyMicrosScreen> {
             maxChildSize: _sheetMax,
             snap: true,
             snapSizes: const [_sheetMin, _sheetInitial, _sheetEmpty, _sheetMax],
-            builder: (context, scroll) => _ResultsSheet(
+            builder: (context, scroll) => NearbyResultsSheet(
               scroll: scroll,
               result: result,
               radius: _radius,
@@ -375,373 +372,5 @@ class _MapLayers {
       ),
     ];
     return _MapLayers(polylines, markers);
-  }
-}
-
-/// Placa flotante del lugar: «Micros cerca de · Plaza 24 · 12 líneas · 500 m».
-class _PlacePlate extends StatelessWidget {
-  const _PlacePlate({
-    required this.label,
-    required this.radius,
-    required this.lines,
-  });
-
-  final String label;
-  final int radius;
-  final int? lines;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.colors;
-    final text = context.text;
-    final count = lines;
-    return GlassCard(
-      padding: const EdgeInsets.fromLTRB(
-        AppSpace.md,
-        AppSpace.sm,
-        AppSpace.md,
-        AppSpace.sm,
-      ),
-      borderRadius: BorderRadius.circular(AppRadius.md),
-      child: Row(
-        children: [
-          Container(
-            width: 36,
-            height: 36,
-            decoration: BoxDecoration(
-              color: AppColors.tint(AppColors.accent, colors.surface, 0.18),
-              borderRadius: BorderRadius.circular(AppRadius.sm),
-            ),
-            child: Icon(
-              Icons.place_rounded,
-              size: 20,
-              color: AppColors.legible(
-                AppColors.accent,
-                AppColors.tint(AppColors.accent, colors.surface, 0.18),
-              ),
-            ),
-          ),
-          const SizedBox(width: AppSpace.sm + 2),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  'Micros cerca de',
-                  style: text.labelSmall?.copyWith(
-                    color: colors.onSurfaceVariant,
-                    letterSpacing: 0.3,
-                  ),
-                ),
-                Text(
-                  label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: text.titleSmall?.copyWith(fontWeight: FontWeight.w800),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: AppSpace.sm),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (count != null)
-                CountUp(
-                  value: count,
-                  format: (n) => '$n',
-                  style: text.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w900,
-                    color: colors.primary,
-                  ),
-                ),
-              Text(
-                count == null
-                    ? formatNearbyDistance(radius.toDouble())
-                    : '${count == 1 ? 'línea' : 'líneas'} · '
-                          '${formatNearbyDistance(radius.toDouble())}',
-                style: text.labelSmall?.copyWith(
-                  color: colors.onSurfaceVariant,
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/// Botón redondo del mapa (misma talla que los controles del planificador).
-class _MapRoundButton extends StatelessWidget {
-  const _MapRoundButton({
-    super.key,
-    required this.tooltip,
-    required this.icon,
-    required this.onTap,
-  });
-
-  final String tooltip;
-  final IconData icon;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.colors;
-    return Tooltip(
-      message: tooltip,
-      child: Material(
-        color: colors.surface,
-        shape: const CircleBorder(),
-        elevation: 3,
-        shadowColor: colors.shadow.withValues(alpha: 0.3),
-        child: InkWell(
-          customBorder: const CircleBorder(),
-          onTap: onTap,
-          child: SizedBox.square(
-            dimension: AppControl.mapButton,
-            child: Icon(icon, size: 22, color: colors.onSurface),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// Hoja inferior: encabezado con conteo y radio, y la lista de líneas.
-class _ResultsSheet extends StatelessWidget {
-  const _ResultsSheet({
-    required this.scroll,
-    required this.result,
-    required this.radius,
-    required this.selection,
-    required this.headsign,
-    required this.onRadius,
-    required this.onRetry,
-    required this.onFocusMicro,
-    required this.onSelectDirection,
-    required this.onOpenRoute,
-  });
-
-  final ScrollController scroll;
-  final AsyncValue<NearbyResult> result;
-  final int radius;
-  final NearbySelection? selection;
-  final String? headsign;
-  final ValueChanged<int> onRadius;
-  final VoidCallback onRetry;
-  final ValueChanged<NearbyMicro> onFocusMicro;
-  final void Function(NearbyMicro micro, int directionId) onSelectDirection;
-  final ValueChanged<String> onOpenRoute;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.colors;
-    final bottom = MediaQuery.paddingOf(context).bottom;
-    final data = result.valueOrNull;
-
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: colors.surfaceContainerLow,
-        borderRadius: const BorderRadius.vertical(
-          top: Radius.circular(AppRadius.lg),
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: colors.shadow.withValues(alpha: 0.18),
-            blurRadius: 24,
-            offset: const Offset(0, -4),
-          ),
-        ],
-      ),
-      child: CustomScrollView(
-        key: const ValueKey('nearby-sheet'),
-        controller: scroll,
-        slivers: [
-          SliverToBoxAdapter(
-            child: _SheetHeader(
-              count: data?.micros.length,
-              loading: result.isLoading && data == null,
-              radius: radius,
-              onRadius: onRadius,
-            ),
-          ),
-          ...switch (result) {
-            AsyncData(:final value) when value.isEmpty => [
-              SliverToBoxAdapter(
-                child: _EmptyZone(radius: radius, onRadius: onRadius),
-              ),
-            ],
-            AsyncData(:final value) => [
-              SliverPadding(
-                padding: EdgeInsets.fromLTRB(
-                  AppSpace.lg,
-                  0,
-                  AppSpace.lg,
-                  AppSpace.xl + bottom,
-                ),
-                sliver: SliverList.separated(
-                  itemCount: value.micros.length,
-                  separatorBuilder: (_, _) =>
-                      const SizedBox(height: AppSpace.md),
-                  itemBuilder: (context, i) {
-                    final micro = value.micros[i];
-                    final isSelected = selection?.routeId == micro.route.id;
-                    return Reveal(
-                      key: ValueKey('nearby-reveal-${micro.route.id}'),
-                      index: i,
-                      child: NearbyMicroCard(
-                        micro: micro,
-                        selectedDirection: isSelected
-                            ? selection!.directionId
-                            : null,
-                        headsign: isSelected ? headsign : null,
-                        onTap: () => onFocusMicro(micro),
-                        onSelectDirection: (d) => onSelectDirection(micro, d),
-                        onOpenRoute: () => onOpenRoute(micro.route.id),
-                      ),
-                    );
-                  },
-                ),
-              ),
-            ],
-            AsyncError(:final error) => [
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.all(AppSpace.lg),
-                  child: ErrorView(
-                    error: error,
-                    onRetry: onRetry,
-                    compact: true,
-                  ),
-                ),
-              ),
-            ],
-            _ => [
-              const SliverToBoxAdapter(
-                child: SkeletonList(count: 3, leading: 56),
-              ),
-            ],
-          },
-        ],
-      ),
-    );
-  }
-}
-
-/// Asa + «12 líneas pasan cerca» + selector de radio.
-class _SheetHeader extends StatelessWidget {
-  const _SheetHeader({
-    required this.count,
-    required this.loading,
-    required this.radius,
-    required this.onRadius,
-  });
-
-  final int? count;
-  final bool loading;
-  final int radius;
-  final ValueChanged<int> onRadius;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.colors;
-    final text = context.text;
-    final n = count;
-    final title = loading || n == null
-        ? 'Buscando micros…'
-        : n == 0
-        ? 'Sin micros en la zona'
-        : n == 1
-        ? '1 línea pasa cerca'
-        : '$n líneas pasan cerca';
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(
-        AppSpace.lg,
-        AppSpace.sm,
-        AppSpace.lg,
-        AppSpace.md,
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Center(
-            child: Container(
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                color: colors.outlineVariant,
-                borderRadius: BorderRadius.circular(AppRadius.pill),
-              ),
-            ),
-          ),
-          const SizedBox(height: AppSpace.md),
-          Text(
-            title,
-            key: const ValueKey('nearby-title'),
-            style: text.titleLarge?.copyWith(fontWeight: FontWeight.w800),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            'Elige Ida o Vuelta: las flechas del mapa marcan hacia dónde va.',
-            style: text.bodySmall?.copyWith(color: colors.onSurfaceVariant),
-          ),
-          const SizedBox(height: AppSpace.md),
-          Row(
-            children: [
-              Icon(
-                Icons.radar_rounded,
-                size: 18,
-                color: colors.onSurfaceVariant,
-              ),
-              const SizedBox(width: AppSpace.sm),
-              for (final r in kNearbyRadii) ...[
-                ChoiceChip(
-                  key: ValueKey('nearby-radius-$r'),
-                  label: Text(formatNearbyDistance(r.toDouble())),
-                  selected: r == radius,
-                  showCheckmark: false,
-                  visualDensity: VisualDensity.compact,
-                  onSelected: (_) => onRadius(r),
-                ),
-                const SizedBox(width: AppSpace.sm),
-              ],
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/// Zona sin micros: lo dice y ofrece mirar más lejos.
-class _EmptyZone extends StatelessWidget {
-  const _EmptyZone({required this.radius, required this.onRadius});
-
-  final int radius;
-  final ValueChanged<int> onRadius;
-
-  @override
-  Widget build(BuildContext context) {
-    final wider = kNearbyRadii.where((r) => r > radius).firstOrNull;
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: AppSpace.lg),
-      child: EmptyState(
-        compact: true,
-        icon: Icons.directions_bus_outlined,
-        title:
-            'Ninguna línea a menos de '
-            '${formatNearbyDistance(radius.toDouble())}',
-        message: wider == null
-            ? 'Prueba con otro punto: esta zona no tiene paradas cerca.'
-            : 'Amplía la búsqueda para ver las paradas un poco más lejos.',
-        actionLabel: wider == null
-            ? null
-            : 'Ampliar a ${formatNearbyDistance(wider.toDouble())}',
-        onAction: wider == null ? null : () => onRadius(wider),
-      ),
-    );
   }
 }

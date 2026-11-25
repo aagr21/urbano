@@ -97,7 +97,7 @@ Vercel URL**. Always pass it explicitly for targeted local runs
   row and the "La comunidad reporta" row are chrome, not content: the feed's first
   `ComplaintPostCard` (~447 px) has to fit between the list top and the bottom chrome at
   1080×2340@2.75. `_CommunityHeader` is therefore one tight row (badge + title + compact
-  `Crear` CTA with tooltip `Crear queja`) above the three `_StatTile`s — no tagline paragraph, no
+  `Crear` CTA with tooltip `Crear queja`) above the three `ComplaintsStatTile`s (`complaints_cover_header.dart`) — no tagline paragraph, no
   full-width button row — and `test/complaints_feed_test.dart` asserts `card.bottom < bar.top` at a
   real phone height (the shell no longer has a `NavigationBar`: that harness mounts its own as the
   bottom boundary; `_openFeed` does not). Anything

@@ -17,32 +17,16 @@ import '../../../core/widgets/urbano_back_button.dart';
 import '../data/route_facts.dart';
 import '../data/route_models.dart';
 import '../data/route_repository.dart';
+import 'micros_catalog_widgets.dart';
 import 'widgets/micro_bus_art.dart';
 import 'widgets/micros_card.dart';
-
-/// Orden del catálogo. Se traduce al `sort` del contrato (`/routes`).
-enum _CatalogSort {
-  number('name', 'número de línea', '1–9'),
-  corridor('longName', 'nombre del recorrido', 'A–Z');
-
-  const _CatalogSort(this.value, this.label, this.short);
-
-  /// Valor que entiende el backend.
-  final String value;
-
-  /// Cómo se lee en la app.
-  final String label;
-
-  /// Etiqueta del selector.
-  final String short;
-}
 
 /// **Catálogo completo de micros** en pantalla propia.
 ///
 /// La lista muestra la identidad real de cada línea —numeral con su color GTFS,
 /// recorrido, paradas y sentidos— y lleva al detalle (`/routes/:id`) con el
 /// badge en vuelo. El buscador consulta el backend con debounce y el orden es
-/// una decisión explícita ([_CatalogSort]), no un adorno.
+/// una decisión explícita ([CatalogSort]), no un adorno.
 ///
 /// El backend topa `limit` en 100 y el feed ronda las 154 líneas, así que la
 /// lista pagina de 100 en 100 al acercarse al final (el repositorio ya cachea
@@ -68,7 +52,7 @@ class _MicrosScreenState extends ConsumerState<MicrosScreen> {
   bool _loadingMore = false;
   bool _hasMore = false;
   Object? _error;
-  _CatalogSort _sort = _CatalogSort.number;
+  CatalogSort _sort = CatalogSort.number;
 
   @override
   void initState() {
@@ -164,7 +148,7 @@ class _MicrosScreenState extends ConsumerState<MicrosScreen> {
     });
   }
 
-  void _changeSort(_CatalogSort sort) {
+  void _changeSort(CatalogSort sort) {
     if (sort == _sort) return;
     _debounce.cancel();
     setState(() => _sort = sort);
@@ -367,12 +351,12 @@ class _MicrosScreenState extends ConsumerState<MicrosScreen> {
           const Positioned(
             right: -46,
             top: -46,
-            child: _Ring(size: 150, alpha: 0.10),
+            child: MicrosHeroRing(size: 150, alpha: 0.10),
           ),
           const Positioned(
             right: -14,
             top: -14,
-            child: _Ring(size: 86, alpha: 0.14),
+            child: MicrosHeroRing(size: 86, alpha: 0.14),
           ),
           const Positioned(
             right: AppSpace.lg,
@@ -413,21 +397,24 @@ class _MicrosScreenState extends ConsumerState<MicrosScreen> {
                 Row(
                   children: [
                     Expanded(
-                      child: _HeroStat(
+                      child: MicrosHeroStat(
                         value: _loading ? '—' : '$_total',
                         label: 'líneas',
                       ),
                     ),
-                    const _HeroDivider(),
+                    const MicrosHeroDivider(),
                     const Expanded(
-                      child: _HeroStat(
+                      child: MicrosHeroStat(
                         value: kOfficialFareLabel,
                         label: 'pasaje',
                       ),
                     ),
-                    const _HeroDivider(),
+                    const MicrosHeroDivider(),
                     const Expanded(
-                      child: _HeroStat(value: 'GTFS', label: 'datos oficiales'),
+                      child: MicrosHeroStat(
+                        value: 'GTFS',
+                        label: 'datos oficiales',
+                      ),
                     ),
                   ],
                 ),
@@ -531,7 +518,7 @@ class _MicrosScreenState extends ConsumerState<MicrosScreen> {
           ),
         ),
         const SizedBox(width: AppSpace.sm),
-        _SortSwitch(value: _sort, onChanged: _changeSort),
+        MicrosSortSwitch(value: _sort, onChanged: _changeSort),
       ],
     );
   }
@@ -593,182 +580,6 @@ class _MicrosScreenState extends ConsumerState<MicrosScreen> {
           ),
         );
       }, childCount: _routes.length + (_loadingMore ? 1 : 0)),
-    );
-  }
-}
-
-/// Dato de la banda de identidad (fondo oscuro fijo: la tinta es clara).
-class _HeroStat extends StatelessWidget {
-  const _HeroStat({required this.value, required this.label});
-
-  final String value;
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    final text = context.text;
-    return Column(
-      children: [
-        Text(
-          value,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: text.titleMedium?.copyWith(
-            fontWeight: FontWeight.w800,
-            color: HtmlDesignTokens.white,
-          ),
-        ),
-        Text(
-          label,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: text.labelSmall?.copyWith(
-            fontSize: 10.5,
-            fontWeight: FontWeight.w600,
-            color: HtmlDesignTokens.emerald200,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _HeroDivider extends StatelessWidget {
-  const _HeroDivider();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 1,
-      height: 28,
-      color: HtmlDesignTokens.white.withValues(alpha: 0.14),
-    );
-  }
-}
-
-/// Anillo translúcido de la banda (eco de los anillos de Santa Cruz).
-class _Ring extends StatelessWidget {
-  const _Ring({required this.size, required this.alpha});
-
-  final double size;
-  final double alpha;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        border: Border.all(
-          color: HtmlDesignTokens.emerald300.withValues(alpha: alpha),
-          width: 10,
-        ),
-      ),
-    );
-  }
-}
-
-/// Selector de orden del catálogo: dos segmentos compactos (`1–9` · `A–Z`).
-class _SortSwitch extends StatelessWidget {
-  const _SortSwitch({required this.value, required this.onChanged});
-
-  final _CatalogSort value;
-  final ValueChanged<_CatalogSort> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.colors;
-    final radius = BorderRadius.circular(AppRadius.pill);
-
-    return Container(
-      padding: const EdgeInsets.all(3),
-      decoration: BoxDecoration(
-        color: colors.surfaceContainerHighest.withValues(alpha: 0.7),
-        borderRadius: radius,
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          for (final sort in _CatalogSort.values)
-            _SortOption(
-              key: ValueKey('micros-sort-${sort.name}'),
-              label: sort.short,
-              tooltip: 'Ordenar por ${sort.label}',
-              selected: sort == value,
-              onTap: () => onChanged(sort),
-            ),
-        ],
-      ),
-    );
-  }
-}
-
-class _SortOption extends StatelessWidget {
-  const _SortOption({
-    super.key,
-    required this.label,
-    required this.tooltip,
-    required this.selected,
-    required this.onTap,
-  });
-
-  final String label;
-  final String tooltip;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.colors;
-    final radius = BorderRadius.circular(AppRadius.pill);
-    final ink = selected
-        ? AppColors.legible(colors.primary, colors.surface)
-        : colors.onSurfaceVariant;
-
-    return Tooltip(
-      message: tooltip,
-      child: Semantics(
-        button: true,
-        selected: selected,
-        // Sombra suave en vez de `elevation`: la del Material dibujaba un
-        // contorno oscuro duro alrededor de la píldora activa.
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            color: selected ? colors.surface : Colors.transparent,
-            borderRadius: radius,
-            boxShadow: selected
-                ? [
-                    BoxShadow(
-                      color: colors.shadow.withValues(alpha: 0.12),
-                      blurRadius: 6,
-                      offset: const Offset(0, 1),
-                    ),
-                  ]
-                : null,
-          ),
-          child: Material(
-            type: MaterialType.transparency,
-            child: InkWell(
-              onTap: onTap,
-              borderRadius: radius,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 5,
-                ),
-                child: Text(
-                  label,
-                  style: context.text.labelMedium?.copyWith(
-                    fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
-                    color: ink,
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
     );
   }
 }
