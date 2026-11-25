@@ -189,7 +189,9 @@ platform view; the merged map/result-sheet design is deliberate (see README).
   Santa Cruz de la Sierra —`assets/images/gobierno-santa-cruz.png`, se escala pero no se redibuja—
   a la izquierda y la píldora «Transporte Oficial» a la derecha; en oscuro el escudo va sobre una
   placa blanca para que su trazo negro no se pierda), una cabecera de marca sobre el lienzo
-  (wordmark centrado + lema + botón de tema flotando a la derecha y la píldora «Tu ubicación»; el
+  (wordmark centrado —Plus Jakarta Sans ExtraBold de **un solo color**: nunca partas «Urbano» en
+  colores, resaltar una sílaba se lee como otra palabra— + lema + botón de tema flotando a la derecha
+  y la píldora «Tu ubicación»; el
   buscador de rutas se retiró, así que Inicio no tiene `TextField`), cuatro
   cuadros **compactos** en retícula 2 × 2 con píldora, ilustración plana sobre
   placa tonal y una sola flecha circular de acción

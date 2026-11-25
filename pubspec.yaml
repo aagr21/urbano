@@ -55,8 +55,8 @@ flutter:
         - assets/images/
 
     # Fuentes empaquetadas e inscritas como manifiesto `fonts:` (no como assets
-    # crudos): Inter para cuerpo/labels y Outfit para los títulos destacados y el
-    # wordmark «Urbano». Al declararlas aquí, Flutter las incluye una sola vez como
+    # crudos): Inter para cuerpo/labels, Outfit para los títulos destacados y Plus
+    # Jakarta Sans para el wordmark «Urbano». Al declararlas aquí, Flutter las incluye una sola vez como
     # fuentes y la app arranca offline, sin parpadeo y sin descargas de red.
     # `AppTypography` apunta a estas familias por `fontFamily`, sin `google_fonts`.
     fonts:
@@ -83,4 +83,9 @@ flutter:
               - asset: assets/fonts/Outfit-Bold.ttf
                 weight: 700
               - asset: assets/fonts/Outfit-ExtraBold.ttf
+                weight: 800
+        # Plus Jakarta Sans (OFL) SOLO para el wordmark «Urbano».
+        - family: PlusJakartaSans
+          fonts:
+              - asset: assets/fonts/PlusJakartaSans-ExtraBold.ttf
                 weight: 800

@@ -1,4 +1,4 @@
-// Wordmark «Urbano» de la cabecera: Outfit bicolor + el recorrido al pin.
+// Wordmark «Urbano» de la cabecera: Plus Jakarta Sans + el recorrido al pin.
 
 import 'package:material_ui/material_ui.dart';
 
@@ -14,16 +14,16 @@ import '../../../../core/utils/extensions.dart';
 /// pin coral.
 ///
 /// Tres capas:
-///  * las letras en Outfit Bold, bicolor y planas: «Urb» en tinta casi negra y
-///    «ano» en verde Urbano (en oscuro, blanco y aqua);
+///  * las letras en Plus Jakarta Sans ExtraBold, de un solo color plano (verde
+///    profundo en claro, la tinta del tema en oscuro) — nunca partidas en
+///    colores;
 ///  * debajo, el **recorrido**: nace en un aro hueco bajo la «U» (la parada
 ///    donde se sube) y se dibuja una sola vez al llegar (`Ambient(cycles: 1)`,
 ///    reposa trazado) hasta la punta del pin;
 ///  * el **pin coral** del destino, que cae con un rebote cuando el trazo lo
 ///    alcanza. Es el único acento cálido de la cabecera, a propósito.
 ///
-/// El texto sigue siendo «Urbano» entero (un `Text.rich`, que los tests y los
-/// lectores de pantalla leen igual): el bicolor son dos `TextSpan`. Trazo, parada y pin viven
+/// El texto es un `Text('Urbano')` (los tests lo buscan así). Trazo, parada y pin viven
 /// fuera del layout: la cabecera mide lo mismo que con el wordmark anterior.
 class HomeWordmark extends StatelessWidget {
   const HomeWordmark({super.key});
@@ -42,35 +42,22 @@ class HomeWordmark extends StatelessWidget {
     final text = context.text;
     final dark = Theme.of(context).brightness == Brightness.dark;
 
-    // Bicolor de marca: «Urb» en tinta casi negra y «ano» en verde Urbano
-    // (blanco y aqua en oscuro). Sin degradado: plano se lee más limpio.
-    final head = dark ? colors.onSurface : HtmlDesignTokens.wordmarkInk;
-    final tail = dark ? HtmlDesignTokens.teal200 : AppColors.primary;
+    // UN solo color en toda la palabra (verde profundo en claro, la tinta del
+    // tema en oscuro): partirla en colores resalta una sílaba de «Urbano».
+    final ink = dark ? colors.onSurface : AppColors.primaryDark;
     final route = dark ? HtmlDesignTokens.teal300 : HtmlDesignTokens.teal600;
-    final style = AppTypography.wordmark(
-      text.headlineMedium?.copyWith(
-        color: head,
-        fontSize: _fontSize,
-        height: 1,
-      ),
-    );
-    const name = Env.appName;
 
-    // Un solo `Text.rich`: los tests (y los lectores de pantalla) siguen
-    // leyendo «Urbano» entero.
-    final word = Text.rich(
-      TextSpan(
-        children: [
-          TextSpan(text: name.substring(0, 3)),
-          TextSpan(
-            text: name.substring(3),
-            style: TextStyle(color: tail),
-          ),
-        ],
-      ),
+    final word = Text(
+      Env.appName,
       maxLines: 1,
       overflow: TextOverflow.ellipsis,
-      style: style,
+      style: AppTypography.wordmark(
+        text.headlineMedium?.copyWith(
+          color: ink,
+          fontSize: _fontSize,
+          height: 1,
+        ),
+      ),
     );
 
     return Ambient(

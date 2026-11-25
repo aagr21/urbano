@@ -96,6 +96,11 @@ void main() {
 
     // Identidad.
     expect(find.text('Urbano'), findsOneWidget);
+    // La marca va de UN solo color: un `Text` plano, nunca partido en spans
+    // (resaltar una sílaba de «Urbano» se lee como otra palabra).
+    final wordmark = tester.widget<Text>(find.text('Urbano'));
+    expect(wordmark.textSpan, isNull, reason: 'la marca no se parte en spans');
+    expect(wordmark.style?.fontFamily, 'PlusJakartaSans');
     expect(find.text('Muévete por Santa Cruz'), findsOneWidget);
 
     // La cabecera abre con la banda oficial: escudo del municipio + la

@@ -15,8 +15,12 @@ class AppTypography {
   /// Familia Inter, empaquetada en pesos 400..800 (ver `pubspec.yaml`).
   static const String _inter = 'Inter';
 
-  /// Outfit, para wordmark y títulos destacados (400..800 empaquetados).
+  /// Outfit, para los títulos destacados (400..800 empaquetados).
   static const String _wordmarkFamily = 'Outfit';
+
+  /// Plus Jakarta Sans (OFL), SOLO para la marca «Urbano». Se empaqueta solo
+  /// en 800: pedir otro peso sintetizaría.
+  static const String _brandFamily = 'PlusJakartaSans';
 
   static const FontWeight display = FontWeight.w800;
   static const FontWeight bold = FontWeight.w700;
@@ -119,13 +123,13 @@ class AppTypography {
     );
   }
 
-  /// El logotipo «Urbano»: Outfit Bold apretado (la misma familia de los
-  /// títulos, así la marca habla como el resto de la app). El bicolor
-  /// «Urb» + «ano» lo arma `HomeWordmark`.
+  /// El logotipo «Urbano»: Plus Jakarta Sans ExtraBold, apretado y de UN solo
+  /// color. Nunca partas la palabra en colores: resaltar una sílaba de
+  /// «Urbano» se lee como otra palabra.
   static TextStyle wordmark(TextStyle? style) =>
       (style ?? const TextStyle()).copyWith(
-        fontFamily: _wordmarkFamily,
-        fontWeight: bold,
-        letterSpacing: -0.6,
+        fontFamily: _brandFamily,
+        fontWeight: FontWeight.w800,
+        letterSpacing: -0.85,
       );
 }
