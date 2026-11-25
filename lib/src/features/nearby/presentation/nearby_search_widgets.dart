@@ -108,8 +108,10 @@ class NearbyQuickAction extends StatelessWidget {
           borderRadius: BorderRadius.circular(AppRadius.input),
           onTap: busy ? null : onTap,
           child: Padding(
+            // Relleno lateral corto: con la mitad del ancho de un teléfono,
+            // «Marcar en el mapa» no entraba y se cortaba en «Marcar en el …».
             padding: const EdgeInsets.symmetric(
-              horizontal: AppSpace.md,
+              horizontal: AppSpace.sm + 2,
               vertical: AppSpace.md,
             ),
             child: Row(
@@ -120,15 +122,20 @@ class NearbyQuickAction extends StatelessWidget {
                       ? Icon(Icons.more_horiz_rounded, size: 20, color: ink)
                       : Icon(icon, size: 20, color: ink),
                 ),
-                const SizedBox(width: AppSpace.sm),
+                const SizedBox(width: AppSpace.xs + 2),
+                // Se achica antes que cortarse (pantallas angostas o letra
+                // grande del sistema): un acceso a medio leer no se entiende.
                 Expanded(
-                  child: Text(
-                    label,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: context.text.labelLarge?.copyWith(
-                      color: ink,
-                      fontWeight: FontWeight.w700,
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      label,
+                      maxLines: 1,
+                      style: context.text.labelLarge?.copyWith(
+                        color: ink,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                   ),
                 ),

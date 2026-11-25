@@ -202,7 +202,11 @@ class _NearbySearchSheetState extends ConsumerState<_NearbySearchSheet> {
                   const SizedBox(height: AppSpace.md),
                   Row(
                     children: [
+                      // El ancho se reparte por lo que dice cada uno: mitad y
+                      // mitad dejaba «Marcar en el mapa» sin lugar (medido con
+                      // Inter en test/nearby_quick_action_test.dart).
                       Expanded(
+                        flex: 5,
                         child: NearbyQuickAction(
                           key: const ValueKey('nearby-use-location'),
                           icon: Icons.near_me_rounded,
@@ -213,6 +217,7 @@ class _NearbySearchSheetState extends ConsumerState<_NearbySearchSheet> {
                       ),
                       const SizedBox(width: AppSpace.sm),
                       Expanded(
+                        flex: 6,
                         child: NearbyQuickAction(
                           key: const ValueKey('nearby-pick-map'),
                           icon: Icons.add_location_alt_rounded,
