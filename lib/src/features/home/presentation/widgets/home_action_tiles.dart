@@ -71,15 +71,14 @@ class HomeActionTiles extends ConsumerWidget {
                 Expanded(
                   child: _ActionTile(
                     key: const ValueKey('home-tile-micros'),
-                    badge: 'En vivo',
+                    badge: 'Recorridos',
                     badgeBg: HtmlDesignTokens.rose50,
                     badgeInk: HtmlDesignTokens.redMaterial,
                     art: HomeActionArt.micros,
                     title: 'Micros',
-                    subtitle: 'Rutas y frecuencias',
+                    subtitle: 'Información de rutas',
                     arrowHoverBg: HtmlDesignTokens.rose50,
                     arrowHoverInk: HtmlDesignTokens.redMaterial,
-                    live: true,
                     onTap: () => UrbanoRoutes.openMicrosCatalog(context),
                   ),
                 ),
@@ -160,8 +159,7 @@ class _ActionTile extends StatelessWidget {
     required this.arrowHoverBg,
     required this.arrowHoverInk,
     this.phaseOffset = 0,
-    this.live = false,
-  }) : liveDotColor = HtmlDesignTokens.redMaterial;
+  });
 
   final String badge;
   final Color badgeBg;
@@ -177,12 +175,6 @@ class _ActionTile extends StatelessWidget {
 
   /// Desfase de la flotación ambiente (`0..1`).
   final double phaseOffset;
-
-  /// Punto vivo en la píldora.
-  final bool live;
-
-  /// Color del punto vivo.
-  final Color liveDotColor;
 
   @override
   Widget build(BuildContext context) {
@@ -258,8 +250,6 @@ class _ActionTile extends StatelessWidget {
                           label: badge,
                           fill: badgeBg,
                           ink: badgeInk,
-                          live: live,
-                          liveDotColor: liveDotColor,
                         ),
                       ),
                       const SizedBox(width: AppSpace.sm),
@@ -335,26 +325,19 @@ class _ActionTile extends StatelessWidget {
 
 /// Píldora de categoría de un acceso.
 ///
-/// Solo «En vivo» lleva punto vivo: ahí el dato se mueve de verdad.
+/// Ninguna lleva punto vivo: la app no tiene posiciones de micros en tiempo
+/// real, así que nada en la portada debe sugerir «en vivo».
 class _Badge extends StatelessWidget {
-  const _Badge({
-    required this.label,
-    required this.fill,
-    required this.ink,
-    required this.live,
-    required this.liveDotColor,
-  });
+  const _Badge({required this.label, required this.fill, required this.ink});
 
   final String label;
   final Color fill;
   final Color ink;
-  final bool live;
-  final Color liveDotColor;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: EdgeInsets.fromLTRB(live ? 6 : AppSpace.sm, 2, AppSpace.sm, 2),
+      padding: const EdgeInsets.symmetric(horizontal: AppSpace.sm, vertical: 2),
       decoration: BoxDecoration(
         color: fill,
         borderRadius: BorderRadius.circular(AppRadius.pill),
@@ -363,10 +346,6 @@ class _Badge extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          if (live) ...[
-            LiveDot(color: liveDotColor, size: 5),
-            const SizedBox(width: 4),
-          ],
           Flexible(
             child: Text(
               label,
