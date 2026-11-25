@@ -2,32 +2,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:urbano/src/core/theme/theme_mode_controller.dart';
-import 'package:urbano/src/features/home/presentation/home_providers.dart';
-import 'package:urbano/src/features/info/presentation/info_screen.dart';
 
-/// Fake de persistencia: en memoria, sin plugins (regla del repo:
-/// `flutter test` nunca depende de red/plugins).
-class MemoryThemeModeStore implements ThemeModeStore {
-  MemoryThemeModeStore(this._initial);
-
-  ThemeMode? _initial;
-  ThemeMode? lastSaved;
-
-  @override
-  Future<ThemeMode?> load() async {
-    final value = _initial;
-    _initial = null; // como un store real, la carga no es idempotente.
-    return value;
-  }
-
-  @override
-  Future<void> save(ThemeMode mode) async {
-    // En memoria completa al instante; la asincronía real (canal a la
-    // plataforma) vive en SharedPreferencesThemeModeStore y no aporta nada
-    // en un fake.
-    lastSaved = mode;
-  }
-}
+import 'helpers/memory_theme_mode_store.dart';
 
 /// Fake de persistencia que falla al leer (simula un store corrupto sin
 /// tocar plugins).
@@ -117,70 +93,5 @@ void main() {
         expect(container.read(themeModeControllerProvider), ThemeMode.dark);
       },
     );
-  });
-
-  group('Selector de modo en la pantalla de Info', () {
-    Future<ProviderContainer> pumpInfo(
-      WidgetTester tester, {
-      MemoryThemeModeStore? store,
-    }) async {
-      final effectiveStore = store ?? MemoryThemeModeStore(null);
-      final container = ProviderContainer(
-        overrides: [
-          themeModeStoreProvider.overrideWithValue(effectiveStore),
-          // La pantalla de Info también consulta stats/salud del API: fuera de
-          // línea basta con que esos providers queden en estado de error.
-          statsProvider.overrideWith((ref) async => throw Exception('offline')),
-          metaProvider.overrideWith((ref) async => throw Exception('offline')),
-          healthProvider.overrideWith(
-            (ref) async => throw Exception('offline'),
-          ),
-        ],
-      );
-      addTearDown(container.dispose);
-      await tester.pumpWidget(
-        UncontrolledProviderScope(
-          container: container,
-          child: const MaterialApp(home: InfoScreen()),
-        ),
-      );
-      return container;
-    }
-
-    testWidgets('muestra las tres opciones con Sistema preseleccionado', (
-      tester,
-    ) async {
-      final container = await pumpInfo(tester);
-      await tester.pump();
-      // El viewport de test (800x600) ya muestra la tarjeta de Apariencia:
-      // no hace falta scroll (arrastrar movería la tarjeta fuera del viewport
-      // y el ListView perezoso la desmontaría).
-
-      expect(find.text('Apariencia'), findsOneWidget);
-      // OJO: el tipo es necesario. `find.byType(SegmentedButton)` sin
-      // argumentos instaancia `SegmentedButton<dynamic>` y `byType` compara
-      // runtimeType EXACTO, así que no encontraría nada.
-      final button = tester.widget<SegmentedButton<ThemeMode>>(
-        find.byType(SegmentedButton<ThemeMode>),
-      );
-      expect(button.segments, hasLength(3));
-      expect(button.selected, {ThemeMode.system});
-      expect(container.read(themeModeControllerProvider), ThemeMode.system);
-    });
-
-    testWidgets('al tocar Oscuro cambia el modo visible y se persiste', (
-      tester,
-    ) async {
-      final store = MemoryThemeModeStore(null);
-      final container = await pumpInfo(tester, store: store);
-      await tester.pump();
-
-      await tester.tap(find.text('Oscuro'));
-      await tester.pump();
-
-      expect(container.read(themeModeControllerProvider), ThemeMode.dark);
-      expect(store.lastSaved, ThemeMode.dark);
-      await tester.pump(const Duration(milliseconds: 300));
-    });
   });
 }

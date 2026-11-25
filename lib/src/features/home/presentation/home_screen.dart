@@ -12,7 +12,7 @@ import 'widgets/recent_trips.dart';
 /// Pantalla principal, ordenada como la portada de una app de viajes:
 ///
 /// 1. Banda oficial (escudo del municipio + «Transporte Oficial») y cabecera
-///    de marca sobre el lienzo (logo, lema, menú y ubicación).
+///    de marca sobre el lienzo (wordmark, lema, botón de tema y ubicación).
 /// 2. Los cuatro accesos en retícula 2 × 2: Micros · Viajes · Lugares ·
 ///    Denuncias.
 /// 3. La tarjeta «¿A dónde vas?», que abre el planificador.
@@ -21,8 +21,8 @@ import 'widgets/recent_trips.dart';
 /// La portada termina aquí a propósito: el catálogo completo de líneas vive en
 /// el panel de Viaje (acceso **Micros**) y el mapa, en la rama Viaje.
 ///
-/// La navegación entre secciones ya no vive en una barra inferior: la lleva el
-/// menú de la cabecera, como en la referencia.
+/// No hay barra inferior ni menú: a Viaje y Denuncias se llega por los
+/// accesos, y se vuelve con la flecha de Viaje o con «atrás».
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
 

@@ -7,7 +7,6 @@ import 'package:urbano/src/core/location/location_service.dart';
 import 'package:urbano/src/core/network/api_client.dart';
 import 'package:urbano/src/core/theme/app_theme.dart';
 import 'package:urbano/src/core/utils/location.dart';
-import 'package:urbano/src/features/home/data/stats.dart';
 import 'package:urbano/src/features/home/presentation/home_providers.dart';
 import 'package:urbano/src/features/home/presentation/widgets/search_results.dart';
 import 'package:urbano/src/features/routes/data/route_models.dart';
@@ -100,22 +99,6 @@ void main() {
                   sequence: 2,
                 ),
               ],
-            ),
-          ),
-          statsProvider.overrideWith(
-            (ref) async => const Stats(
-              routes: 154,
-              stops: 31461,
-              trips: 308,
-              shapes: 130105,
-              service: ServiceWindow(
-                start: '2026-10-06',
-                end: '2027-10-06',
-                days: 'diario',
-              ),
-              firstDeparture: '06:00:00',
-              lastDeparture: '22:00:00',
-              headwaySeconds: 300,
             ),
           ),
           myLocationProvider.overrideWith((ref) async => const LatLng(0, 0)),

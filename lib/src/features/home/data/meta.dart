@@ -1,8 +1,8 @@
 /// `GET /meta` — identidad del dataset importado + invariantes del planner.
 ///
-/// El cliente consume [version]/[publisher]/fechas para mostrarse en
-/// "Acerca de" (y poder detectar cuando el backend re-importa el feed);
-/// [limits] se parsea aunque la UI aún no lo use: es parte del contrato
+/// Ninguna pantalla lo muestra hoy (la de «Acerca de» se retiró): el modelo
+/// sigue aquí porque es el espejo del contrato y lo cubren sus tests;
+/// [limits] se parsea aunque la UI no lo use: es parte del contrato
 /// (ver `docs/api-contract.md`) y congelarlo aquí evita re-pensarlo después.
 class MetaInfo {
   const MetaInfo({

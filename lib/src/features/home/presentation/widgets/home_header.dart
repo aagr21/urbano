@@ -1,3 +1,4 @@
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../../../../core/animation/motion.dart';
@@ -5,9 +6,8 @@ import '../../../../core/config/env.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/theme/html_design_tokens.dart' show HtmlDesignTokens;
+import '../../../../core/theme/theme_mode_controller.dart';
 import '../../../../core/utils/extensions.dart';
-import '../../../../core/widgets/urbano_menu.dart'
-    show showUrbanoMenu, UrbanoSection;
 import 'home_location_pill.dart';
 import 'home_official_band.dart';
 import 'home_route_lattice.dart';
@@ -18,8 +18,8 @@ import 'home_wordmark.dart';
 /// La referencia abre con dos franjas: la **banda oficial** —escudo del
 /// Gobierno Autónomo Municipal de Santa Cruz de la Sierra a la izquierda y la
 /// píldora «Transporte Oficial» a la derecha— y, debajo, la marca centrada
-/// (wordmark con su punto, lema, botón de menú a la derecha y la píldora de
-/// ubicación). La banda es lo que firma la app como servicio municipal; el
+/// (wordmark con su punto, lema, botón de tema claro/oscuro a la derecha y la
+/// píldora de ubicación). La banda es lo que firma la app como servicio municipal; el
 /// escudo es una imagen (no se redibuja) y conserva su relación de aspecto.
 ///
 /// El buscador de rutas se retiró con la poda de la portada: la pantalla debe
@@ -94,15 +94,11 @@ class HomeHeader extends StatelessWidget {
                           ),
                         ],
                       ),
-                      Positioned(
+                      const Positioned(
                         right: 0,
                         top: -6,
-                        child: _MenuButton(
-                          key: const ValueKey('home-menu-button'),
-                          onTap: () => showUrbanoMenu(
-                            context,
-                            current: UrbanoSection.home,
-                          ),
+                        child: _ThemeToggleButton(
+                          key: ValueKey('home-theme-button'),
                         ),
                       ),
                     ],
@@ -119,19 +115,24 @@ class HomeHeader extends StatelessWidget {
   }
 }
 
-/// Botón del menú: estilo del HTML (blanco con sombra suave, bordes redondeados).
-class _MenuButton extends StatelessWidget {
-  const _MenuButton({super.key, required this.onTap});
-
-  final VoidCallback onTap;
+/// Botón de **tema claro/oscuro** de la cabecera (donde antes iba el menú).
+///
+/// Muestra a dónde lleva, no dónde está: una luna en claro y un sol en oscuro.
+/// El primer toque deja de seguir al sistema y fija el brillo contrario al que
+/// se está viendo; [ThemeModeController.setMode] lo persiste para la próxima
+/// sesión. El ícono gira al cambiar ([AnimatedSwitcher], sin controlador
+/// propio) y, con «reducir animaciones», cambia en seco.
+class _ThemeToggleButton extends ConsumerWidget {
+  const _ThemeToggleButton({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.colors;
     final dark = Theme.of(context).brightness == Brightness.dark;
     final radius = BorderRadius.circular(AppRadius.md);
     final bg = dark ? colors.surface.withValues(alpha: 0.9) : Colors.white;
-    final iconInk = dark ? colors.onSurface : HtmlDesignTokens.slate600;
+    final iconInk = dark ? colors.onSurface : HtmlDesignTokens.slate800;
+    final label = dark ? 'Cambiar a tema claro' : 'Cambiar a tema oscuro';
 
     return PressScale(
       scale: 0.95,
@@ -157,55 +158,37 @@ class _MenuButton extends StatelessWidget {
         child: Material(
           color: Colors.transparent,
           child: InkWell(
-            onTap: onTap,
+            onTap: () => ref
+                .read(themeModeControllerProvider.notifier)
+                .setMode(dark ? ThemeMode.light : ThemeMode.dark),
             borderRadius: radius,
             splashColor: iconInk.withValues(alpha: 0.08),
-            child: Center(
-              child: Tooltip(
-                message: 'Menú',
-                child: _HamburgerIcon(color: iconInk),
+            child: Tooltip(
+              message: label,
+              child: Center(
+                child: AnimatedSwitcher(
+                  duration: Motion.duration(context, Motion.morph),
+                  switchInCurve: Motion.standard,
+                  switchOutCurve: Curves.easeIn,
+                  transitionBuilder: (child, animation) => RotationTransition(
+                    turns: Tween<double>(
+                      begin: -0.25,
+                      end: 0,
+                    ).animate(animation),
+                    child: FadeTransition(opacity: animation, child: child),
+                  ),
+                  child: Icon(
+                    dark ? Icons.light_mode_rounded : Icons.dark_mode_rounded,
+                    key: ValueKey(dark),
+                    size: 22,
+                    color: iconInk,
+                    semanticLabel: label,
+                  ),
+                ),
               ),
             ),
           ),
         ),
-      ),
-    );
-  }
-}
-
-/// Ícono de hamburguesa del HTML: tres líneas redondeadas.
-class _HamburgerIcon extends StatelessWidget {
-  const _HamburgerIcon({required this.color});
-
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    return const SizedBox(
-      width: 20,
-      height: 14,
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        spacing: 3,
-        children: [_Line(), _Line(), _Line()],
-      ),
-    );
-  }
-}
-
-class _Line extends StatelessWidget {
-  const _Line();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 20,
-      height: 2.5,
-      decoration: BoxDecoration(
-        color: Theme.of(context).brightness == Brightness.dark
-            ? context.colors.onSurface
-            : HtmlDesignTokens.slate800,
-        borderRadius: BorderRadius.circular(999),
       ),
     );
   }

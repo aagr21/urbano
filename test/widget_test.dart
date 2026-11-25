@@ -1,13 +1,14 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:urbano/src/core/location/location_service.dart';
 import 'package:urbano/src/core/network/api_client.dart';
 import 'package:urbano/src/core/router/app_router.dart';
 import 'package:urbano/src/core/theme/app_theme.dart';
+import 'package:urbano/src/core/theme/theme_mode_controller.dart';
 import 'package:urbano/src/core/utils/location.dart';
-import 'package:urbano/src/features/home/data/stats.dart';
 import 'package:urbano/src/features/home/presentation/home_providers.dart';
 import 'package:urbano/src/features/home/presentation/home_screen.dart';
 import 'package:urbano/src/features/home/presentation/widgets/home_header.dart';
@@ -21,6 +22,7 @@ import 'package:urbano/src/features/routes/presentation/route_providers.dart';
 
 import 'helpers/fake_location_service.dart';
 import 'helpers/fake_route_repository.dart';
+import 'helpers/memory_theme_mode_store.dart';
 import 'helpers/memory_trip_history_store.dart';
 
 RouteSummary _route() => const RouteSummary(
@@ -37,22 +39,6 @@ RouteSummary _route() => const RouteSummary(
 );
 
 List<Override> _overrides({TripHistoryStore? history}) => [
-  statsProvider.overrideWith(
-    (ref) async => const Stats(
-      routes: 154,
-      stops: 31461,
-      trips: 308,
-      shapes: 130105,
-      service: ServiceWindow(
-        start: '2026-10-06',
-        end: '2027-10-06',
-        days: 'diario',
-      ),
-      firstDeparture: '06:00:00',
-      lastDeparture: '22:00:00',
-      headwaySeconds: 300,
-    ),
-  ),
   myLocationProvider.overrideWith(
     (ref) async => const LatLng(-17.7833, -63.1821),
   ),
@@ -76,34 +62,16 @@ List<Override> _overrides({TripHistoryStore? history}) => [
   ),
 ];
 
-/// Abre el menú principal desde el botón de la rama que se está viendo.
-///
-/// El shell mantiene las tres ramas montadas, así que el árbol puede tener
-/// varios botones de menú a la vez: `.hitTestable()` deja solo el de la rama
-/// visible (el resto está bajo el `IndexedStack`). La rama Viaje ya no tiene
-/// menú: su vuelta al inicio es la flecha `journey-back-button`.
-Future<void> _openMenu(WidgetTester tester) async {
-  for (final key in const ['home-menu-button', 'complaints-menu-button']) {
-    final finder = find.byKey(ValueKey(key)).hitTestable();
-    if (finder.evaluate().isEmpty) continue;
-    await tester.tap(finder);
-    await tester.pumpAndSettle();
-    return;
-  }
-  fail('No hay ningún botón de menú visible');
-}
-
-/// Cambia de sección por el menú (la barra inferior ya no existe).
-Future<void> _goTo(WidgetTester tester, String section) async {
-  // Viaje no tiene menú: se sale por su flecha de volver a Inicio antes de
-  // abrir el menú de la portada.
+/// Cambia de sección como lo hace la app sin menú: Viaje vuelve a Inicio por
+/// su flecha y el resto de los saltos son los del router (los accesos de la
+/// portada hacen exactamente ese `go`).
+Future<void> _goTo(WidgetTester tester, GoRouter router, String path) async {
   final back = find.byKey(const ValueKey('journey-back-button')).hitTestable();
-  if (back.evaluate().isNotEmpty) {
+  if (path == '/' && back.evaluate().isNotEmpty) {
     await tester.tap(back);
-    await tester.pumpAndSettle();
+  } else {
+    router.go(path);
   }
-  await _openMenu(tester);
-  await tester.tap(find.byKey(ValueKey('menu-item-$section')));
   await tester.pumpAndSettle();
 }
 
@@ -263,12 +231,14 @@ void main() {
   });
 
   testWidgets(
-    'el menú reemplaza a la barra inferior y conserva las tres ramas',
+    'sin menú: el botón de la cabecera alterna claro/oscuro y lo persiste',
     (tester) async {
+      final store = MemoryThemeModeStore(null);
       final container = ProviderContainer(
         overrides: [
           ..._overrides(),
           locationServiceProvider.overrideWithValue(FakeLocationService()),
+          themeModeStoreProvider.overrideWithValue(store),
         ],
       );
       addTearDown(container.dispose);
@@ -277,45 +247,58 @@ void main() {
       await tester.pumpWidget(
         UncontrolledProviderScope(
           container: container,
-          child: MaterialApp.router(
-            theme: AppTheme.light(),
-            routerConfig: router,
+          child: Consumer(
+            builder: (context, ref, _) => MaterialApp.router(
+              theme: AppTheme.light(),
+              darkTheme: AppTheme.dark(),
+              themeMode: ref.watch(themeModeControllerProvider),
+              routerConfig: router,
+            ),
           ),
         ),
       );
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 600));
 
-      // Ya no hay barra inferior: la navegación vive en el menú de la cabecera.
+      // Ni barra inferior ni menú: el botón de la cabecera es el del tema.
       expect(find.byType(NavigationBar), findsNothing);
-      expect(find.byKey(const ValueKey('home-menu-button')), findsOneWidget);
+      expect(find.byKey(const ValueKey('home-menu-button')), findsNothing);
+      final toggle = find.byKey(const ValueKey('home-theme-button'));
+      expect(toggle, findsOneWidget);
 
-      // El menú lista las tres secciones (y «Acerca de»).
-      await tester.tap(find.byKey(const ValueKey('home-menu-button')));
+      Brightness brightness() =>
+          Theme.of(tester.element(find.byType(HomeHeader))).brightness;
+
+      // En claro ofrece la luna (ir a oscuro).
+      expect(brightness(), Brightness.light);
+      expect(find.byTooltip('Cambiar a tema oscuro'), findsOneWidget);
+
+      await tester.tap(toggle);
       await tester.pumpAndSettle();
-      expect(find.byKey(const ValueKey('menu-item-home')), findsOneWidget);
-      expect(find.byKey(const ValueKey('menu-item-journey')), findsOneWidget);
-      expect(
-        find.byKey(const ValueKey('menu-item-complaints')),
-        findsOneWidget,
-      );
-      expect(find.byKey(const ValueKey('menu-item-info')), findsOneWidget);
+      expect(container.read(themeModeControllerProvider), ThemeMode.dark);
+      expect(brightness(), Brightness.dark);
+      expect(find.byTooltip('Cambiar a tema claro'), findsOneWidget);
+      expect(store.lastSaved, ThemeMode.dark);
 
-      // Viaje: cambia de rama y aterriza en el mapa con la píldora cerrada.
-      await tester.tap(find.byKey(const ValueKey('menu-item-journey')));
+      // Y de vuelta a claro.
+      await tester.tap(toggle);
+      await tester.pumpAndSettle();
+      expect(container.read(themeModeControllerProvider), ThemeMode.light);
+      expect(brightness(), Brightness.light);
+      expect(store.lastSaved, ThemeMode.light);
+
+      // «Acerca de» ya no existe: su ruta cae en la pantalla de error.
+      router.go('/info');
+      await tester.pumpAndSettle();
+      expect(find.text('Pantalla no encontrada'), findsOneWidget);
+
+      // Viaje sigue accesible y /map redirige a /journey (la pantalla-mapa
+      // única).
+      router.go('/map');
       await tester.pumpAndSettle();
       expect(router.routerDelegate.currentConfiguration.uri.path, '/journey');
       expect(find.byKey(const ValueKey('planner-trigger')), findsOneWidget);
       expect(find.textContaining('Marca origen y destino'), findsOneWidget);
-
-      // /map redirige por seguridad a /journey (la pantalla-mapa única).
-      router.go('/map');
-      await tester.pumpAndSettle();
-      expect(find.byKey(const ValueKey('planner-trigger')), findsOneWidget);
-      expect(
-        find.text('Marca un punto en el mapa o usa tu ubicación'),
-        findsNothing,
-      );
 
       await tester.pump(const Duration(seconds: 1));
     },
@@ -517,8 +500,7 @@ void main() {
 
     expect(bodyOpacity(), 1, reason: 'en reposo el cuerpo se pinta entero');
 
-    await _openMenu(tester);
-    await tester.tap(find.byKey(const ValueKey('menu-item-journey')));
+    router.go('/journey');
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 100));
     expect(
@@ -533,8 +515,8 @@ void main() {
     // que la pantalla del planner sigue siendo el MISMO `Element` (la regla del
     // mapa siempre montado no puede romperse por meter una transición).
     final planner = tester.element(find.byType(JourneyPlannerScreen));
-    await _goTo(tester, 'home');
-    await _goTo(tester, 'journey');
+    await _goTo(tester, router, '/');
+    await _goTo(tester, router, '/journey');
     expect(
       tester.element(find.byType(JourneyPlannerScreen)),
       same(planner),

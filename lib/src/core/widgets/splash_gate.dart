@@ -45,8 +45,8 @@ enum BootStage {
 /// y barra. La identidad sigue puesta, pero de fondo —el degradado de la marca,
 /// los anillos de Santa Cruz trazándose y el pie con la ciudad—, porque esa
 /// pantalla existe para decir «esto está tardando un poco», no para presentar
-/// Urbano. El logo y el nombre se ven dentro de la app (cabecera del inicio,
-/// «Acerca de»).
+/// Urbano. El nombre se ve dentro de la app (wordmark de la cabecera del
+/// inicio).
 ///
 /// No es un `Timer` ni una espera de red arbitraria: la línea de tiempo es un
 /// `TweenAnimationBuilder` de **dos patas** (entrada hasta [_SplashCover.restT] y

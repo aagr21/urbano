@@ -18,7 +18,7 @@ class AppTypography {
   /// Outfit, para wordmark y títulos destacados (400..800 empaquetados).
   static const String _wordmarkFamily = 'Outfit';
 
-  /// Fredoka (OFL), SOLO para la marca «Urbano» (portada, menú, «Acerca de»):
+  /// Fredoka (OFL), SOLO para la marca «Urbano» (wordmark de la portada):
   /// redondeada y amable. Los títulos siguen en Outfit.
   static const String _brandFamily = 'Fredoka';
 

@@ -155,10 +155,12 @@ Backend (`backend/src/modules/<feature>/{domain,application,infrastructure,prese
   indexes are created idempotently at startup (`DatabaseSetupService`).
 
 Flutter app: Riverpod for state, `go_router` (three sections: Inicio · Viaje · Denuncias —
-**sin barra inferior**: la navegación vive en el menú de la cabecera, `showUrbanoMenu`
-en `core/widgets/urbano_menu.dart`, con el botón `home-menu-button` / `complaints-menu-button`;
-la rama Viaje no tiene menú ni botón de pantalla completa, su vuelta al inicio es la flecha
-`journey-back-button` de la columna de controles del mapa; el shell monta las tres
+**sin barra inferior ni menú**: a Viaje y Denuncias se llega por los accesos de Inicio, y se
+vuelve con la flecha `journey-back-button` de la columna de controles del mapa o con «atrás»
+(el `PopScope` del shell lleva a Inicio). El botón de la cabecera de Inicio es el de **tema
+claro/oscuro** (`home-theme-button`: luna en claro, sol en oscuro, `setMode` persiste la
+elección); «Acerca de» (`/info`) y el menú `showUrbanoMenu` se retiraron, no los repongas sin
+decidir dónde vive la navegación; el shell monta las tres
 ramas con `StatefulShellRoute.indexedStack` y solo funde el cuerpo al cambiar de sección).
 La antigua
 pestaña Rutas ahora vive como el panel izquierdo de micros en `/journey`, con per-direction
@@ -179,7 +181,7 @@ platform view; the merged map/result-sheet design is deliberate (see README).
   Santa Cruz de la Sierra —`assets/images/gobierno-santa-cruz.png`, se escala pero no se redibuja—
   a la izquierda y la píldora «Transporte Oficial» a la derecha; en oscuro el escudo va sobre una
   placa blanca para que su trazo negro no se pierda), una cabecera de marca sobre el lienzo
-  (wordmark centrado + lema + botón de menú flotando a la derecha y la píldora «Tu ubicación»; el
+  (wordmark centrado + lema + botón de tema flotando a la derecha y la píldora «Tu ubicación»; el
   buscador de rutas se retiró, así que Inicio no tiene `TextField`), cuatro
   cuadros **compactos** en retícula 2 × 2 con píldora, ilustración plana sobre
   placa tonal y una sola flecha circular de acción
@@ -280,7 +282,7 @@ platform view; the merged map/result-sheet design is deliberate (see README).
   never lets `pumpAndSettle` settle, and hidden shell branches would eat the visible tab's
   timeout), so tests stay green unchanged; `Motion.debugAmbientLoopsForever = true` is the
   `@visibleForTesting` way to exercise the production branch. One-shot effects (the rail that
-  draws itself, `UrbanoLogo` arriving) must pass an explicit `cycles:`. Builders receive
+  draws itself) must pass an explicit `cycles:`. Builders receive
   `(t, phase)`: `phase` for anything that repeats, global `t` (i.e. `1 - t`) for anything that
   fades out at rest — never re-derive the phase by hand with `Motion.phase(t, 2)`, that
   duplicated the cycle count.
@@ -326,11 +328,11 @@ platform view; the merged map/result-sheet design is deliberate (see README).
   chain — it double-animates and looks cheap.
 - **The boot splash is ONE phase: `SplashGate`, and it is a LOADING screen, not the brand show.**
   The user asked to see carga — not the logo — at the very first moment the app opens, so
-  `core/widgets/splash_gate.dart` mounts no `UrbanoLogo`, no `URBANO` wordmark and no tagline: what
+  `core/widgets/splash_gate.dart` mounts no logo, no `URBANO` wordmark and no tagline: what
   reads is a spinning dial, the word `Cargando`, the real boot stage under it and a progress bar.
   Identity stays in the background (brand gradient, the Santa Cruz rings tracing themselves, the
-  `Santa Cruz de la Sierra · datos GTFS` footer); the logo lives inside the app (home header,
-  «Acerca de»). Before `SplashGate` there are now TWO native phases on Android: the OS field
+  `Santa Cruz de la Sierra · datos GTFS` footer); the brand lives inside the app (the home
+  header's wordmark). Before `SplashGate` there are now TWO native phases on Android: the OS field
   (`windowSplashScreenBackground` / `windowBackground`, which cannot animate) and
   `android/app/src/main/kotlin/.../SplashActivity.kt`, a Kotlin launcher whose `SplashCanvasView`
   paints the loading screen for 1,5 s (brand gradient, the Santa Cruz rings, a coral rotating dial
@@ -369,8 +371,8 @@ platform view; the merged map/result-sheet design is deliberate (see README).
   condition: the curtain only lifts when `onEnd` fired the intro **and** the future resolved, so a
   fast backend can't make it blink (the intro is the minimum-visible floor) and a slow one is covered
   honestly. `bootReadinessProvider` (`core/boot/boot_readiness.dart`, watched from `_BootGate` in
-  `main.dart` — NOT from the home) awaits the data the app will show (`statsProvider` de «Acerca de» +
-  `routesListProvider(homeCatalogQuery)` del panel de micros) and never throws: it returns `bool` so an unreachable
+  `main.dart` — NOT from the home) awaits the data the app will show (`routesListProvider(homeCatalogQuery)`,
+  la página del catálogo del panel de micros) and never throws: it returns `bool` so an unreachable
   backend still lifts, with the `Sin respuesta del servicio` stage instead of a lying `Todo listo`.
   `bootCeiling` (6 s) is that safety — a loading screen that can trap the user is worse than the
   data it is waiting for. `homeCatalogQuery` is a shared const (`routes/presentation/route_providers.dart`)

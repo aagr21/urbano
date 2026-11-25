@@ -4,7 +4,6 @@ import 'package:material_ui/material_ui.dart';
 
 import '../../features/complaints/presentation/complaints_screen.dart';
 import '../../features/home/presentation/home_screen.dart';
-import '../../features/info/presentation/info_screen.dart';
 import '../../features/journey/presentation/journey_planner_screen.dart';
 import '../../features/journey/presentation/map_picker_screen.dart';
 import '../../features/nearby/domain/nearby_micros.dart';
@@ -120,11 +119,6 @@ GoRouter get _router => GoRouter(
         return NearbyMicrosScreen(query: query);
       },
     ),
-    GoRoute(
-      path: '/info',
-      name: 'info',
-      builder: (context, state) => const InfoScreen(),
-    ),
   ],
   errorBuilder: (context, state) => Scaffold(
     appBar: AppBar(title: const Text('Urbano')),
@@ -141,8 +135,9 @@ GoRouter get _router => GoRouter(
 /// Navegador del shell (Inicio · Viaje · Denuncias) **sin barra inferior**.
 ///
 /// El rediseño de la portada se parece al de una app de viajes: logo, ubicación
-/// y accesos arriba, y la navegación entre secciones en el menú de la cabecera
-/// (`showUrbanoMenu`). Las tres ramas siguen montadas como antes
+/// y accesos arriba. Se llega a Viaje y Denuncias por los accesos de Inicio y se
+/// vuelve con la flecha de Viaje o con «atrás». Las tres ramas siguen montadas
+/// como antes
 /// (`StatefulShellRoute.indexedStack`), así el mapa del planner nunca se
 /// reconstruye al cambiar de sección.
 class UrbanoShell extends ConsumerWidget {

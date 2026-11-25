@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:urbano/src/core/widgets/splash_gate.dart';
-import 'package:urbano/src/core/widgets/urbano_logo.dart';
 
 /// La pantalla de carga de arranque: tapa la app, dice qué está cargando, se
 /// queda hasta que la app avisa que está lista y no deja nada montado ni ticking
@@ -58,9 +57,8 @@ void main() {
     expect(find.text('Cargando'), findsOneWidget);
     expect(find.text('app debajo'), findsNothing);
 
-    // Y no es el show de la marca: ni el logo animado ni el wordmark que abrían
+    // Y no es el show de la marca: ni el wordmark ni el lema que abrían
     // la app. La identidad queda en el degradado, los anillos y el pie.
-    expect(find.byType(UrbanoLogo), findsNothing);
     expect(find.text('URBANO'), findsNothing);
     expect(find.text('Muévete por Santa Cruz'), findsNothing);
 

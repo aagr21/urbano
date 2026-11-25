@@ -1,9 +1,5 @@
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:material_ui/material_ui.dart';
 import 'package:urbano/src/features/home/data/meta.dart';
-import 'package:urbano/src/features/home/presentation/home_providers.dart';
-import 'package:urbano/src/features/info/presentation/info_screen.dart';
 
 /// Contrato de `GET /meta` del lado cliente (`docs/api-contract.md`):
 /// el modelo parsea la envolvente `{ feed, limits }` y la pantalla Info
@@ -69,46 +65,6 @@ void main() {
         limits: {},
       );
       expect(meta.summary, 'v2.1');
-    });
-  });
-
-  group('InfoScreen · fila "Versión del dataset"', () {
-    testWidgets('muestra la versión y vigencia del feed real', (tester) async {
-      await tester.pumpWidget(
-        ProviderScope(
-          overrides: [
-            // /meta es el foco; stats y salud quedan offline como en el
-            // resto del harness de Info (dio outside no debe abrir timers).
-            metaProvider.overrideWith(
-              (ref) async => MetaInfo.fromJson(payload()),
-            ),
-            statsProvider.overrideWith((ref) async => throw Exception('x')),
-            healthProvider.overrideWith((ref) async => throw Exception('x')),
-          ],
-          child: const MaterialApp(home: InfoScreen()),
-        ),
-      );
-      await tester.pump();
-
-      expect(find.text('Versión del dataset'), findsOneWidget);
-      expect(find.text('v1.0 · 2026-10-06 → 2027-10-06'), findsOneWidget);
-    });
-
-    testWidgets('sin conexión el row degrada a "Sin conexión"', (tester) async {
-      await tester.pumpWidget(
-        ProviderScope(
-          overrides: [
-            metaProvider.overrideWith((ref) async => throw Exception('x')),
-            // Igual que arriba: nada de red en el harness de Info.
-            statsProvider.overrideWith((ref) async => throw Exception('x')),
-            healthProvider.overrideWith((ref) async => throw Exception('x')),
-          ],
-          child: const MaterialApp(home: InfoScreen()),
-        ),
-      );
-      await tester.pump();
-
-      expect(find.text('Sin conexión'), findsWidgets);
     });
   });
 }
