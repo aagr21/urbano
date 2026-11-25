@@ -135,6 +135,9 @@ class _CreateComplaintScreenState extends ConsumerState<CreateComplaintScreen> {
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
+      // La hoja trae su propia asa dentro de su superficie: la del tema
+      // flotaba aparte, sobre el formulario.
+      showDragHandle: false,
       builder: (_) =>
           ComplaintRouteSelectorSheet(routes: widget.routes, selected: _route),
     );
