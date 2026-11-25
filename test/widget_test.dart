@@ -172,6 +172,44 @@ void main() {
     await tester.pump(const Duration(milliseconds: 400));
   });
 
+  testWidgets('la cabecera mide lo mismo en claro y en oscuro', (tester) async {
+    tester.view.physicalSize = const Size(1080, 2340);
+    tester.view.devicePixelRatio = 2.75;
+    addTearDown(tester.view.reset);
+
+    // La placa blanca del escudo en oscuro se pintaba como `padding` y hacía
+    // crecer la banda 6 dp: toda la portada bajaba un pelín respecto de claro.
+    Future<(Rect, Rect, Rect)> measure(ThemeData theme) async {
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: _overrides(),
+          child: MaterialApp(
+            theme: theme,
+            home: const Scaffold(body: HomeHeader()),
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+      return (
+        tester.getRect(find.byKey(const ValueKey('home-official-band'))),
+        tester.getRect(
+          find.image(const AssetImage('assets/images/gobierno-santa-cruz.png')),
+        ),
+        tester.getRect(find.byType(HomeHeader)),
+      );
+    }
+
+    final (lightBand, lightSeal, lightHeader) = await measure(AppTheme.light());
+    final (darkBand, darkSeal, darkHeader) = await measure(AppTheme.dark());
+
+    expect(darkBand, lightBand, reason: 'la banda no crece en oscuro');
+    expect(darkSeal, lightSeal, reason: 'el escudo no se mueve en oscuro');
+    expect(darkHeader, lightHeader, reason: 'la cabecera no empuja la portada');
+
+    await tester.pump(const Duration(milliseconds: 400));
+  });
+
   testWidgets('los cuatro accesos pintan su acento sin cristal', (
     tester,
   ) async {
