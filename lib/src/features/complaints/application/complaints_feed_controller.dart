@@ -97,6 +97,63 @@ const List<String> complaintCategoryOrder = [
 /// sitio), igual que la sesión del panel de micros.
 final complaintCategoryFilterProvider = StateProvider<String?>((ref) => null);
 
+/// Cómo se ordena el feed. Las tres cifras de la portada (reportes · apoyos ·
+/// comentarios) son también sus tres botones.
+enum ComplaintSort {
+  /// Lo último primero (el orden del servidor).
+  recent('Más recientes', Icons.schedule_rounded),
+
+  /// Lo que más respaldó la comunidad.
+  supported('Más apoyadas', Icons.favorite_rounded),
+
+  /// Donde hay conversación.
+  discussed('Más comentadas', Icons.chat_bubble_rounded);
+
+  const ComplaintSort(this.label, this.icon);
+
+  final String label;
+  final IconData icon;
+}
+
+/// Orden elegido del feed. Provider (no `State`) por lo mismo que el filtro:
+/// sobrevive a abrir y cerrar el detalle.
+final complaintSortProvider = StateProvider<ComplaintSort>(
+  (ref) => ComplaintSort.recent,
+);
+
+/// Ordena [items] según [sort] sin tocar la lista original. Estable: a igual
+/// cifra se conserva el orden del servidor (lo más reciente arriba).
+List<ComplaintSummary> sortComplaints(
+  List<ComplaintSummary> items,
+  ComplaintSort sort,
+) {
+  if (sort == ComplaintSort.recent) return items;
+  final indexed = items.indexed.toList(growable: false);
+  int metric(ComplaintSummary item) => switch (sort) {
+    ComplaintSort.supported => item.likeCount,
+    ComplaintSort.discussed => item.commentCount,
+    ComplaintSort.recent => 0,
+  };
+  indexed.sort((a, b) {
+    final byMetric = metric(b.$2).compareTo(metric(a.$2));
+    return byMetric != 0 ? byMetric : a.$1.compareTo(b.$1);
+  });
+  return [for (final (_, item) in indexed) item];
+}
+
+/// Cuántos reportes hay por motivo, sobre el feed COMPLETO (las pastillas del
+/// filtro lo muestran: se sabe cuánto hay antes de tocar).
+final complaintCategoryCountsProvider = Provider<Map<String, int>>((ref) {
+  final items =
+      ref.watch(complaintsFeedProvider).valueOrNull ??
+      const <ComplaintSummary>[];
+  final counts = <String, int>{};
+  for (final item in items) {
+    counts.update(item.category, (n) => n + 1, ifAbsent: () => 1);
+  }
+  return counts;
+});
+
 /// Reportes con al menos una queja, en el orden de [complaintCategoryOrder].
 ///
 /// El filtro solo ofrece motivos que existen: una fila de chips gris con
@@ -111,7 +168,7 @@ final reportedCategoriesProvider = Provider<List<String>>((ref) {
   ];
 });
 
-/// Feed ya filtrado por motivo, conservando carga y error.
+/// Feed ya filtrado por motivo y ordenado, conservando carga y error.
 ///
 /// Se deriva aquí para que la pantalla solo pinte: `AsyncListView` recibe este
 /// valor y no necesita `itemCount`, porque su longitud es la de lo visible.
@@ -120,10 +177,18 @@ final visibleComplaintsProvider = Provider<AsyncValue<List<ComplaintSummary>>>((
 ) {
   final feed = ref.watch(complaintsFeedProvider);
   final filter = ref.watch(complaintCategoryFilterProvider);
-  if (filter == null) return feed;
+  final sort = ref.watch(complaintSortProvider);
+  if (filter == null && sort == ComplaintSort.recent) return feed;
   return switch (feed) {
     AsyncData(:final value) => AsyncData(
-      value.where((item) => item.category == filter).toList(growable: false),
+      sortComplaints(
+        filter == null
+            ? value
+            : value
+                  .where((item) => item.category == filter)
+                  .toList(growable: false),
+        sort,
+      ),
     ),
     _ => feed,
   };

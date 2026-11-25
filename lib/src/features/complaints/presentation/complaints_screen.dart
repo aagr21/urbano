@@ -79,6 +79,9 @@ class ComplaintsScreen extends ConsumerWidget {
             value: SystemUiOverlayStyle.light,
             child: _CoverHeader(
               stats: ref.watch(complaintsStatsProvider),
+              sort: ref.watch(complaintSortProvider),
+              onSort: (sort) =>
+                  ref.read(complaintSortProvider.notifier).state = sort,
               loading: visible.isLoading,
               identity: identity,
               onCreate: () => _openForm(context, ref, routes),
@@ -160,19 +163,11 @@ class ComplaintsScreen extends ConsumerWidget {
                       ),
                     ),
                   ),
-                // Compacto y sin área táctil de 48: esta fila NO es contenido,
-                // es el encabezado del listado y cada píxel que ocupa se lo
-                // quita a la primera queja.
-                IconButton(
-                  tooltip: 'Actualizar',
-                  onPressed: notifier.reload,
-                  visualDensity: VisualDensity.compact,
-                  iconSize: 20,
-                  style: IconButton.styleFrom(
-                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  ),
-                  icon: const Icon(Icons.refresh_rounded),
-                ),
+                const SizedBox(width: AppSpace.xs),
+                // Orden del feed. Ocupa el lugar del antiguo «Actualizar»: el
+                // feed se refresca tirando hacia abajo (y el error trae su
+                // propio «Reintentar»), así que la fila gana una acción útil.
+                const _SortButton(),
               ],
             ),
           ),
@@ -231,6 +226,8 @@ class _CategoryFilterBar extends ConsumerWidget {
     final colors = context.colors;
     final filter = ref.watch(complaintCategoryFilterProvider);
     final notifier = ref.read(complaintCategoryFilterProvider.notifier);
+    final counts = ref.watch(complaintCategoryCountsProvider);
+    final total = counts.values.fold(0, (sum, n) => sum + n);
 
     return SizedBox(
       // Barra delgada: cada píxel entre la cabecera y el listado es una línea
@@ -248,6 +245,7 @@ class _CategoryFilterBar extends ConsumerWidget {
                 accent: colors.primary,
                 on: on,
                 emphasized: filter == null,
+                count: total,
                 onTap: () => notifier.state = null,
               ),
               for (final category in reported) ...[
@@ -256,6 +254,7 @@ class _CategoryFilterBar extends ConsumerWidget {
                   category: category,
                   on: on,
                   selected: filter == category,
+                  count: counts[category],
                   // Tocarlo de nuevo lo quita: el filtro es un toggle, no un
                   // callejón.
                   onTap: () =>
@@ -299,6 +298,8 @@ class _CategoryFilterBar extends ConsumerWidget {
 class _CoverHeader extends StatelessWidget {
   const _CoverHeader({
     required this.stats,
+    required this.sort,
+    required this.onSort,
     required this.loading,
     required this.identity,
     required this.onCreate,
@@ -307,6 +308,10 @@ class _CoverHeader extends StatelessWidget {
   });
 
   final ({int reports, int supports, int comments}) stats;
+
+  /// Orden activo del feed: su cifra se resalta en la portada.
+  final ComplaintSort sort;
+  final ValueChanged<ComplaintSort> onSort;
   final bool loading;
   final PassengerIdentity? identity;
   final VoidCallback onCreate;
@@ -513,6 +518,8 @@ class _CoverHeader extends StatelessWidget {
                         _StatTile(
                           value: stats.reports,
                           label: 'reportes',
+                          selected: sort == ComplaintSort.recent,
+                          onTap: () => onSort(ComplaintSort.recent),
                           icon: Icons.forum_rounded,
                           veil: veil,
                           ink: ink,
@@ -523,6 +530,8 @@ class _CoverHeader extends StatelessWidget {
                         _StatTile(
                           value: stats.supports,
                           label: 'apoyos',
+                          selected: sort == ComplaintSort.supported,
+                          onTap: () => onSort(ComplaintSort.supported),
                           icon: Icons.favorite_rounded,
                           veil: veil,
                           ink: ink,
@@ -533,6 +542,8 @@ class _CoverHeader extends StatelessWidget {
                         _StatTile(
                           value: stats.comments,
                           label: 'comentarios',
+                          selected: sort == ComplaintSort.discussed,
+                          onTap: () => onSort(ComplaintSort.discussed),
                           icon: Icons.chat_bubble_rounded,
                           veil: veil,
                           ink: ink,
@@ -552,7 +563,10 @@ class _CoverHeader extends StatelessWidget {
   }
 }
 
-/// Mini-tile de cifra dentro de la portada de marca.
+/// Cifra de la portada que también ORDENA el feed: «apoyos» pone arriba lo
+/// más apoyado, «comentarios» lo más comentado y «reportes» vuelve a lo
+/// reciente. La elegida se ilumina (vidrio más claro, filo firme y una flecha
+/// de orden), así la cifra dice a la vez cuánto hay y cómo se está mirando.
 class _StatTile extends StatelessWidget {
   const _StatTile({
     required this.value,
@@ -562,6 +576,8 @@ class _StatTile extends StatelessWidget {
     required this.ink,
     required this.edge,
     required this.loading,
+    required this.selected,
+    required this.onTap,
   });
 
   final int value;
@@ -571,53 +587,152 @@ class _StatTile extends StatelessWidget {
   final Color ink;
   final Color edge;
   final bool loading;
+  final bool selected;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
+    final text = context.text;
     return Expanded(
-      child: Container(
-        padding: const EdgeInsets.symmetric(
-          horizontal: AppSpace.sm,
-          vertical: AppSpace.xs + 2,
-        ),
-        decoration: BoxDecoration(
-          color: veil,
-          borderRadius: BorderRadius.circular(AppRadius.md),
-          border: Border.all(color: edge),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(icon, size: 14, color: ink.withValues(alpha: 0.8)),
-                const SizedBox(width: AppSpace.xs),
-                if (loading)
-                  const LoadingShimmer(width: 24, height: 18)
-                else
-                  CountUp(
-                    value: value,
-                    format: (count) => '$count',
-                    style: TextStyle(
-                      color: ink,
-                      fontSize: 18,
-                      fontWeight: FontWeight.w900,
-                      height: 1,
+      child: Semantics(
+        button: true,
+        selected: selected,
+        label: 'Ordenar por $label',
+        child: PressScale(
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: () {
+              HapticFeedback.selectionClick();
+              onTap();
+            },
+            child: AnimatedContainer(
+              duration: Motion.quick,
+              curve: Curves.easeOutCubic,
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpace.sm,
+                vertical: AppSpace.xs + 2,
+              ),
+              decoration: BoxDecoration(
+                color: selected ? ink.withValues(alpha: 0.2) : veil,
+                borderRadius: BorderRadius.circular(AppRadius.md),
+                border: Border.all(
+                  color: selected ? ink.withValues(alpha: 0.7) : edge,
+                  width: selected ? 1.4 : 1,
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(icon, size: 14, color: ink.withValues(alpha: 0.8)),
+                      const SizedBox(width: AppSpace.xs),
+                      if (loading)
+                        const LoadingShimmer(width: 24, height: 18)
+                      else
+                        CountUp(
+                          value: value,
+                          format: (count) => '$count',
+                          style: text.titleMedium?.copyWith(
+                            color: ink,
+                            fontSize: 18,
+                            fontWeight: FontWeight.w900,
+                            height: 1,
+                          ),
+                        ),
+                      const Spacer(),
+                      AnimatedOpacity(
+                        duration: Motion.quick,
+                        opacity: selected ? 1 : 0,
+                        child: Icon(Icons.south_rounded, size: 13, color: ink),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: text.labelSmall?.copyWith(
+                      color: ink.withValues(alpha: selected ? 1 : 0.82),
+                      fontSize: 11,
+                      fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
                     ),
                   ),
-              ],
-            ),
-            const SizedBox(height: 2),
-            Text(
-              label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: ink.withValues(alpha: 0.82),
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
+                ],
               ),
             ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Selector de orden del feed: una pastilla con el orden activo que abre un
+/// menú con las tres opciones (la elegida con ✓).
+class _SortButton extends ConsumerWidget {
+  const _SortButton();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final colors = context.colors;
+    final sort = ref.watch(complaintSortProvider);
+    final surface = colors.surfaceContainerLowest;
+    final fill = AppColors.tint(colors.primary, surface, 0.1);
+    final ink = AppColors.legible(colors.primary, fill);
+    return PopupMenuButton<ComplaintSort>(
+      key: const ValueKey('complaints-sort'),
+      tooltip: 'Ordenar',
+      initialValue: sort,
+      position: PopupMenuPosition.under,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AppRadius.md),
+      ),
+      onSelected: (value) {
+        HapticFeedback.selectionClick();
+        ref.read(complaintSortProvider.notifier).state = value;
+      },
+      itemBuilder: (context) => [
+        for (final option in ComplaintSort.values)
+          PopupMenuItem<ComplaintSort>(
+            value: option,
+            child: Row(
+              children: [
+                Icon(option.icon, size: 18, color: colors.onSurfaceVariant),
+                const SizedBox(width: AppSpace.md),
+                Expanded(child: Text(option.label)),
+                if (option == sort)
+                  Icon(Icons.check_rounded, size: 18, color: colors.primary),
+              ],
+            ),
+          ),
+      ],
+      child: AnimatedContainer(
+        duration: Motion.quick,
+        padding: const EdgeInsets.fromLTRB(
+          AppSpace.sm + 2,
+          AppSpace.xs + 1,
+          AppSpace.sm,
+          AppSpace.xs + 1,
+        ),
+        decoration: BoxDecoration(
+          color: fill,
+          borderRadius: BorderRadius.circular(AppRadius.pill),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(sort.icon, size: 14, color: ink),
+            const SizedBox(width: AppSpace.xs),
+            Text(
+              sort.label,
+              style: context.text.labelMedium?.copyWith(
+                color: ink,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            Icon(Icons.expand_more_rounded, size: 18, color: ink),
           ],
         ),
       ),

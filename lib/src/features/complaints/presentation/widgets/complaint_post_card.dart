@@ -19,7 +19,7 @@ import 'like_button.dart';
 /// y estado, el número del micro y el `recorrido · hora` encima. Debajo queda el
 /// relato y el pie social con el apoyo y los comentarios. El toque abre el
 /// detalle.
-class ComplaintPostCard extends ConsumerWidget {
+class ComplaintPostCard extends ConsumerStatefulWidget {
   const ComplaintPostCard({
     super.key,
     required this.complaint,
@@ -32,6 +32,24 @@ class ComplaintPostCard extends ConsumerWidget {
 
   /// Posición en la lista: solo para escalonar la entrada con [Reveal].
   final int index;
+
+  @override
+  ConsumerState<ComplaintPostCard> createState() => _ComplaintPostCardState();
+}
+
+class _ComplaintPostCardState extends ConsumerState<ComplaintPostCard> {
+  /// Sube cada vez que el pasajero DA su apoyo: es la clave del corazón que
+  /// late sobre la foto (una clave nueva = una animación nueva). Quitar el
+  /// apoyo no lo dispara: el gesto que se celebra es apoyar.
+  int _burst = 0;
+
+  ComplaintSummary get complaint => widget.complaint;
+  RouteSummary? get route => widget.route;
+
+  void _toggleLike() {
+    if (!complaint.likedByMe) setState(() => _burst++);
+    ref.read(complaintsFeedProvider.notifier).toggleLike(complaint);
+  }
 
   void _openDetail(BuildContext context, WidgetRef ref) {
     Navigator.of(context).push(
@@ -56,7 +74,7 @@ class ComplaintPostCard extends ConsumerWidget {
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final colors = context.colors;
     // Fondo real de la tarjeta: todo tinte/letra de la tarjeta se mide contra él.
     final cardSurface = colors.surfaceContainerLow;
@@ -78,7 +96,7 @@ class ComplaintPostCard extends ConsumerWidget {
 
     return Reveal(
       key: ValueKey('complaint-${complaint.id}'),
-      index: index,
+      index: widget.index,
       slide: 10,
       child: PressScale(
         child: DecoratedBox(
@@ -89,11 +107,13 @@ class ComplaintPostCard extends ConsumerWidget {
               color: AppColors.tint(accent, colors.outlineVariant, 0.55),
             ),
             // Sombra del motivo: la tarjeta se despega del lienzo con el color
-            // de su categoría, no con un gris genérico.
+            // de su categoría, no con un gris genérico. Baja y difusa: con
+            // más desplazamiento y opacidad se leía como una losa pegada.
             boxShadow: AppTheme.softShadow(
               color: accent,
-              opacity: 0.14,
-              blur: 22,
+              opacity: 0.1,
+              blur: 28,
+              dy: 10,
             ),
           ),
           child: ClipRRect(
@@ -107,15 +127,25 @@ class ComplaintPostCard extends ConsumerWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    ComplaintPostHero(
-                      complaint: complaint,
-                      routeName: routeName,
-                      routeColor: routeColor,
-                      meta: meta,
-                      accent: accent,
-                      photo: complaint.photoUrls.firstOrNull,
-                      // El feed omite el estado verificado para no crecer.
-                      showStatus: false,
+                    Stack(
+                      children: [
+                        ComplaintPostHero(
+                          complaint: complaint,
+                          routeName: routeName,
+                          routeColor: routeColor,
+                          meta: meta,
+                          accent: accent,
+                          photo: complaint.photoUrls.firstOrNull,
+                          // El feed omite el estado verificado para no crecer.
+                          showStatus: false,
+                        ),
+                        if (_burst > 0)
+                          Positioned.fill(
+                            child: IgnorePointer(
+                              child: _HeartBurst(key: ValueKey(_burst)),
+                            ),
+                          ),
+                      ],
                     ),
                     if (complaint.description.trim().isNotEmpty)
                       Padding(
@@ -152,9 +182,7 @@ class ComplaintPostCard extends ConsumerWidget {
                             liked: complaint.likedByMe,
                             count: complaint.likeCount,
                             on: painted,
-                            onTap: () => ref
-                                .read(complaintsFeedProvider.notifier)
-                                .toggleLike(complaint),
+                            onTap: _toggleLike,
                           ),
                           const SizedBox(width: AppSpace.xs),
                           _CommentPill(
@@ -173,6 +201,52 @@ class ComplaintPostCard extends ConsumerWidget {
               ),
             ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Corazón que late sobre la foto cuando el pasajero da su apoyo: crece con
+/// rebote, queda un instante y se desvanece hacia arriba. Es una animación
+/// implícita de una sola pasada (`TweenAnimationBuilder`), sin controller
+/// propio ni ticker eterno, así que no estorba a `pump()`/`pumpAndSettle()`.
+class _HeartBurst extends StatelessWidget {
+  const _HeartBurst({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    if (Motion.reduced(context)) return const SizedBox.shrink();
+    final colors = context.colors;
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0, end: 1),
+      duration: const Duration(milliseconds: 900),
+      builder: (context, t, child) {
+        // 0 → 0,35: entra con rebote; 0,35 → 0,7: late; 0,7 → 1: se va.
+        final grow = Curves.elasticOut.transform((t / 0.35).clamp(0.0, 1.0));
+        final leave = Curves.easeIn.transform(
+          ((t - 0.7) / 0.3).clamp(0.0, 1.0),
+        );
+        return Opacity(
+          opacity: (1 - leave).clamp(0.0, 1.0),
+          child: Transform.translate(
+            offset: Offset(0, -24 * leave),
+            child: Transform.scale(scale: 0.3 + 0.7 * grow, child: child),
+          ),
+        );
+      },
+      child: Center(
+        child: Icon(
+          Icons.favorite_rounded,
+          size: 96,
+          color: colors.error,
+          shadows: [
+            Shadow(
+              color: colors.shadow.withValues(alpha: 0.35),
+              blurRadius: 18,
+              offset: const Offset(0, 6),
+            ),
+          ],
         ),
       ),
     );

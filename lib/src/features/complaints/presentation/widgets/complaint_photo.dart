@@ -3,6 +3,7 @@ import 'package:material_ui/material_ui.dart';
 import '../../../../core/animation/motion.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/utils/extensions.dart';
+import '../../../../core/utils/image_decode.dart';
 
 /// Foto adjunta a una queja, servida desde el blob (`photoUrls` del feed).
 ///
@@ -42,28 +43,45 @@ class ComplaintPhoto extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.colors;
-    return ClipRRect(
-      borderRadius: radius ?? BorderRadius.circular(AppRadius.sm),
-      child: ColoredBox(
-        color: placeholderSurface ?? colors.surfaceContainerHighest,
-        child: Image.network(
-          url,
-          width: width,
-          height: height,
-          fit: fit,
-          frameBuilder: _fadeIn,
-          // Mismo gesto que la tarjeta del feed: el hueco se pinta con tokens
-          // del tema y su ícono, no con un color a mano.
-          errorBuilder: (_, _, _) => Center(
-            child: Icon(
-              Icons.broken_image_outlined,
-              size: 22,
-              color: placeholderInk ?? colors.onSurfaceVariant,
+    // La foto llega a 3000+ px del móvil y aquí se pinta a ~360: sin
+    // `cacheWidth`/`cacheHeight` se decodifica entera y se tira el sobrante.
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final decode = imageDecodeSize(
+          context,
+          logicalWidth:
+              width ??
+              (constraints.maxWidth.isFinite ? constraints.maxWidth : null),
+          logicalHeight:
+              height ??
+              (constraints.maxHeight.isFinite ? constraints.maxHeight : null),
+        );
+        final colors = context.colors;
+        return ClipRRect(
+          borderRadius: radius ?? BorderRadius.circular(AppRadius.sm),
+          child: ColoredBox(
+            color: placeholderSurface ?? colors.surfaceContainerHighest,
+            child: Image.network(
+              url,
+              width: width,
+              height: height,
+              fit: fit,
+              cacheWidth: decode.width,
+              cacheHeight: decode.height,
+              frameBuilder: _fadeIn,
+              // Mismo gesto que la tarjeta del feed: el hueco se pinta con tokens
+              // del tema y su ícono, no con un color a mano.
+              errorBuilder: (_, _, _) => Center(
+                child: Icon(
+                  Icons.broken_image_outlined,
+                  size: 22,
+                  color: placeholderInk ?? colors.onSurfaceVariant,
+                ),
+              ),
             ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 

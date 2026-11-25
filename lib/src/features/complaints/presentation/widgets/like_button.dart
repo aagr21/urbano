@@ -92,7 +92,10 @@ class _LikeButtonState extends State<LikeButton>
               const SizedBox(width: AppSpace.xs),
               AnimatedDefaultTextStyle(
                 duration: Motion.quick,
-                style: TextStyle(
+                // Parte de un estilo del tema: `AnimatedDefaultTextStyle`
+                // REEMPLAZA el estilo heredado, y un `TextStyle` desnudo perdía
+                // Inter (el número caía en la fuente por defecto).
+                style: (context.text.labelLarge ?? const TextStyle()).copyWith(
                   fontSize: 14,
                   color: ink,
                   fontWeight: widget.liked ? FontWeight.w800 : FontWeight.w600,

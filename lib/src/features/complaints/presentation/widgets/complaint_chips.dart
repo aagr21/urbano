@@ -92,9 +92,13 @@ class CategoryChip extends StatelessWidget {
     this.on,
     this.selected,
     this.onTap,
+    this.count,
   });
 
   final String category;
+
+  /// Cuántos reportes hay de este motivo (solo en el filtro del feed).
+  final int? count;
 
   /// Superficie sobre la que se pinta (la tarjeta, la hoja, el fondo). Se pasa
   /// explícita porque el contraste se mide contra lo que REALMENTE hay detrás.
@@ -113,6 +117,7 @@ class CategoryChip extends StatelessWidget {
     on: on,
     emphasized: selected == true,
     onTap: onTap,
+    count: count,
   );
 }
 
@@ -165,10 +170,14 @@ class ComplaintPill extends StatelessWidget {
     required this.emphasized,
     this.on,
     this.onTap,
+    this.count,
   });
 
   final String label;
   final IconData icon;
+
+  /// Burbuja con un número al final (p. ej. reportes de ese motivo).
+  final int? count;
   final Color accent;
   final Color? on;
 
@@ -226,6 +235,30 @@ class ComplaintPill extends StatelessWidget {
               ),
             ),
           ),
+          if (count case final n?) ...[
+            const SizedBox(width: AppSpace.xs + 2),
+            AnimatedContainer(
+              duration: Motion.quick,
+              constraints: const BoxConstraints(minWidth: 20),
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+              decoration: BoxDecoration(
+                // Burbuja sólida en la tinta de la pastilla: el número se lee
+                // de un vistazo y su letra se mide contra ESE relleno.
+                color: emphasized ? ink : ink.withValues(alpha: 0.14),
+                borderRadius: BorderRadius.circular(AppRadius.pill),
+              ),
+              child: Text(
+                '$n',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: emphasized ? AppColors.onColor(ink) : ink,
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w800,
+                  height: 1.3,
+                ),
+              ),
+            ),
+          ],
         ],
       ),
     );
