@@ -12,6 +12,7 @@ import '../../../core/utils/extensions.dart';
 import '../../../core/utils/location.dart';
 import '../../../core/utils/time_formatters.dart';
 import '../../routes/data/route_models.dart';
+import '../application/journey_leg_routes.dart';
 import '../application/trip_history_controller.dart';
 import 'journey_planner_controller.dart';
 import 'journey_providers.dart';
@@ -62,7 +63,9 @@ class _JourneyPlannerScreenState extends ConsumerState<JourneyPlannerScreen> {
 
   /// `true` cuando el panel de origen/destino está desplegado sobre el mapa.
   /// Arranca cerrado: el mapa es el protagonista y el panel se abre con la
-  /// píldora inferior "¿A dónde vas?".
+  /// píldora inferior "¿A dónde vas?". Con resultados la píldora no existe:
+  /// el panel solo se abre por [pendingPlannerPanelProvider] (acceso «Viajes»
+  /// del home) y se cierra con su botón `planner-close`.
   bool _panelOpen = false;
 
   /// Firma del último viaje que ya se anotó en el historial del home.
@@ -605,17 +608,31 @@ class _JourneyPlannerScreenState extends ConsumerState<JourneyPlannerScreen> {
               //    desaparece para que el overlay sea el protagonista).
               if (sheetVisible)
                 Positioned.fill(
-                  child: JourneyResultsSheet(
-                    controller: _sheetController,
-                    options: cached!,
-                    bare: bare,
-                    selectedIndex: selectedIndex,
-                    expandedIndex: planner.expandedIndex,
-                    selectedOption: mapOption,
-                    endpointsTooClose: planner.endpointsTooClose,
-                    endpointsDistanceM: planner.endpointsDistanceM,
-                    onOptionSelected: _selectOption,
-                    onClear: _clear,
+                  // Las fotos de los micros llegan DESPUÉS que `/journey`
+                  // (`/routes/:id` por línea): solo la hoja escucha ese
+                  // provider, así su llegada no reconstruye mapa ni panel.
+                  child: Consumer(
+                    builder: (context, ref, _) => JourneyResultsSheet(
+                      controller: _sheetController,
+                      options: cached!,
+                      bare: bare,
+                      selectedIndex: selectedIndex,
+                      expandedIndex: planner.expandedIndex,
+                      selectedOption: mapOption,
+                      endpointsTooClose: planner.endpointsTooClose,
+                      endpointsDistanceM: planner.endpointsDistanceM,
+                      onOptionSelected: _selectOption,
+                      onClear: _clear,
+                      routes:
+                          ref
+                              .watch(
+                                journeyLegRoutesProvider(
+                                  journeyLegRoutesKey(cached),
+                                ),
+                              )
+                              .value ??
+                          const {},
+                    ),
                   ),
                 ),
               // 5. Overlay de carga a pantalla completa (cuando el backend
@@ -623,14 +640,21 @@ class _JourneyPlannerScreenState extends ConsumerState<JourneyPlannerScreen> {
               if (showStatusPanel && query != null)
                 const Positioned.fill(child: JourneyLoadingOverlay()),
               // 6. Zona inferior izquierda: la píldora que abre/cierra
-              //    el panel de origen y destino.
-              if (!_microsOnly)
+              //    el panel de origen y destino. Solo existe SIN resultados:
+              //    con la hoja de resultados (o mientras se recalcula) el mapa
+              //    queda libre para leer la ruta, y el viaje se edita tocando o
+              //    arrastrando los pines, o con «Quitar resultados». Se saca
+              //    del árbol (no se vuelve transparente) para que tampoco
+              //    se trague los gestos del mapa en esa franja.
+              if (!_microsOnly && !hasResults)
                 AnimatedPositioned(
                   duration: Motion.fade,
                   curve: Curves.easeOutCubic,
                   left: 16,
                   right: 76,
-                  bottom: sheetVisible ? sheetTop + 12 : bottomBase,
+                  // Sin resultados la hoja nunca está visible: la píldora
+                  // siempre se apoya en la base segura de la pantalla.
+                  bottom: bottomBase,
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.stretch,

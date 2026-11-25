@@ -646,6 +646,17 @@ void main() {
       await tester.pumpAndSettle();
     }
 
+    // Con resultados la píldora no existe (se monta solo sin viaje): para leer
+    // los campos de origen/destino tras «Viajar», el panel se reabre por el
+    // mismo camino que el acceso «Viajes» del home.
+    Future<void> reopenPanelWithResults(
+      WidgetTester tester,
+      ProviderContainer container,
+    ) async {
+      container.read(pendingPlannerPanelProvider.notifier).state = true;
+      await tester.pumpAndSettle();
+    }
+
     testWidgets('un evento de ubicación mueve SOLO el mapa: el panel y la hoja no se '
         'reconstruyen (regresión de rendimiento)', (tester) async {
       // Con permiso concedido: la capa viva se reconstruye por la DEMANDA de
@@ -674,8 +685,9 @@ void main() {
       await tester.tap(find.text('Viajar'));
       await tester.pumpAndSettle();
       // Al planificar el panel se guarda solo: se vuelve a abrir para tener
-      // también la tarjeta de origen/destino medida.
-      await openPanel(tester);
+      // también la tarjeta de origen/destino medida (sin píldora, porque con
+      // resultados no existe).
+      await reopenPanelWithResults(tester, container);
 
       // Sondas: `JourneyPlannerCard` (panel de origen/destino) y
       // `JourneyResultsSheet` (hoja inferior). Son hijos directos del `build`
@@ -914,7 +926,7 @@ void main() {
     testWidgets(
       'arrastrar el origen re-planifica (chip "Recalculando…" + debounce)',
       (tester) async {
-        await pumpPlanner(tester);
+        final container = await pumpPlanner(tester);
         await tester.pump();
 
         await openPanel(tester);
@@ -931,6 +943,7 @@ void main() {
 
         await tester.tap(find.text('Viajar'));
         await tester.pumpAndSettle();
+        await reopenPanelWithResults(tester, container);
 
         final mapElement = tester.element(find.byType(JourneyResultMap));
         expect(find.byType(JourneyResultMap), findsOneWidget);
@@ -968,7 +981,7 @@ void main() {
       'primero y el viaje se planificaba con un punto viejo)',
       (tester) async {
         final queries = <JourneyQuery>[];
-        await pumpPlanner(tester, queryLog: queries);
+        final container = await pumpPlanner(tester, queryLog: queries);
         await tester.pump();
 
         await openPanel(tester);
@@ -985,6 +998,7 @@ void main() {
 
         await tester.tap(find.text('Viajar'));
         await tester.pumpAndSettle();
+        await reopenPanelWithResults(tester, container);
 
         // Drop de origen… sin esperar los 600 ms del debounce…
         tester
@@ -1039,7 +1053,7 @@ void main() {
       'al soltar un extremo, el campo refleja las coordenadas AL INSTANTE '
       '(sin esperar el debounce; la replanificación sigue coactuada)',
       (tester) async {
-        await pumpPlanner(tester);
+        final container = await pumpPlanner(tester);
         await tester.pump();
 
         await openPanel(tester);
@@ -1055,6 +1069,7 @@ void main() {
         );
         await tester.tap(find.text('Viajar'));
         await tester.pumpAndSettle();
+        await reopenPanelWithResults(tester, container);
 
         // Simula el drop nativo del marcador de origen…
         tester
@@ -1084,7 +1099,7 @@ void main() {
       'las coordenadas son DINÁMICAS durante el arrastre (fase `move`): '
       'el campo cambia mientras el dedo se mueve, sin esperar a soltarlo',
       (tester) async {
-        await pumpPlanner(tester);
+        final container = await pumpPlanner(tester);
         await tester.pump();
 
         await openPanel(tester);
@@ -1100,6 +1115,7 @@ void main() {
         );
         await tester.tap(find.text('Viajar'));
         await tester.pumpAndSettle();
+        await reopenPanelWithResults(tester, container);
 
         // Evento intermedio del arrastre (el dedo sigue moviéndose)…
         tester
@@ -1131,7 +1147,7 @@ void main() {
         'un pellizco de zoom cancelado devuelve el punto de arranque y el '
         'viaje debe quedar intacto', (tester) async {
       final queries = <JourneyQuery>[];
-      await pumpPlanner(tester, queryLog: queries);
+      final container = await pumpPlanner(tester, queryLog: queries);
       await tester.pump();
 
       await openPanel(tester);
@@ -1147,6 +1163,7 @@ void main() {
       );
       await tester.tap(find.text('Viajar'));
       await tester.pumpAndSettle();
+      await reopenPanelWithResults(tester, container);
       expect(queries, hasLength(1));
 
       // Pellizco que el detector cancela: hubo move intermedio (marcó el

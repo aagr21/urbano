@@ -7,7 +7,9 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/utils/extensions.dart';
 import '../../../../core/utils/time_formatters.dart';
+import '../../../routes/data/route_models.dart';
 import '../../data/journey_models.dart';
+import 'journey_micro_gallery.dart';
 
 /// Tarjeta de opción de viaje con timeline expandible de tramos.
 class JourneyOptionCard extends StatelessWidget {
@@ -18,6 +20,7 @@ class JourneyOptionCard extends StatelessWidget {
     required this.onToggle,
     this.index = 0,
     this.selected = false,
+    this.routes = const {},
   });
 
   final JourneyOption option;
@@ -27,6 +30,11 @@ class JourneyOptionCard extends StatelessWidget {
 
   /// `true` si esta opción es la visible en el mapa de resultados.
   final bool selected;
+
+  /// Ficha de cada línea por `routeId` (foto del micro, trayecto). Llega
+  /// después que la respuesta de `/journey`: mientras tanto (o si falla) la
+  /// galería pinta placas del color de cada línea.
+  final Map<String, RouteSummary> routes;
 
   @override
   Widget build(BuildContext context) {
@@ -121,9 +129,14 @@ class JourneyOptionCard extends StatelessWidget {
                     const SizedBox(height: AppSpace.xs),
                     _ScheduleRow(option: option),
                     const SizedBox(height: AppSpace.md),
-                    // Tira del recorrido: qué tramos tiene el viaje y en qué
-                    // micros, sin leer ni un rótulo.
-                    _LegStrip(option: option, alternativeColors: legAltColors),
+                    // Los micros del viaje, en foto: se reconoce la opción por
+                    // el micro que se va a ver llegar, no solo por un número.
+                    JourneyMicroGallery(
+                      option: option,
+                      alternativeColors: legAltColors,
+                      routes: routes,
+                      heroScope: '$index',
+                    ),
                     const SizedBox(height: AppSpace.md),
                     _MetaRow(
                       walkMeters: _walkMeters(),
@@ -339,76 +352,6 @@ class _ScheduleRow extends StatelessWidget {
   }
 }
 
-/// Tira del recorrido: 🚶 › [🚌 101] › [🚌 5] › 🚶. Cada micro va con su
-/// color GTFS; caminatas y transbordos son íconos discretos.
-class _LegStrip extends StatelessWidget {
-  const _LegStrip({required this.option, required this.alternativeColors});
-
-  final JourneyOption option;
-  final Map<int, String> alternativeColors;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.colors;
-    final items = <Widget>[];
-    for (var i = 0; i < option.legs.length; i++) {
-      final leg = option.legs[i];
-      // El transbordo ya se lee entre dos micros seguidos (y en el chip de
-      // tipo): en la tira solo robaba ancho y la partía en dos líneas.
-      if (leg.kind == JourneyLegKind.transfer) continue;
-      if (items.isNotEmpty) {
-        items.add(
-          Icon(Icons.chevron_right_rounded, size: 16, color: colors.outline),
-        );
-      }
-      items.add(switch (leg.kind) {
-        JourneyLegKind.bus => _LineBadge(
-          leg: leg,
-          alternativeColor: alternativeColors[i],
-        ),
-        JourneyLegKind.walk => const _StripIcon(
-          icon: Icons.directions_walk_rounded,
-          tooltip: 'Caminar',
-        ),
-        JourneyLegKind.transfer => const SizedBox.shrink(),
-      });
-    }
-    return SizedBox(
-      width: double.infinity,
-      child: Wrap(
-        spacing: 2,
-        runSpacing: 6,
-        crossAxisAlignment: WrapCrossAlignment.center,
-        children: items,
-      ),
-    );
-  }
-}
-
-class _StripIcon extends StatelessWidget {
-  const _StripIcon({required this.icon, required this.tooltip});
-
-  final IconData icon;
-  final String tooltip;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.colors;
-    return Tooltip(
-      message: tooltip,
-      child: Container(
-        width: 24,
-        height: 24,
-        decoration: BoxDecoration(
-          color: colors.surfaceContainerHighest.withValues(alpha: 0.7),
-          shape: BoxShape.circle,
-        ),
-        child: Icon(icon, size: 15, color: colors.onSurfaceVariant),
-      ),
-    );
-  }
-}
-
 /// Pie de la tarjeta: caminata total y pasaje, en una sola línea discreta.
 class _MetaRow extends StatelessWidget {
   const _MetaRow({required this.walkMeters, required this.fareLabel});
@@ -449,51 +392,6 @@ class _MetaRow extends StatelessWidget {
           ),
         item(Icons.payments_outlined, fareLabel),
       ],
-    );
-  }
-}
-
-/// Píldora de una línea del viaje sobre el color GTFS de la ruta, con el
-/// ícono del micro.
-class _LineBadge extends StatelessWidget {
-  const _LineBadge({required this.leg, this.alternativeColor});
-
-  final JourneyLeg leg;
-  final String? alternativeColor;
-
-  @override
-  Widget build(BuildContext context) {
-    final background = AppColors.fromHex(
-      alternativeColor ?? leg.routeColor ?? '64748B',
-    );
-    // El color de la línea es arbitrario (hay casi blancos y casi negros):
-    // la tinta sale de `onColor`, nunca fija en blanco.
-    final foreground = AppColors.onColor(background);
-    final name = (leg.routeShortName ?? leg.routeId ?? '').trim();
-    return Container(
-      constraints: const BoxConstraints(minHeight: 24),
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      decoration: BoxDecoration(
-        color: background,
-        borderRadius: BorderRadius.circular(AppRadius.sm),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(Icons.directions_bus_rounded, size: 14, color: foreground),
-          const SizedBox(width: AppSpace.xs),
-          Flexible(
-            child: Text(
-              name,
-              overflow: TextOverflow.ellipsis,
-              style: context.text.labelMedium?.copyWith(
-                color: foreground,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-          ),
-        ],
-      ),
     );
   }
 }

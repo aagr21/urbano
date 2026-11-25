@@ -1,5 +1,3 @@
-import 'dart:ui' as ui;
-
 import 'package:flutter/foundation.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:material_ui/material_ui.dart';
@@ -11,9 +9,12 @@ import '../../../../core/utils/extensions.dart';
 import '../../../../core/widgets/urbano_map.dart';
 import '../../data/journey_models.dart';
 import '../../data/journey_repository.dart';
-import '../../domain/route_arrows.dart';
 import '../journey_markers.dart';
 import './journey_option_card.dart';
+
+// La flecha de sentido vive en el módulo compartido de marcadores; se
+// reexporta para que quien la importaba desde aquí no cambie.
+export '../journey_markers.dart' show RouteArrowMarker;
 
 part 'journey_result_map_legend.dart';
 
@@ -691,8 +692,8 @@ class JourneyResultMapState extends State<JourneyResultMap> {
     return markers;
   }
 
-  /// Flechas de sentido a lo largo de cada tramo de micro, cada
-  /// [_arrowSpacingMeters]. La geometría (reparto y rumbo) es pura y vive en
+  /// Flechas de sentido a lo largo de cada tramo de micro (una cada 200 m,
+  /// el espaciado por defecto de [routeArrowMarkers]). La geometría (reparto y rumbo) es pura y vive en
   /// `domain/route_arrows.dart`; aquí solo se pinta, en el color de la línea
   /// (o el alternativo del transbordo) para que se lea sobre ella.
   static List<MapMarker> _buildRouteArrows(
@@ -706,27 +707,13 @@ class JourneyResultMapState extends State<JourneyResultMap> {
       final legIndex = option.legs.indexOf(leg);
       // MISMO color que el trazo del tramo: la flecha es parte de la línea.
       final color = busLegStrokeColor(legAltColors[legIndex] ?? leg.routeColor);
-      final arrows = arrowsAlongPath(path, _arrowSpacingMeters);
-      for (var j = 0; j < arrows.length; j++) {
-        markers.add(
-          MapMarker(
-            id: 'journey-map-arrow-$legIndex-$j',
-            point: arrows[j].point,
-            width: _arrowSize,
-            height: _arrowSize,
-            rotation: arrows[j].bearing,
-            // El rumbo es GEOGRÁFICO: la flecha gira con el mapa y sigue
-            // apuntando a lo largo del trazo. Con la rotación de pantalla
-            // (la de los pines) daba vueltas sobre la línea al girar el mapa.
-            rotateWithMap: true,
-            // Una imagen por COLOR, no por id: con la clave por id, al cambiar
-            // de opción el motor reutilizaba la flecha ya rasterizada con el
-            // color del micro anterior.
-            iconKey: arrowIconKey(color),
-            child: RouteArrowMarker(color: color),
-          ),
-        );
-      }
+      markers.addAll(
+        routeArrowMarkers(
+          idPrefix: 'journey-map-arrow-$legIndex',
+          path: path,
+          color: color,
+        ),
+      );
     }
     return markers;
   }
@@ -745,71 +732,5 @@ class JourneyResultMapState extends State<JourneyResultMap> {
   /// Clave de la imagen de una flecha: depende SOLO de su color (todas las
   /// flechas del mismo trazo comparten una imagen nativa).
   @visibleForTesting
-  static String arrowIconKey(Color color) =>
-      'route-arrow-${color.toARGB32().toRadixString(16)}';
-
-  /// Distancia entre flechas de sentido sobre un tramo de micro.
-  static const double _arrowSpacingMeters = 200;
-
-  /// Lado del marcador de cada flecha.
-  static const double _arrowSize = 16;
-}
-
-/// Cabeza de flecha de sentido sobre un tramo de micro.
-@visibleForTesting
-class RouteArrowMarker extends StatelessWidget {
-  const RouteArrowMarker({super.key, required this.color});
-
-  /// Color del trazo del tramo ([JourneyResultMapState.busLegStrokeColor]).
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    return CustomPaint(
-      size: const Size.square(JourneyResultMapState._arrowSize),
-      painter: _RouteArrowPainter(color: color),
-    );
-  }
-}
-
-/// Cabeza de flecha rellena del MISMO color que el trazo, con el borde blanco
-/// de la polilínea (`MapPolyline.outlineColor`): se lee como una punta de la
-/// propia línea, no como un marcador aparte. El borde la separa del trazo
-/// sobre el que se apoya y del mapa, así que no hace falta otra tinta.
-class _RouteArrowPainter extends CustomPainter {
-  _RouteArrowPainter({required this.color});
-  final Color color;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final c = size.center(Offset.zero);
-    final r = size.shortestSide / 2;
-    // Apunta hacia arriba (0° = norte); la rotación la aplica el marcador.
-    final head = ui.Path()
-      ..moveTo(c.dx, c.dy - r * 0.78)
-      ..lineTo(c.dx + r * 0.72, c.dy + r * 0.55)
-      ..lineTo(c.dx, c.dy + r * 0.2)
-      ..lineTo(c.dx - r * 0.72, c.dy + r * 0.55)
-      ..close();
-    canvas
-      ..drawPath(
-        head,
-        Paint()
-          ..color = const Color(0xFFFFFFFF)
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = r * 0.3
-          ..strokeJoin = StrokeJoin.round
-          ..isAntiAlias = true,
-      )
-      ..drawPath(
-        head,
-        Paint()
-          ..color = color
-          ..isAntiAlias = true,
-      );
-  }
-
-  @override
-  bool shouldRepaint(covariant _RouteArrowPainter oldDelegate) =>
-      oldDelegate.color != color;
+  static String arrowIconKey(Color color) => routeArrowIconKey(color);
 }

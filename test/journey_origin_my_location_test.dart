@@ -23,9 +23,7 @@ List<MapPulse> _pulses(WidgetTester tester) =>
     tester.widget<JourneyResultMap>(find.byType(JourneyResultMap)).extraPulses;
 
 void main() {
-  testWidgets('scratch: origen = mi ubicación conserva el punto', (
-    tester,
-  ) async {
+  testWidgets('origen = mi ubicación conserva el punto', (tester) async {
     final service = FakeLocationService(
       initialPermission: LocationPermission.whileInUse,
     );

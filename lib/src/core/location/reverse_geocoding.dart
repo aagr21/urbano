@@ -1,9 +1,8 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:io' show Platform;
 
+import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:http/http.dart' as http;
 import 'package:latlong2/latlong.dart';
 
 /// `true` dentro de `flutter test` (el runner exporta `FLUTTER_TEST=true`).
@@ -85,12 +84,14 @@ class ReverseGeocodeResult {
 /// - Incluir User-Agent identificativo
 /// - Cachear resultados cuando sea posible
 class ReverseGeocodingService {
-  ReverseGeocodingService({String? userAgent, http.Client? httpClient})
+  ReverseGeocodingService({String? userAgent, Dio? dio})
     : _userAgent = userAgent ?? 'UrbanoApp/1.0 (contacto@urbano.app)',
-      _httpClient = httpClient ?? http.Client();
+      _dio = dio ?? Dio();
 
   final String _userAgent;
-  final http.Client _httpClient;
+
+  /// Mismo cliente HTTP que el resto de la app (Dio), no un segundo stack.
+  final Dio _dio;
 
   static const _baseUrl = 'https://nominatim.openstreetmap.org/reverse';
   static const _rateLimitMs = 1100; // 1 req/seg + margen
@@ -145,12 +146,22 @@ class ReverseGeocodingService {
         },
       );
 
-      final response = await _httpClient
-          .get(uri, headers: {'User-Agent': _userAgent})
+      final response = await _dio
+          .getUri<Map<String, dynamic>>(
+            uri,
+            options: Options(
+              headers: {'User-Agent': _userAgent},
+              responseType: ResponseType.json,
+              receiveTimeout: const Duration(seconds: 10),
+              // Nominatim responde 4xx con un cuerpo útil: no queremos que Dio
+              // lo convierta en excepción antes de leer el status.
+              validateStatus: (status) => status != null,
+            ),
+          )
           .timeout(const Duration(seconds: 10));
 
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body) as Map<String, dynamic>;
+      final data = response.data;
+      if (response.statusCode == 200 && data != null) {
         final result = ReverseGeocodeResult.fromJson(data);
         if (useCache) _cache[key] = result;
         completer.complete(result);
@@ -172,7 +183,7 @@ class ReverseGeocodingService {
   /// Limpia el cache.
   void clearCache() => _cache.clear();
 
-  void dispose() => _httpClient.close();
+  void dispose() => _dio.close(force: true);
 }
 
 /// Provider global del servicio de geocodificación inversa.

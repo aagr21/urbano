@@ -4,6 +4,7 @@ import '../../../../core/animation/motion.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/utils/extensions.dart';
 import '../../../../core/utils/time_formatters.dart';
+import '../../../routes/data/route_models.dart';
 import '../../data/journey_models.dart';
 import 'journey_option_card.dart';
 
@@ -26,6 +27,7 @@ class JourneyResultsSheet extends StatelessWidget {
     required this.endpointsDistanceM,
     required this.onOptionSelected,
     required this.onClear,
+    this.routes = const {},
   });
 
   final DraggableScrollableController controller;
@@ -50,6 +52,9 @@ class JourneyResultsSheet extends StatelessWidget {
 
   /// Quita la consulta y las capas del viaje del mapa.
   final VoidCallback onClear;
+
+  /// Ficha de cada línea por `routeId` para las fotos de los micros.
+  final Map<String, RouteSummary> routes;
 
   static const double _minSize = 0.18;
   static const double _initialSize = 0.45;
@@ -194,6 +199,7 @@ class JourneyResultsSheet extends StatelessWidget {
                                   expanded: expandedIndex == itemIndex,
                                   selected: selectedIndex == itemIndex,
                                   onToggle: () => onOptionSelected(itemIndex),
+                                  routes: routes,
                                 );
                                 // La primera opción es la mejor rankeada por
                                 // el planificador: lleva un título ENCIMA de

@@ -1,10 +1,9 @@
-import 'dart:convert';
-
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
+import '../data/json_list_store.dart';
 import '../data/saved_trips.dart';
 import '../domain/journey_place.dart';
+import 'place_description.dart';
 
 /// Puerto de persistencia de los viajes guardados.
 ///
@@ -16,35 +15,19 @@ abstract interface class SavedTripsStore {
 
 /// Almacenamiento local (`urbano.trips.saved`), como lista JSON.
 class SharedPreferencesSavedTripsStore implements SavedTripsStore {
-  static const _key = 'urbano.trips.saved';
+  static const JsonListStore<SavedTrip> _store = JsonListStore(
+    key: 'urbano.trips.saved',
+    fromJson: SavedTrip.fromJson,
+    toJson: _toJson,
+  );
+
+  static Map<String, Object?> _toJson(SavedTrip trip) => trip.toJson();
 
   @override
-  Future<List<SavedTrip>> load() async {
-    try {
-      final preferences = await SharedPreferences.getInstance();
-      final raw = preferences.getString(_key);
-      if (raw == null || raw.isEmpty) return const [];
-      final decoded = jsonDecode(raw);
-      if (decoded is! List) return const [];
-      return decoded
-          .map(SavedTrip.fromJson)
-          .whereType<SavedTrip>()
-          .toList(growable: false);
-    } catch (_) {
-      return const [];
-    }
-  }
+  Future<List<SavedTrip>> load() => _store.load();
 
   @override
-  Future<void> save(List<SavedTrip> trips) async {
-    try {
-      final preferences = await SharedPreferences.getInstance();
-      await preferences.setString(
-        _key,
-        jsonEncode([for (final t in trips) t.toJson()]),
-      );
-    } catch (_) {}
-  }
+  Future<void> save(List<SavedTrip> trips) => _store.save(trips);
 }
 
 /// Controlador de viajes guardados: pares origen→destino que el usuario
@@ -79,8 +62,8 @@ class SavedTripsController extends AsyncNotifier<List<SavedTrip>> {
     final dPoint = destination.pointOrNull;
     if (oPoint == null || dPoint == null) return;
 
-    final oDesc = _describe(origin);
-    final dDesc = _describe(destination);
+    final oDesc = describePlace(origin);
+    final dDesc = describePlace(destination);
 
     final trip = SavedTrip(
       originLabel: oDesc.label,
@@ -114,30 +97,8 @@ class SavedTripsController extends AsyncNotifier<List<SavedTrip>> {
     await _resolvedStore.save(const []);
   }
 
-  static List<SavedTrip> _sorted(List<SavedTrip> trips) {
-    final list = [...trips]..sort((a, b) => b.lastUsed.compareTo(a.lastUsed));
-    return list.length <= maxEntries ? list : list.sublist(0, maxEntries);
-  }
-
-  static ({String label, String? subtitle}) _describe(JourneyPlace place) {
-    return switch (place) {
-      JourneyPlacePoi(:final name, :final subtitle) => (
-        label: name,
-        subtitle: subtitle == null || subtitle.trim().isEmpty
-            ? 'Lugar de Santa Cruz'
-            : subtitle,
-      ),
-      JourneyPlacePoint(:final address, :final lat, :final lon) => (
-        label:
-            address ?? '${lat.toStringAsFixed(4)}, ${lon.toStringAsFixed(4)}',
-        subtitle: '${lat.toStringAsFixed(5)}, ${lon.toStringAsFixed(5)}',
-      ),
-      JourneyPlaceLocation(:final address, :final lat, :final lon) => (
-        label: address ?? 'Mi ubicación',
-        subtitle: '${lat.toStringAsFixed(5)}, ${lon.toStringAsFixed(5)}',
-      ),
-    };
-  }
+  static List<SavedTrip> _sorted(List<SavedTrip> trips) =>
+      sortedByLastUsed(trips, (trip) => trip.lastUsed, maxEntries: maxEntries);
 }
 
 /// Lista de viajes guardados (vive con la app).

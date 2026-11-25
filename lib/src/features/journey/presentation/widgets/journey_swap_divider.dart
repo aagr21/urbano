@@ -2,70 +2,85 @@ import 'package:material_ui/material_ui.dart';
 
 import '../../../../core/animation/motion.dart';
 import '../../../../core/theme/app_colors.dart';
-import '../../../../core/theme/app_theme.dart' show AppRadius, AppSpace;
+import '../../../../core/theme/app_theme.dart' show AppSpace;
 import '../../../../core/utils/extensions.dart';
+import 'journey_endpoint_field.dart';
 
-/// Botón de intercambio entre los dos extremos del viaje.
+/// Separador entre origen y destino dentro del bloque de ruta.
 ///
-/// Antes era un círculo blanco colgado de dos líneas; ahora es una píldora
-/// pequeña alineada a la derecha que dice lo que hace («Invertir»), sin
-/// pintar una superficie blanca sobre el tema oscuro.
+/// Tres piezas en una fila: a la izquierda el riel punteado que une la placa
+/// del origen con la del destino (centrado bajo ellas), al medio la línea que
+/// separa los dos campos y a la derecha el botón redondo de invertir, en la
+/// MISMA columna que los botones de mapa de cada campo. Antes era una píldora
+/// «Invertir» suelta entre dos cajas, que es lo que se leía descuadrado.
 class JourneySwapDivider extends StatelessWidget {
   const JourneySwapDivider({super.key, this.onSwap});
 
   final VoidCallback? onSwap;
 
+  static const double _height = 28;
+
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
-    final text = context.text;
     final dark = Theme.of(context).brightness == Brightness.dark;
     final fill = AppColors.tint(
       colors.primary,
       colors.surface,
-      dark ? 0.2 : 0.1,
+      dark ? 0.22 : 0.12,
     );
     final ink = AppColors.legible(colors.primary, fill);
+    const size = JourneyEndpointField.actionSize;
 
-    return Align(
-      alignment: Alignment.centerRight,
-      child: PressScale(
-        scale: 0.94,
-        child: Tooltip(
-          message: 'Invertir origen y destino',
-          child: InkWell(
-            onTap: onSwap,
-            borderRadius: BorderRadius.circular(AppRadius.pill),
-            child: Container(
-              margin: const EdgeInsets.symmetric(vertical: AppSpace.xs + 1),
-              padding: const EdgeInsets.fromLTRB(10, 5, 12, 5),
-              decoration: BoxDecoration(
-                color: fill,
-                borderRadius: BorderRadius.circular(AppRadius.pill),
-                border: Border.all(
-                  color: AppColors.tint(colors.primary, colors.surface, 0.22),
-                  width: 0.8,
-                ),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.swap_vert_rounded, size: 14, color: ink),
-                  const SizedBox(width: 4),
-                  Text(
-                    'Invertir',
-                    style: text.labelSmall?.copyWith(
-                      color: ink,
-                      fontWeight: FontWeight.w800,
-                      fontSize: 11,
-                      letterSpacing: 0.2,
+    return SizedBox(
+      height: _height,
+      child: Row(
+        children: [
+          // Riel: centrado bajo la placa de 32 px de cada campo.
+          const SizedBox(width: JourneyEndpointField.inset),
+          SizedBox(
+            width: JourneyEndpointField.plateSize,
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                for (var i = 0; i < 4; i++)
+                  Container(
+                    width: 3,
+                    height: 3,
+                    margin: const EdgeInsets.symmetric(vertical: 1.5),
+                    decoration: BoxDecoration(
+                      color: colors.outline,
+                      shape: BoxShape.circle,
                     ),
                   ),
-                ],
+              ],
+            ),
+          ),
+          const SizedBox(width: AppSpace.md),
+          Expanded(child: Divider(height: 1, color: colors.outlineVariant)),
+          const SizedBox(width: AppSpace.sm),
+          PressScale(
+            scale: 0.92,
+            child: Tooltip(
+              message: 'Invertir origen y destino',
+              child: Material(
+                color: fill,
+                shape: CircleBorder(
+                  side: BorderSide(color: colors.surface, width: 2),
+                ),
+                clipBehavior: Clip.antiAlias,
+                child: InkWell(
+                  onTap: onSwap,
+                  child: SizedBox.square(
+                    dimension: size,
+                    child: Icon(Icons.swap_vert_rounded, size: 20, color: ink),
+                  ),
+                ),
               ),
             ),
           ),
-        ),
+          const SizedBox(width: AppSpace.sm),
+        ],
       ),
     );
   }

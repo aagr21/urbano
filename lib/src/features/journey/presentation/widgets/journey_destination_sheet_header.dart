@@ -39,21 +39,22 @@ class DestinationSheetHeader extends StatelessWidget {
             gradient: const LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
-              colors: [HtmlDesignTokens.emerald500, HtmlDesignTokens.teal600],
+              colors: [
+                HtmlDesignTokens.emerald600,
+                HtmlDesignTokens.emerald800,
+              ],
             ),
             borderRadius: BorderRadius.circular(AppRadius.tile),
-            boxShadow: [
-              BoxShadow(
-                color: HtmlDesignTokens.emerald600.withValues(alpha: 0.28),
-                blurRadius: 14,
-                offset: const Offset(0, 5),
-              ),
-            ],
           ),
-          child: const Icon(
+          child: Icon(
             Icons.alt_route_rounded,
             size: 22,
-            color: Colors.white,
+            // Ícono grande (no texto): basta 3:1, que el blanco cumple sobre todo
+            // el degradado; `onColor` lo confirma en vez de fijarlo a mano.
+            color: AppColors.onColor(
+              HtmlDesignTokens.emerald600,
+              preferred: AppColors.surfaceLight,
+            ),
           ),
         ),
         const SizedBox(width: AppSpace.md),
@@ -73,23 +74,28 @@ class DestinationSheetHeader extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 2),
-              Row(
-                children: [
-                  LiveDot(color: enVivo, size: 5),
-                  const SizedBox(width: 2),
-                  Flexible(
-                    child: Text(
-                      'Santa Cruz de la Sierra · en vivo',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: text.labelSmall?.copyWith(
-                        color: enVivo,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: 0.2,
+              // `LiveDot` reserva 3× su tamaño para el halo: sin este
+              // corrimiento el punto quedaba sangrado respecto del título.
+              Transform.translate(
+                offset: const Offset(-5, 0),
+                child: Row(
+                  children: [
+                    LiveDot(color: enVivo, size: 5),
+                    const SizedBox(width: 2),
+                    Flexible(
+                      child: Text(
+                        'Santa Cruz de la Sierra · en vivo',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: text.labelSmall?.copyWith(
+                          color: enVivo,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 0.2,
+                        ),
                       ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ],
           ),

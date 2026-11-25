@@ -1,3 +1,5 @@
+import 'dart:ui' as ui;
+
 import 'package:latlong2/latlong.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -5,6 +7,7 @@ import '../../../core/map/map.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/widgets/urbano_map.dart' show MapsPin;
+import '../domain/route_arrows.dart';
 
 /// La clave de un recorrido activo nació aquí; hoy vive con el resto de las
 /// funciones puras del catálogo de micros (`application/micros_catalog.dart`)
@@ -173,4 +176,100 @@ class MapRouteBadge extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Lado del marcador de una flecha de sentido sobre un trazado de micro.
+const double kRouteArrowSize = 16;
+
+/// Clave de la imagen nativa de una flecha: depende SOLO de su color (todas
+/// las flechas del mismo trazo comparten una imagen; con la clave por id el
+/// motor reutilizaba la flecha ya rasterizada con el color de otro micro).
+String routeArrowIconKey(Color color) =>
+    'route-arrow-${color.toARGB32().toRadixString(16)}';
+
+/// Flechas de sentido a lo largo de [path], cada [spacingMeters], en el
+/// [color] del trazo. La geometría (reparto y rumbo) es pura y vive en
+/// `domain/route_arrows.dart`; aquí solo se arma el marcador.
+///
+/// El rumbo es GEOGRÁFICO (`rotateWithMap`): la flecha gira con el mapa y
+/// sigue apuntando a lo largo del trazo aunque el usuario lo rote.
+List<MapMarker> routeArrowMarkers({
+  required String idPrefix,
+  required List<LatLng> path,
+  required Color color,
+  double spacingMeters = 200,
+}) {
+  final arrows = arrowsAlongPath(path, spacingMeters);
+  return [
+    for (var i = 0; i < arrows.length; i++)
+      MapMarker(
+        id: '$idPrefix-$i',
+        point: arrows[i].point,
+        width: kRouteArrowSize,
+        height: kRouteArrowSize,
+        rotation: arrows[i].bearing,
+        rotateWithMap: true,
+        iconKey: routeArrowIconKey(color),
+        child: RouteArrowMarker(color: color),
+      ),
+  ];
+}
+
+/// Cabeza de flecha de sentido sobre un trazado de micro. La comparten la
+/// planificación del viaje y «Micros cerca».
+class RouteArrowMarker extends StatelessWidget {
+  const RouteArrowMarker({super.key, required this.color});
+
+  /// Color del trazo sobre el que se apoya (opaco: el motor nativo descarta
+  /// el alfa de la línea, y la punta debe ser del mismo tono).
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return CustomPaint(
+      size: const Size.square(kRouteArrowSize),
+      painter: _RouteArrowPainter(color: color),
+    );
+  }
+}
+
+/// Cabeza de flecha rellena del MISMO color que el trazo, con el borde blanco
+/// de la polilínea (`MapPolyline.outlineColor`): se lee como una punta de la
+/// propia línea, no como un marcador aparte.
+class _RouteArrowPainter extends CustomPainter {
+  _RouteArrowPainter({required this.color});
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final c = size.center(Offset.zero);
+    final r = size.shortestSide / 2;
+    // Apunta hacia arriba (0° = norte); la rotación la aplica el marcador.
+    final head = ui.Path()
+      ..moveTo(c.dx, c.dy - r * 0.78)
+      ..lineTo(c.dx + r * 0.72, c.dy + r * 0.55)
+      ..lineTo(c.dx, c.dy + r * 0.2)
+      ..lineTo(c.dx - r * 0.72, c.dy + r * 0.55)
+      ..close();
+    canvas
+      ..drawPath(
+        head,
+        Paint()
+          ..color = const Color(0xFFFFFFFF)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = r * 0.3
+          ..strokeJoin = StrokeJoin.round
+          ..isAntiAlias = true,
+      )
+      ..drawPath(
+        head,
+        Paint()
+          ..color = color
+          ..isAntiAlias = true,
+      );
+  }
+
+  @override
+  bool shouldRepaint(covariant _RouteArrowPainter oldDelegate) =>
+      oldDelegate.color != color;
 }

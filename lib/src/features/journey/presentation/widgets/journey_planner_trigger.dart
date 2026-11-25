@@ -6,7 +6,9 @@ import '../../../../core/utils/extensions.dart';
 import '../../../../core/widgets/glass_card.dart';
 
 /// Píldora inferior que resume el viaje y abre/cierra el panel de
-/// origen/destino. Es el único control persistente de la zona baja.
+/// origen/destino. Es la entrada al panel solo SIN resultados: con la hoja de
+/// resultados en pantalla, `JourneyPlannerScreen` no la monta y el viaje se
+/// edita desde los pines del mapa o con «Quitar resultados».
 class JourneyPlannerTrigger extends StatelessWidget {
   const JourneyPlannerTrigger({
     super.key,

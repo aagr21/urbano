@@ -552,9 +552,9 @@ class _DestinationSheetContentState
           onTap: () => FocusScope.of(context).unfocus(),
           child: SingleChildScrollView(
             padding: EdgeInsets.only(
-              left: 20,
-              right: 20,
-              bottom: bottomInset + 20,
+              left: AppSpace.lg + AppSpace.xs,
+              right: AppSpace.lg + AppSpace.xs,
+              bottom: bottomInset + AppSpace.lg + AppSpace.xs,
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -582,103 +582,86 @@ class _DestinationSheetContentState
     );
   }
 
-  /// Tarjeta del planeador: origen y destino como dos campos tonales, el
-  /// botón de invertir entre ellos y el CTA de planificar.
+  /// Bloque de ruta: origen y destino en UNA tarjeta (riel punteado entre
+  /// sus placas y el botón de invertir sobre la línea que los separa) y el
+  /// CTA de planificar debajo, fuera del bloque.
   Widget _buildPlannerCard(BuildContext context) {
     final colors = context.colors;
     final dark = Theme.of(context).brightness == Brightness.dark;
     final radius = BorderRadius.circular(AppRadius.lg);
 
-    return Container(
-      decoration: BoxDecoration(
-        // En oscuro la hoja y la tarjeta comparten superficie: se sube un
-        // escalón para que la tarjeta no se lea solo por el filete.
-        color: dark ? colors.surfaceContainerHigh : colors.surface,
-        borderRadius: radius,
-        border: Border.all(color: colors.outlineVariant, width: 0.8),
-        boxShadow: [
-          BoxShadow(
-            color: dark
-                ? Colors.black.withValues(alpha: 0.22)
-                : HtmlDesignTokens.slate900.withValues(alpha: 0.05),
-            blurRadius: 24,
-            offset: const Offset(0, 8),
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        DecoratedBox(
+          decoration: BoxDecoration(
+            // En oscuro la hoja ya es `surface`: el bloque sube un escalón
+            // para leerse como tarjeta y no solo por el filete.
+            color: dark ? colors.surfaceContainerHigh : colors.surface,
+            borderRadius: radius,
+            border: Border.all(color: colors.outlineVariant),
+            boxShadow: [
+              BoxShadow(
+                color: colors.shadow.withValues(alpha: dark ? 0.2 : 0.05),
+                blurRadius: 18,
+                offset: const Offset(0, 6),
+              ),
+            ],
           ),
-        ],
-      ),
-      child: ClipRRect(
-        borderRadius: radius,
-        child: Stack(
-          children: [
-            // Lavado ambiental de las esquinas: da profundidad sin bordes.
-            Positioned(
-              top: -64,
-              right: -64,
-              child: _CornerGlow(
-                color: HtmlDesignTokens.emerald500,
-                alpha: dark ? 0.1 : 0.16,
-              ),
+          child: Material(
+            type: MaterialType.transparency,
+            borderRadius: radius,
+            clipBehavior: Clip.antiAlias,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                JourneyEndpointField(
+                  label: 'Origen',
+                  value: _originLabel,
+                  emptyHint: 'Escribe o elige tu origen',
+                  empty: _origin == null,
+                  subtitle: _originSubtitle,
+                  tag: _origin is JourneyPlaceLocation ? 'GPS' : null,
+                  icon: Icons.my_location_rounded,
+                  accent: HtmlDesignTokens.emerald600,
+                  controller: _originCtrl,
+                  focusNode: _originFocus,
+                  inputKey: const ValueKey('journey-origin-input'),
+                  onChanged: _onOriginChanged,
+                  onSubmitted: _submitOrigin,
+                  suggestions: _originSuggestions(),
+                  onTap: _focusOrigin,
+                  onMapTap: _pickOriginFromMap,
+                ),
+                JourneySwapDivider(onSwap: _swapEndpoints),
+                JourneyEndpointField(
+                  label: 'Destino',
+                  value: _destinationLabelOrNull,
+                  emptyHint: '¿A dónde vas?',
+                  empty: _destination == null,
+                  subtitle: _destinationSubtitle,
+                  icon: Icons.location_on_rounded,
+                  accent: HtmlDesignTokens.rose500,
+                  controller: _destinationCtrl,
+                  focusNode: _destinationFocus,
+                  inputKey: const ValueKey('journey-destination-input'),
+                  onChanged: _onDestinationChanged,
+                  onSubmitted: _submitDestination,
+                  suggestions: _destinationSuggestions(),
+                  onTap: _focusDestination,
+                  onMapTap: _pickDestinationFromMap,
+                ),
+              ],
             ),
-            Positioned(
-              bottom: -64,
-              left: -64,
-              child: _CornerGlow(
-                color: HtmlDesignTokens.rose500,
-                alpha: dark ? 0.08 : 0.12,
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.all(AppSpace.lg),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  JourneyEndpointField(
-                    label: 'Origen',
-                    value: _originLabel,
-                    emptyHint: 'Escribe o elige tu origen',
-                    empty: _origin == null,
-                    subtitle: _originSubtitle,
-                    tag: _origin is JourneyPlaceLocation ? 'GPS' : null,
-                    icon: Icons.my_location_rounded,
-                    accent: HtmlDesignTokens.emerald600,
-                    controller: _originCtrl,
-                    focusNode: _originFocus,
-                    inputKey: const ValueKey('journey-origin-input'),
-                    onChanged: _onOriginChanged,
-                    onSubmitted: _submitOrigin,
-                    suggestions: _originSuggestions(),
-                    onTap: _focusOrigin,
-                    onMapTap: _pickOriginFromMap,
-                  ),
-                  JourneySwapDivider(onSwap: _swapEndpoints),
-                  JourneyEndpointField(
-                    label: 'Destino',
-                    value: _destinationLabelOrNull,
-                    emptyHint: '¿A dónde vas?',
-                    empty: _destination == null,
-                    subtitle: _destinationSubtitle,
-                    icon: Icons.location_on_rounded,
-                    accent: HtmlDesignTokens.rose500,
-                    controller: _destinationCtrl,
-                    focusNode: _destinationFocus,
-                    inputKey: const ValueKey('journey-destination-input'),
-                    onChanged: _onDestinationChanged,
-                    onSubmitted: _submitDestination,
-                    suggestions: _destinationSuggestions(),
-                    onTap: _focusDestination,
-                    onMapTap: _pickDestinationFromMap,
-                  ),
-                  const SizedBox(height: AppSpace.lg),
-                  JourneyPlanButton(
-                    enabled: _canPlan(),
-                    onPressed: _canPlan() ? _planAndClose : null,
-                  ),
-                ],
-              ),
-            ),
-          ],
+          ),
         ),
-      ),
+        const SizedBox(height: AppSpace.lg),
+        JourneyPlanButton(
+          enabled: _canPlan(),
+          onPressed: _canPlan() ? _planAndClose : null,
+        ),
+      ],
     );
   }
 
@@ -1016,31 +999,4 @@ class _DestinationSheetContentState
       if (mounted) setState(() {});
     }
   }
-}
-
-/// Mancha radial suave para las esquinas de la tarjeta del planeador.
-class _CornerGlow extends StatelessWidget {
-  const _CornerGlow({required this.color, required this.alpha});
-
-  final Color color;
-  final double alpha;
-
-  @override
-  Widget build(BuildContext context) => IgnorePointer(
-    child: SizedBox(
-      width: 148,
-      height: 148,
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          gradient: RadialGradient(
-            colors: [
-              color.withValues(alpha: alpha),
-              color.withValues(alpha: 0),
-            ],
-          ),
-        ),
-      ),
-    ),
-  );
 }

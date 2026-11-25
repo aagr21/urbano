@@ -1,10 +1,9 @@
-import 'dart:convert';
-
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
+import '../data/json_list_store.dart';
 import '../data/trip_history.dart';
 import '../domain/journey_place.dart';
+import 'place_description.dart';
 
 /// Puerto de persistencia del historial de viajes.
 ///
@@ -17,39 +16,19 @@ abstract interface class TripHistoryStore {
 
 /// Historial local (`urbano.trips.recent`), como lista JSON.
 class SharedPreferencesTripHistoryStore implements TripHistoryStore {
-  static const _key = 'urbano.trips.recent';
+  static const JsonListStore<TripHistoryEntry> _store = JsonListStore(
+    key: 'urbano.trips.recent',
+    fromJson: TripHistoryEntry.fromJson,
+    toJson: _toJson,
+  );
+
+  static Map<String, Object?> _toJson(TripHistoryEntry entry) => entry.toJson();
 
   @override
-  Future<List<TripHistoryEntry>> load() async {
-    try {
-      final preferences = await SharedPreferences.getInstance();
-      final raw = preferences.getString(_key);
-      if (raw == null || raw.isEmpty) return const [];
-      final decoded = jsonDecode(raw);
-      if (decoded is! List) return const [];
-      return decoded
-          .map(TripHistoryEntry.fromJson)
-          .whereType<TripHistoryEntry>()
-          .toList(growable: false);
-    } catch (_) {
-      // Sin plugin (test) o store corrupto: el home simplemente no muestra la
-      // sección y la app sigue funcionando.
-      return const [];
-    }
-  }
+  Future<List<TripHistoryEntry>> load() => _store.load();
 
   @override
-  Future<void> save(List<TripHistoryEntry> entries) async {
-    try {
-      final preferences = await SharedPreferences.getInstance();
-      await preferences.setString(
-        _key,
-        jsonEncode([for (final entry in entries) entry.toJson()]),
-      );
-    } catch (_) {
-      // La persistencia es opcional: el historial vive igual en memoria.
-    }
-  }
+  Future<void> save(List<TripHistoryEntry> entries) => _store.save(entries);
 }
 
 /// Dueño del historial de viajes recientes del home: lo carga al arrancar y lo
@@ -87,7 +66,7 @@ class TripHistoryController extends AsyncNotifier<List<TripHistoryEntry>> {
     final point = destination.pointOrNull;
     if (point == null) return;
     final current = state.valueOrNull ?? await future;
-    final described = _describe(destination);
+    final described = describePlace(destination);
     final entry = TripHistoryEntry(
       label: described.label,
       subtitle: described.subtitle,
@@ -118,30 +97,12 @@ class TripHistoryController extends AsyncNotifier<List<TripHistoryEntry>> {
     await _resolvedStore.save(const []);
   }
 
-  static List<TripHistoryEntry> _sorted(List<TripHistoryEntry> entries) {
-    final list = [...entries]..sort((a, b) => b.lastUsed.compareTo(a.lastUsed));
-    return list.length <= maxEntries ? list : list.sublist(0, maxEntries);
-  }
-
-  static ({String label, String? subtitle}) _describe(JourneyPlace place) {
-    return switch (place) {
-      JourneyPlacePoi(:final name, :final subtitle) => (
-        label: name,
-        subtitle: subtitle == null || subtitle.trim().isEmpty
-            ? 'Lugar de Santa Cruz'
-            : subtitle,
-      ),
-      JourneyPlacePoint(:final address, :final lat, :final lon) => (
-        label:
-            address ?? '${lat.toStringAsFixed(4)}, ${lon.toStringAsFixed(4)}',
-        subtitle: '${lat.toStringAsFixed(5)}, ${lon.toStringAsFixed(5)}',
-      ),
-      JourneyPlaceLocation(:final address, :final lat, :final lon) => (
-        label: address ?? 'Mi ubicación',
-        subtitle: '${lat.toStringAsFixed(5)}, ${lon.toStringAsFixed(5)}',
-      ),
-    };
-  }
+  static List<TripHistoryEntry> _sorted(List<TripHistoryEntry> entries) =>
+      sortedByLastUsed(
+        entries,
+        (entry) => entry.lastUsed,
+        maxEntries: maxEntries,
+      );
 }
 
 /// Historial de viajes recientes (vive con la app, como el planeador).

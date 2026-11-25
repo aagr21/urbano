@@ -1,7 +1,11 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:urbano/src/core/theme/app_theme.dart';
+import 'package:urbano/src/core/widgets/photo_viewer.dart';
+import 'package:urbano/src/core/widgets/route_photo.dart';
 import 'package:urbano/src/features/journey/presentation/widgets/journey_option_card.dart';
+import 'package:urbano/src/features/routes/data/route_models.dart';
+import 'package:urbano/src/features/routes/presentation/widgets/micro_bus_art.dart';
 
 import 'helpers/journey_fixtures.dart';
 
@@ -14,6 +18,7 @@ void main() {
     bool selected = false,
     bool expanded = false,
     int index = 0,
+    Map<String, RouteSummary> routes = const {},
   }) async {
     tester.view.physicalSize = const Size(1080, 2340);
     tester.view.devicePixelRatio = 2.75;
@@ -31,6 +36,7 @@ void main() {
                 expanded: expanded,
                 index: index,
                 selected: selected,
+                routes: routes,
                 onToggle: () {},
               ),
             ],
@@ -83,16 +89,55 @@ void main() {
     expect(find.text('y llegas a tu destino'), findsOneWidget);
   });
 
-  testWidgets('la tira del recorrido muestra las líneas a tomar', (
-    tester,
-  ) async {
+  testWidgets('la galería muestra una postal por micro, en orden y unidas '
+      'por el transbordo', (tester) async {
     await pumpCard(tester);
 
-    // Tira: 🚶 › [🚌 101 ANGOSTURA] › [🚌 5] › 🚶 (sin rótulo de texto).
-    expect(find.byTooltip('Caminar'), findsNWidgets(2));
+    // Sin ficha de línea todavía: placas del color de cada micro (nunca un
+    // hueco), numeradas 1 y 2 y con el nudo de transbordo entre ellas.
+    expect(
+      find.byKey(const ValueKey('journey-micro-shot-0-1')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('journey-micro-shot-0-3')),
+      findsOneWidget,
+    );
+    expect(find.byTooltip('Transbordo'), findsOneWidget);
     expect(find.text('101 ANGOSTURA'), findsWidgets);
     expect(find.text('5'), findsWidgets);
-    expect(find.byIcon(Icons.directions_bus_rounded), findsWidgets);
+    expect(find.byType(MicroBusArt), findsNWidgets(2));
+  });
+
+  testWidgets('con la ficha de la línea, la postal muestra la foto y el '
+      'trayecto, y tocarla la abre a pantalla completa', (tester) async {
+    await pumpCard(
+      tester,
+      routes: {
+        '101': const RouteSummary(
+          id: '101',
+          shortName: '101 ANGOSTURA',
+          longName: 'Plan 3000 - Centro',
+          color: 'D35400',
+          textColor: 'FFFFFF',
+          description: '',
+          type: 3,
+          directionsCount: 2,
+          stopCount: 30,
+          tripCount: 10,
+          imageUrl: 'https://example.com/101.jpg',
+        ),
+      },
+    );
+
+    expect(find.byType(RoutePhoto), findsOneWidget);
+    expect(find.text('Plan 3000 - Centro'), findsOneWidget);
+    // La otra línea sigue en su placa ilustrada.
+    expect(find.byType(MicroBusArt), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('journey-micro-shot-0-1')));
+    await tester.pumpAndSettle();
+    expect(find.byType(PhotoViewerScreen), findsOneWidget);
   });
 
   testWidgets('horario, caminata y pasaje se leen en palabras', (tester) async {
