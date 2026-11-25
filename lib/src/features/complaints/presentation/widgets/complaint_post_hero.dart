@@ -77,7 +77,10 @@ class ComplaintPostHero extends StatelessWidget {
         fit: StackFit.expand,
         children: [
           if (photo == null)
-            _Poster(accent: accent, category: complaint.category)
+            ComplaintCategoryPoster(
+              accent: accent,
+              category: complaint.category,
+            )
           else
             Positioned.fill(
               child: PhotoShine(
@@ -181,8 +184,12 @@ class ComplaintPostHero extends StatelessWidget {
 /// Póster del motivo para reportes **sin foto**: el acento de la categoría en
 /// diagonal (orilla clara → tono → profundo), los anillos de la ciudad en
 /// reposo y el ícono de la categoría.
-class _Poster extends StatelessWidget {
-  const _Poster({required this.accent, required this.category});
+class ComplaintCategoryPoster extends StatelessWidget {
+  const ComplaintCategoryPoster({
+    super.key,
+    required this.accent,
+    required this.category,
+  });
 
   final Color accent;
   final String category;

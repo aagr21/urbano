@@ -92,13 +92,14 @@ Vercel URL**. Always pass it explicitly for targeted local runs
   `ComplaintPhotoGallery` (`complaints/presentation/widgets/complaint_photo_gallery.dart` — main
   photo + one tappable thumb per adjunto) and any tap on those photos pushes
   `ComplaintPhotoViewerScreen` (`openComplaintPhotoViewer`, same folder), a `PageView` over the
-  whole list with a `"i de N"` counter. The feed card keeps its single bleed photo — it opens the
+  whole list with a `"i de N"` counter. The feed card keeps a single photo (inset, rounded, double tap = apoyo) — it opens the
   detail, which now shows everything. Locked by `test/complaint_photo_gallery_test.dart`; note a
   `PageView` drag in a test must cross half the page width (viewport is 800 px logical by default,
   so `Offset(-500, 0)`), otherwise it settles back on the same photo.
 - **The `/complaints` curtain must not eat the first post.** The header card, the category filter
   row and the "La comunidad reporta" row are chrome, not content: the feed's first
-  `ComplaintPostCard` (~447 px) has to fit between the list top and the bottom chrome at
+  `ComplaintPostCard` (~400 px: author-style header with `MicroBadge` + `Micro N` + status, inset photo
+  with the category on it, quoted body, three-way action bar) has to fit between the list top and the bottom chrome at
   1080×2340@2.75. `_CommunityHeader` is therefore one tight row (badge + title + compact
   `Crear` CTA with tooltip `Crear queja`) above the three `ComplaintsStatTile`s (`complaints_cover_header.dart`) — no tagline paragraph, no
   full-width button row — and `test/complaints_feed_test.dart` asserts `card.bottom < bar.top` at a
