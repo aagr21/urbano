@@ -1,5 +1,7 @@
 import 'package:flutter/foundation.dart';
 
+import '../../../core/utils/time_formatters.dart';
+
 /// Destino de un viaje ya planificado, guardado para el home.
 ///
 /// Es dato puro: no guarda el origen ni la hora de salida (el viaje se vuelve a
@@ -87,4 +89,16 @@ List<TripHistoryEntry> filterTripHistory(
             (entry.subtitle?.toLowerCase().contains(q) ?? false),
       )
       .toList(growable: false);
+}
+
+/// Lo que dice la píldora de una fila del historial: lo que tardó el viaje la
+/// última vez o, si el plan nunca llegó a calcularse, cuándo se intentó
+/// («hoy», «ayer», «hace N d»). [now] es parámetro para poder probarlo.
+String tripHistoryPillLabel(TripHistoryEntry entry, {required DateTime now}) {
+  final minutes = entry.durationMinutes;
+  if (minutes != null && minutes > 0) return Fmt.duration(minutes);
+  final days = now.difference(entry.lastUsed).inDays;
+  if (days <= 0) return 'hoy';
+  if (days == 1) return 'ayer';
+  return 'hace $days d';
 }

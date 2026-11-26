@@ -339,8 +339,8 @@ platform view; the merged map/result-sheet design is deliberate (see README).
   and `_LiveMapControls` — may watch the location providers; the screen's `build` resolves
   endpoints **without** the GPS fallback and lets the layer apply it. Locked by the
   "un evento de ubicación mueve SOLO el mapa" test in `test/journey_result_map_test.dart`
-  (it asserts `same()` widget identity for panel/sheet and _not_ `same()` for the map, so
-  the guard can't silently become a no-op). Apply the same split to any new live stream.
+  (it asserts `same()` widget identity for the results sheet and _not_ `same()` for the map,
+  so the guard can't silently become a no-op). Apply the same split to any new live stream.
 - **GPS is opened by demand, never by a listener.** `locationDemandProvider`
   (foreground via `appForegroundProvider` **&&** `followLocationProvider` **&&** status
   `ready`) is the single key: without it `myLocationRealtimeProvider` returns an _empty_
