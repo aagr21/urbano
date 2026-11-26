@@ -52,7 +52,7 @@ jobs:
         run: npm run build
 
   # E2E contra Postgres/PostGIS real (servicio): importa el feed real y
-  # corre los specs e2e (journey/rutas/stops).
+  # corre los specs e2e (journey/rutas/stops/denuncias).
   # El feed (`backend/gtfs.zip`) está en el repo; la app crea extensiones y
   # esquemas al arrancar (DB_SYNCHRONIZE), así que no se necesita init SQL.
   backend-e2e:

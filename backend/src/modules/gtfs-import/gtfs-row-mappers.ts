@@ -1,4 +1,4 @@
-import { GtfsRow, GtfsZipReader, gtfs } from './gtfs-zip.reader';
+import { GtfsRow, gtfs } from './gtfs-zip.reader';
 import { Agency } from './entities/agency.entity';
 import { FeedInfo } from './entities/feed-info.entity';
 import { Frequency } from './entities/frequency.entity';
@@ -13,6 +13,14 @@ import { Trip } from './entities/trip.entity';
 export interface ShapePoint {
   lat: number;
   lon: number;
+}
+
+/**
+ * Cualquier fuente de filas GTFS por archivo: el lector del zip en
+ * producción, una tabla en memoria en los tests.
+ */
+export interface GtfsRowSource {
+  rows(fileName: string): AsyncIterable<GtfsRow>;
 }
 
 /** Fila de frequencies.txt lista para insertar (el id lo pone Postgres). */
@@ -133,7 +141,7 @@ export const rowMappers = {
  * completo en memoria (stop_times.txt ronda el millón de filas).
  */
 export async function* mappedRows<T>(
-  reader: GtfsZipReader,
+  reader: GtfsRowSource,
   fileName: string,
   map: (row: GtfsRow, index: number) => T
 ): AsyncGenerator<T> {
@@ -146,23 +154,42 @@ export async function* mappedRows<T>(
 /**
  * shapes.txt agrupado por shape_id en memoria (130k puntos es manejable): el
  * archivo trae un punto por fila y la tabla guarda una fila por shape.
+ *
+ * Los puntos se ORDENAN por `shape_pt_sequence`: GTFS no exige que el
+ * archivo venga ordenado, y un feed desordenado dibujaba el recorrido como un
+ * zigzag sin que nada avisara. El orden es estable: puntos con la misma
+ * secuencia conservan el orden de lectura.
  */
 export async function readShapePoints(
-  reader: GtfsZipReader
+  reader: GtfsRowSource
 ): Promise<Map<string, ShapePoint[]>> {
-  const points = new Map<string, ShapePoint[]>();
+  const bySequence = new Map<
+    string,
+    { sequence: number; point: ShapePoint }[]
+  >();
   for await (const row of reader.rows('shapes.txt')) {
     const shapeId = gtfs.str(row, 'shape_id');
-    const point: ShapePoint = {
-      lat: gtfs.num(row, 'shape_pt_lat'),
-      lon: gtfs.num(row, 'shape_pt_lon'),
+    const entry = {
+      sequence: gtfs.num(row, 'shape_pt_sequence'),
+      point: {
+        lat: gtfs.num(row, 'shape_pt_lat'),
+        lon: gtfs.num(row, 'shape_pt_lon'),
+      },
     };
-    const list = points.get(shapeId);
+    const list = bySequence.get(shapeId);
     if (list) {
-      list.push(point);
+      list.push(entry);
     } else {
-      points.set(shapeId, [point]);
+      bySequence.set(shapeId, [entry]);
     }
+  }
+  const points = new Map<string, ShapePoint[]>();
+  for (const [shapeId, entries] of bySequence) {
+    entries.sort((a, b) => a.sequence - b.sequence);
+    points.set(
+      shapeId,
+      entries.map((e) => e.point)
+    );
   }
   return points;
 }
@@ -177,8 +204,8 @@ export function buildShapeRows(
 ): Shape[] {
   const rows: Shape[] = [];
   for (const [shapeId, points] of pointsByShape) {
-    // shapes.txt ya viene ordenado por sequence; por las dudas se respeta el
-    // orden de lectura y se calcula el bbox en la misma pasada.
+    // Los puntos ya vienen ordenados por secuencia (readShapePoints); el bbox
+    // se calcula en la misma pasada.
     let minLon = Infinity;
     let minLat = Infinity;
     let maxLon = -Infinity;
