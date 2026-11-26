@@ -178,7 +178,12 @@ probar sin montar widgets:
   (`journey-ranking.ts`) son módulos propios, y el mapeo de OTP
   (`otp-itinerary.mapper.ts`) está separado del adaptador HTTP. Los CLIs solo
   orquestan I/O: el plan de reparación del feed vive puro en
-  `gtfs-feed-repair.ts`.
+  `gtfs-feed-repair.ts`. Denuncias: validaciones y límites en
+  `complaints/domain/complaint-rules.ts`, fotos detrás de `PhotoStoragePort`
+  (token `COMPLAINT_PHOTO_STORAGE`, adaptador `VercelBlobPhotoStorage`); un
+  servicio Nest no recibe nada que no sea un provider (el reloj de
+  `ComplaintsService` es una propiedad, no un parámetro del constructor), y
+  `complaints.service.spec.ts` lo comprueba armándolo con `Test.createTestingModule`.
 
 
 Backend (`backend/src/modules/<feature>/{domain,application,infrastructure,presentation}`

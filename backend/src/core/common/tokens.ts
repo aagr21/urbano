@@ -7,6 +7,7 @@ export const JOURNEY_ROUTER_PORT = Symbol('JOURNEY_ROUTER_PORT');
 export const JOURNEY_WALK_GEOMETRY_PORT = Symbol('JOURNEY_WALK_GEOMETRY_PORT');
 export const STATS_REPOSITORY = Symbol('STATS_REPOSITORY');
 export const SERVICE_REPOSITORY = Symbol('SERVICE_REPOSITORY');
+export const COMPLAINT_PHOTO_STORAGE = Symbol('COMPLAINT_PHOTO_STORAGE');
 
 /** TTL (ms) por defecto de la caché en memoria de endpoints de lectura. */
 export const CACHE_TTL_MS = 60_000;
