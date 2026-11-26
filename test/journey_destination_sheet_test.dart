@@ -181,13 +181,14 @@ void main() {
         'quedaba abierta y reaparecía al volver a Inicio)', (tester) async {
       await _pumpSheet(tester);
 
+      // Ventura Mall queda a ~3,4 km de «Mi ubicación» (la plaza principal).
       await tester.enterText(
         find.byKey(const ValueKey('journey-destination-input')),
-        'plaza',
+        'ventura',
       );
       await tester.pumpAndSettle();
-      await tester.ensureVisible(find.text('Plaza 24 de Septiembre'));
-      await tester.tap(find.text('Plaza 24 de Septiembre'));
+      await tester.ensureVisible(find.text('Ventura Mall'));
+      await tester.tap(find.text('Ventura Mall'));
       await tester.pumpAndSettle();
 
       await tester.ensureVisible(find.byType(JourneyPlanButton));
@@ -201,6 +202,38 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Abrir'), findsOneWidget);
       expect(find.byType(JourneyPlanButton), findsNothing);
+    });
+
+    testWidgets('con destino en el mismo punto que el origen no se planifica '
+        'y el campo dice por qué', (tester) async {
+      await _pumpSheet(tester);
+
+      // La Plaza 24 de Septiembre está EXACTAMENTE en «Mi ubicación».
+      await tester.enterText(
+        find.byKey(const ValueKey('journey-destination-input')),
+        'plaza',
+      );
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('Plaza 24 de Septiembre'));
+      await tester.tap(find.text('Plaza 24 de Septiembre'));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text('Es el mismo punto que el origen: elige otro destino'),
+        findsOneWidget,
+      );
+      final button = tester.widget<JourneyPlanButton>(
+        find.byType(JourneyPlanButton),
+      );
+      expect(button.enabled, isFalse);
+      expect(button.onPressed, isNull);
+
+      // Tocarlo igual no navega: la hoja sigue abierta.
+      await tester.ensureVisible(find.byType(JourneyPlanButton));
+      await tester.tap(find.byType(JourneyPlanButton), warnIfMissed: false);
+      await tester.pumpAndSettle();
+      expect(find.text('Volver a Inicio'), findsNothing);
+      expect(find.byType(JourneyPlanButton), findsOneWidget);
     });
 
     testWidgets('escribir en el origen quita el GPS y se puede recuperar', (

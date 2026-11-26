@@ -1,5 +1,4 @@
-import 'package:latlong2/latlong.dart';
-
+import 'endpoint_distance.dart' as endpoint_rules;
 import 'journey_place.dart';
 
 /// Sentinel para "no toques este campo" en [JourneyPlannerState.copyWith]:
@@ -56,27 +55,17 @@ class JourneyPlannerState {
   bool get ready => origin != null && destination != null;
 
   /// Distancia en línea recta entre los dos puntos elegidos, o `null` si
-  /// aún falta alguno.
-  double? get endpointsDistanceM {
-    final src = origin.pointOrNull;
-    final dst = destination.pointOrNull;
-    if (src == null || dst == null) return null;
-    return const Distance().as(
-      LengthUnit.Meter,
-      LatLng(src.lat, src.lon),
-      LatLng(dst.lat, dst.lon),
-    );
-  }
+  /// aún falta alguno (regla compartida: `endpoint_distance.dart`).
+  double? get endpointsDistanceM =>
+      endpoint_rules.endpointsDistanceMeters(origin, destination);
 
   /// Origen y destino están (casi) en el mismo sitio: no hay viaje que
   /// planificar.
   bool get endpointsTooClose =>
-      (endpointsDistanceM ?? double.infinity) < minTransitDistanceM;
+      endpoint_rules.endpointsTooClose(origin, destination);
 
-  /// Distancia mínima (línea recta) entre origen y destino para planificar
-  /// en transporte: por debajo, caminar es más rápido. Coincide con el guard
-  /// del backend (`MIN_TRANSIT_DISTANCE_M` en journey.service.ts).
-  static const double minTransitDistanceM = 150.0;
+  /// Ver [endpoint_rules.minTransitDistanceM].
+  static const double minTransitDistanceM = endpoint_rules.minTransitDistanceM;
 
   /// Copia con cambios: cada mutación produce un objeto nuevo (el [Notifier]
   /// avisa por identidad, no por igualdad profunda).

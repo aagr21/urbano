@@ -212,4 +212,38 @@ void main() {
       );
     });
   });
+
+  group('mismo punto (regla de 150 m del planeador y el backend)', () {
+    test('el mismo punto no se puede planificar y lo dice', () {
+      final d = DestinationDraft.initial(origin: plaza, destination: plaza);
+      expect(d.tooClose, isTrue);
+      expect(d.canPlan, isFalse);
+      expect(
+        d.destinationSubtitle,
+        'Es el mismo punto que el origen: elige otro destino',
+      );
+    });
+
+    test('a menos de 150 m dice cuánto falta caminar', () {
+      // ~111 m al norte de la plaza.
+      const cerca = JourneyPlacePoi(
+        name: 'Catedral',
+        lat: -17.7828,
+        lon: -63.1821,
+      );
+      final d = DestinationDraft.initial(origin: plaza, destination: cerca);
+      expect(d.canPlan, isFalse);
+      expect(
+        d.destinationSubtitle,
+        matches(RegExp(r'^Está a 1\d\d m del origen')),
+      );
+    });
+
+    test('lejos se planifica y el destino muestra su contexto', () {
+      final d = DestinationDraft.initial(origin: plaza, destination: mall);
+      expect(d.tooClose, isFalse);
+      expect(d.canPlan, isTrue);
+      expect(d.destinationSubtitle, isNull, reason: 'Ventura Mall sin zona');
+    });
+  });
 }

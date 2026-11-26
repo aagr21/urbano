@@ -1,3 +1,4 @@
+import 'endpoint_distance.dart';
 import 'journey_place.dart';
 
 /// Borrador del viaje que se arma en la hoja «¿A dónde vas?» de la portada.
@@ -56,8 +57,13 @@ class DestinationDraft {
   final String originQuery;
   final String destinationQuery;
 
-  /// Con origen y destino resueltos se puede planificar.
-  bool get canPlan => origin != null && destination != null;
+  /// Con origen y destino resueltos (y no en el mismo sitio) se puede
+  /// planificar.
+  bool get canPlan => origin != null && destination != null && !tooClose;
+
+  /// Origen y destino (casi) en el mismo sitio: no hay viaje en micro, así
+  /// que no se pide (la misma regla de 150 m que el planeador y el backend).
+  bool get tooClose => endpointsTooClose(origin, destination);
 
   // ── Transiciones ─────────────────────────────────────────────────────────
 
@@ -227,7 +233,17 @@ class DestinationDraft {
     JourneyPlaceLocation(:final address) => address ?? 'Mi ubicación',
   };
 
-  String? get destinationSubtitle => switch (destination) {
+  String? get destinationSubtitle {
+    if (tooClose) {
+      final meters = endpointsDistanceMeters(origin, destination) ?? 0;
+      return meters < 1
+          ? 'Es el mismo punto que el origen: elige otro destino'
+          : 'Está a ${meters.round()} m del origen: camina hasta allí';
+    }
+    return _destinationContext;
+  }
+
+  String? get _destinationContext => switch (destination) {
     null => 'Escribe un lugar o toca uno reciente',
     JourneyPlacePoi(:final subtitle) => subtitle,
     JourneyPlacePoint() => 'Punto elegido en el mapa',

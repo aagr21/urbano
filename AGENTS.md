@@ -529,7 +529,9 @@ animator_duration_scale` — the key is `animator_duration_scale`, NOT `animator
   tiene globo «¿A dónde vas?» ni panel de origen/destino** (el usuario lo pidió
   explícitamente; se retiraron `planner-trigger`, `JourneyPlannerCard`, su
   botón de cerrar, el selector de lugares y `pendingPlannerPanelProvider`): el
-  viaje se arma SOLO en la portada (`showJourneyDestinationSheet`) y en `/journey`
+  viaje se arma SOLO en la portada (`showJourneyDestinationSheet`, que no deja
+  planificar con los extremos a < 150 m: `DestinationDraft.tooClose`, misma regla
+  que el planeador y el backend en `domain/endpoint_distance.dart`) y en `/journey`
   se edita tocando un pin (abre `/journey/pick` encima del punto) o
   arrastrándolo. «Quitar resultados» limpia y vuelve a Inicio. Si la primera
   búsqueda falla, la carga se retira y un snack lo dice. La hoja de resultados
