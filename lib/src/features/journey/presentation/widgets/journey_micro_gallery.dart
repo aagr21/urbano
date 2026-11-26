@@ -1,6 +1,7 @@
 import 'package:material_ui/material_ui.dart';
 
 import '../../../../core/animation/motion.dart';
+
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/utils/extensions.dart';
@@ -37,7 +38,7 @@ class JourneyMicroGallery extends StatelessWidget {
   final JourneyOption option;
 
   /// Colores de dibujo que cambian (índice de tramo → hex), ver
-  /// `JourneyOptionCard.alternativeRouteColorsForLegs`.
+  /// `LegStrokeColors.forLegs`.
   final Map<int, String> alternativeColors;
 
   /// Ficha de cada línea por `routeId` (foto, trayecto). Puede venir vacía.

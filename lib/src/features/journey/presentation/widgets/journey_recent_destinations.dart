@@ -5,33 +5,7 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_theme.dart' show AppRadius, AppSpace;
 import '../../../../core/theme/html_design_tokens.dart' show HtmlDesignTokens;
 import '../../../../core/utils/extensions.dart';
-import '../../data/saved_trips.dart';
-import '../../data/trip_history.dart';
-
-/// Tipo unificado para destinos recientes: puede provenir de savedTrips
-/// (viaje completo origen→destino) o de history (solo destino).
-sealed class RecentDestinationItem {
-  const RecentDestinationItem({required this.key, required this.lastUsed});
-  final String key;
-  final DateTime lastUsed;
-
-  factory RecentDestinationItem.savedTrip(SavedTrip trip) =
-      RecentDestinationSavedTrip;
-  factory RecentDestinationItem.historyEntry(TripHistoryEntry entry) =
-      RecentDestinationHistoryEntry;
-}
-
-class RecentDestinationSavedTrip extends RecentDestinationItem {
-  RecentDestinationSavedTrip(this.trip)
-    : super(key: trip.key, lastUsed: trip.lastUsed);
-  final SavedTrip trip;
-}
-
-class RecentDestinationHistoryEntry extends RecentDestinationItem {
-  RecentDestinationHistoryEntry(this.entry)
-    : super(key: entry.key, lastUsed: entry.lastUsed);
-  final TripHistoryEntry entry;
-}
+import '../../application/recent_destinations.dart';
 
 /// Fila de destino reciente.
 ///

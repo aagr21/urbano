@@ -4,13 +4,13 @@ import 'package:material_ui/material_ui.dart';
 
 import '../../../core/location/location_fab.dart';
 import '../../../core/map/map.dart';
-import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/extensions.dart';
 import '../../../core/utils/location.dart';
 import '../../../core/widgets/map_tile_button.dart';
 import '../../../core/widgets/urbano_back_button.dart';
 import '../../../core/widgets/urbano_map.dart';
 import '../data/journey_repository.dart';
+import 'widgets/map_picker_widgets.dart';
 
 /// Selector de punto en el mapa (origen/destino) con pin fijo al centro y
 /// devolución de `JourneyPoint`.
@@ -80,10 +80,12 @@ class _MapPickerScreenState extends ConsumerState<MapPickerScreen> {
   /// el usuario aún no movió el mapa ni eligió un punto inicial).
   void _applyInitialLocation(LatLng? position) {
     if (position == null ||
-        widget.initial != null ||
-        _userInteracted ||
-        _initialLocApplied ||
-        !_mapReady) {
+        !shouldAutoCenterPicker(
+          hasInitialPoint: widget.initial != null,
+          userInteracted: _userInteracted,
+          alreadyApplied: _initialLocApplied,
+          mapReady: _mapReady,
+        )) {
       return;
     }
     _initialLocApplied = true;
@@ -100,40 +102,6 @@ class _MapPickerScreenState extends ConsumerState<MapPickerScreen> {
     _point = point;
     _visiblePoint.value = point;
     if (hasGesture) _userInteracted = true;
-  }
-
-  /// Marcador de punto FIJO (no arrastrable) con el aspecto del de Google
-  /// Maps: gota con círculo blanco al centro. Su PUNTA queda clavada en el
-  /// centro exacto del mapa, que es la coordenada que se devuelve. Para
-  /// cambiarla se mueve el mapa por debajo, nunca el pin.
-  Widget _buildCenterPin(BuildContext context) {
-    const size = 46.0;
-    // Altura REAL del pin (gota + margen de sombra): subir media esta altura
-    // clavaba antes la punta en el centro; con el margen nuevo hay que usar la
-    // altura encajada para que la punta siga cayendo justo en el punto central.
-    final height = MapsPin.boxedHeight(size);
-    return IgnorePointer(
-      child: Stack(
-        alignment: Alignment.center,
-        clipBehavior: Clip.none,
-        children: [
-          // Sombra elíptica justo en el punto del centro.
-          Container(
-            width: 30,
-            height: 9,
-            decoration: BoxDecoration(
-              color: Colors.black.withValues(alpha: 0.28),
-              borderRadius: BorderRadius.circular(AppRadius.pill),
-            ),
-          ),
-          // Subimos media altura del pin: la punta toca el punto central.
-          Transform.translate(
-            offset: Offset(0, -height / 2),
-            child: const MapsPin(color: Color(0xFFDB4437), size: size),
-          ),
-        ],
-      ),
-    );
   }
 
   /// Centra el mapa en la ubicación del usuario con el flujo completo de
@@ -192,7 +160,6 @@ class _MapPickerScreenState extends ConsumerState<MapPickerScreen> {
         : LatLng(widget.initial!.lat, widget.initial!.lon);
 
     final colors = context.colors;
-    final text = context.text;
 
     return Scaffold(
       // Selector de punto: solo el mapa base sigue al tile elegido; título,
@@ -222,20 +189,20 @@ class _MapPickerScreenState extends ConsumerState<MapPickerScreen> {
             ),
           ),
           // Pin fijo en el centro del mapa (la sombra marca el punto exacto).
-          Center(child: _buildCenterPin(context)),
+          const Center(child: MapPickerCenterPin()),
           // Controles de zoom (derecha).
           Positioned(
             right: 16,
             top: MediaQuery.of(context).padding.top + 72,
             child: Column(
               children: [
-                _CircleButton(
+                MapPickerCircleButton(
                   icon: Icons.add_rounded,
                   tooltip: 'Acercar',
                   onTap: _mapController.zoomIn,
                 ),
                 const SizedBox(height: 10),
-                _CircleButton(
+                MapPickerCircleButton(
                   icon: Icons.remove_rounded,
                   tooltip: 'Alejar',
                   onTap: _mapController.zoomOut,
@@ -258,41 +225,7 @@ class _MapPickerScreenState extends ConsumerState<MapPickerScreen> {
                   floating: true,
                 ),
                 const SizedBox(width: 10),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 9,
-                  ),
-                  decoration: BoxDecoration(
-                    color: colors.surface,
-                    borderRadius: BorderRadius.circular(AppRadius.pill),
-                    border: Border.all(color: colors.outlineVariant),
-                    boxShadow: const [
-                      BoxShadow(
-                        color: Color(0x14000000),
-                        blurRadius: 8,
-                        offset: Offset(0, 3),
-                      ),
-                    ],
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        Icons.open_with_rounded,
-                        size: 15,
-                        color: colors.primary,
-                      ),
-                      const SizedBox(width: 7),
-                      Text(
-                        widget.title,
-                        style: text.labelLarge?.copyWith(
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
+                MapPickerTitlePill(title: widget.title),
               ],
             ),
           ),
@@ -310,7 +243,7 @@ class _MapPickerScreenState extends ConsumerState<MapPickerScreen> {
                 // cercana ni el Scaffold) y refleja lo que devolverá `_confirm()`.
                 ValueListenableBuilder<JourneyPoint>(
                   valueListenable: _visiblePoint,
-                  builder: (_, point, _) => _ChosenPointChip(point: point),
+                  builder: (_, point, _) => MapPickerPointChip(point: point),
                 ),
                 const SizedBox(height: 12),
                 Row(
@@ -344,102 +277,6 @@ class _MapPickerScreenState extends ConsumerState<MapPickerScreen> {
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-/// Chip con la coordenada exacta que se devolverá al planificador.
-///
-/// Con el pin fijo al centro no hay forma de "leer" el número de otra
-/// forma; se actualiza en vivo mientras el mapa se desplaza (a través de
-/// `ValueListenableBuilder`) y refleja exactamente el valor de `_confirm()`.
-class _ChosenPointChip extends StatelessWidget {
-  const _ChosenPointChip({required this.point});
-
-  final JourneyPoint point;
-
-  static String _fmt(double value) {
-    // Evita "+"-0 y mantiene siempre 5 decimales.
-    final normalized = value == 0 ? 0.0 : value;
-    return normalized.toStringAsFixed(5);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.colors;
-    final text = context.text;
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      decoration: BoxDecoration(
-        color: colors.surface,
-        borderRadius: BorderRadius.circular(AppRadius.md),
-        border: Border.all(color: colors.outlineVariant),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x1F000000),
-            blurRadius: 12,
-            offset: Offset(0, 5),
-          ),
-        ],
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(Icons.add_location_alt_rounded, size: 17, color: colors.primary),
-          const SizedBox(width: 10),
-          Flexible(
-            child: Text(
-              'Punto: ${_fmt(point.lat)}, ${_fmt(point.lon)}',
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: text.labelMedium?.copyWith(
-                fontWeight: FontWeight.w800,
-                fontFeatures: const [FontFeature.tabularFigures()],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/// Botón circular flotante (volver / zoom).
-class _CircleButton extends StatelessWidget {
-  const _CircleButton({
-    required this.icon,
-    required this.tooltip,
-    required this.onTap,
-  });
-
-  final IconData icon;
-  final String tooltip;
-  final VoidCallback? onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.colors;
-    return Container(
-      width: 46,
-      height: 46,
-      decoration: BoxDecoration(
-        color: colors.surface,
-        shape: BoxShape.circle,
-        border: Border.all(color: colors.outlineVariant),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x1F000000),
-            blurRadius: 10,
-            offset: Offset(0, 4),
-          ),
-        ],
-      ),
-      child: IconButton(
-        tooltip: tooltip,
-        onPressed: onTap,
-        icon: Icon(icon, size: 21, color: colors.primary),
       ),
     );
   }

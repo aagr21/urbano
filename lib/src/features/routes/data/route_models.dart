@@ -298,3 +298,17 @@ class RouteStop {
   final double lon;
   final int sequence;
 }
+
+/// Destino legible del sentido [directionId] de [detail]. «Ida»/«Vuelta» a
+/// secas no dicen nada (el botón del sentido ya lo dice), así que solo se
+/// devuelve un headsign con nombre real.
+String? meaningfulHeadsign(RouteDetail? detail, int directionId) {
+  if (detail == null) return null;
+  for (final direction in detail.directions) {
+    if (direction.directionId != directionId) continue;
+    final headsign = direction.headsign.trim();
+    const generic = {'ida', 'vuelta', ''};
+    return generic.contains(headsign.toLowerCase()) ? null : headsign;
+  }
+  return null;
+}

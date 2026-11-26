@@ -15,14 +15,16 @@ import {
   MIN_TRANSIT_DISTANCE_M,
   WALK_RADIUS_M,
 } from '../domain/journey-limits';
+import { straightLineMeters } from '../domain/geo';
 import {
-  planJourneys,
-  rankAndCut,
-  straightLineMeters,
-  orientBusLegGeometry,
   connectWalkAndBusGeometry,
+  orientBusLegGeometry,
+} from '../domain/journey-geometry';
+import { planJourneys } from '../domain/journey-planner';
+import {
   dropShortFirstRideTransfers,
-} from '../domain/journey-planner';
+  rankAndCut,
+} from '../domain/journey-ranking';
 import { JourneyRouterPort } from '../domain/journey-router.port';
 import {
   BusLeg,

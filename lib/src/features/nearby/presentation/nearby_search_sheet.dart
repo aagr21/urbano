@@ -152,15 +152,7 @@ class _NearbySearchSheetState extends ConsumerState<_NearbySearchSheet> {
     final media = MediaQuery.of(context);
     final colors = context.colors;
     final text = context.text;
-    final typed = _field.text.trim().toLowerCase();
-
-    final places = typed.isEmpty
-        ? kSantaCruzPopularPlaces
-        : kSantaCruzPopularPlaces.where((poi) {
-            return poi.name.toLowerCase().contains(typed) ||
-                poi.category.toLowerCase().contains(typed) ||
-                (poi.ringOrZone?.toLowerCase().contains(typed) ?? false);
-          }).toList();
+    final places = searchPopularPlaces(_field.text);
     final stopHits = _query.length >= _minStopQuery
         ? ref.watch(stopNameSearchProvider(_query))
         : null;
@@ -346,7 +338,9 @@ class _NearbySearchSheetState extends ConsumerState<_NearbySearchSheet> {
                     const SizedBox(height: AppSpace.sm),
                   ],
                   NearbySectionLabel(
-                    typed.isEmpty ? 'Lugares populares' : 'Lugares',
+                    _field.text.trim().isEmpty
+                        ? 'Lugares populares'
+                        : 'Lugares',
                   ),
                   if (places.isEmpty)
                     const NearbyHintRow(

@@ -6,26 +6,33 @@ import 'package:material_ui/material_ui.dart';
 import '../../../../core/location/reverse_geocoding.dart';
 import '../../domain/journey_place.dart';
 
+/// Ruta del selector de punto: `/journey/pick?title=…[&lat=…&lon=…]`.
+///
+/// Se arma con `Uri(path:, queryParameters:)` (un solo `?`): concatenar otro
+/// `?` a mano dejaba `/journey/pick??title=…` y el selector perdía el título
+/// y el punto inicial. Con [current] el selector ABRE ENCIMA de ese punto.
+String mapPickerLocation({required String title, JourneyPoint? current}) => Uri(
+  path: '/journey/pick',
+  queryParameters: {
+    'title': title,
+    if (current != null) 'lat': '${current.lat}',
+    if (current != null) 'lon': '${current.lon}',
+  },
+).toString();
+
 /// Elige un extremo (origen o destino) desde el mapa, con reverse geocoding.
 ///
-/// Navega a `/journey/pick`, espera el punto seleccionado y lo convierte en
-/// un [JourneyPlacePoint] con la dirección geocodificada.
+/// Navega al selector, espera el punto y lo devuelve como [JourneyPlacePoint]
+/// con su dirección (sin red queda solo el punto: la dirección es un extra).
 Future<JourneyPlacePoint?> pickEndpointFromMap({
   required BuildContext context,
   required WidgetRef ref,
   required String title,
   JourneyPoint? currentPoint,
 }) async {
-  final params = <String, String>{'title': title};
-  if (currentPoint != null) {
-    params['lat'] = '${currentPoint.lat}';
-    params['lon'] = '${currentPoint.lon}';
-  }
-
   final point = await context.push<JourneyPoint>(
-    Uri(path: '/journey/pick', queryParameters: params).toString(),
+    mapPickerLocation(title: title, current: currentPoint),
   );
-
   if (point == null || !context.mounted) return null;
 
   String? address;
@@ -34,7 +41,8 @@ Future<JourneyPlacePoint?> pickEndpointFromMap({
       reverseGeocodeProvider(LatLng(point.lat, point.lon)).future,
     );
     address = result?.shortFormatted;
-  } catch (_) {}
-
+  } catch (_) {
+    // El geocodificador es un extra: sin él queda el punto.
+  }
   return JourneyPlacePoint(lat: point.lat, lon: point.lon, address: address);
 }

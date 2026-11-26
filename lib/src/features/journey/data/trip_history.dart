@@ -71,3 +71,20 @@ class TripHistoryEntry {
     );
   }
 }
+
+/// Filas del historial cuyo nombre o contexto contienen [query] (sin
+/// distinguir mayúsculas). Sin texto, todas.
+List<TripHistoryEntry> filterTripHistory(
+  List<TripHistoryEntry> entries,
+  String query,
+) {
+  final q = query.trim().toLowerCase();
+  if (q.isEmpty) return entries;
+  return entries
+      .where(
+        (entry) =>
+            entry.label.toLowerCase().contains(q) ||
+            (entry.subtitle?.toLowerCase().contains(q) ?? false),
+      )
+      .toList(growable: false);
+}

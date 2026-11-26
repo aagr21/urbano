@@ -160,3 +160,31 @@ const List<SantaCruzPoi> kSantaCruzPopularPlaces = [
     icon: Icons.festival_rounded,
   ),
 ];
+
+/// Hitos que coinciden con lo escrito (nombre, categoría o zona, sin
+/// distinguir mayúsculas). Sin texto devuelve el catálogo entero: la hoja de
+/// «Lugares» lo lista completo antes de que el usuario escriba.
+List<SantaCruzPoi> searchPopularPlaces(String query) {
+  final q = query.trim().toLowerCase();
+  if (q.isEmpty) return kSantaCruzPopularPlaces;
+  return kSantaCruzPopularPlaces
+      .where(
+        (poi) =>
+            poi.name.toLowerCase().contains(q) ||
+            poi.category.toLowerCase().contains(q) ||
+            (poi.ringOrZone?.toLowerCase().contains(q) ?? false),
+      )
+      .toList(growable: false);
+}
+
+/// Sugerencias de hitos bajo un campo de origen/destino: como mucho
+/// [maxPopularSuggestions] y ninguna sin texto (un campo vacío no sugiere).
+List<SantaCruzPoi> matchPopularPlaces(String query) {
+  if (query.trim().isEmpty) return const [];
+  return searchPopularPlaces(query)
+      .take(maxPopularSuggestions)
+      .toList(growable: false);
+}
+
+/// Tope de hitos sugeridos bajo un campo de origen/destino.
+const int maxPopularSuggestions = 4;

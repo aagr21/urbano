@@ -1,9 +1,9 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:urbano/src/core/theme/app_colors.dart';
+import 'package:urbano/src/features/journey/application/journey_map_geometry.dart';
+import 'package:urbano/src/features/journey/application/leg_stroke_colors.dart';
 import 'package:urbano/src/features/journey/data/journey_models.dart';
-import 'package:urbano/src/features/journey/presentation/widgets/journey_option_card.dart';
-import 'package:urbano/src/features/journey/presentation/widgets/journey_result_map.dart';
 
 /// Tramo de micro mínimo con color GTFS y (opcional) trazado `[lon, lat]`.
 Map<String, dynamic> _bus(
@@ -30,7 +30,7 @@ List<JourneyLeg> _legs(List<Map<String, dynamic>> raw) =>
 
 /// Color con el que se dibuja cada tramo de micro (alternativo o GTFS).
 List<String> _strokes(List<JourneyLeg> legs) {
-  final alt = JourneyOptionCard.alternativeRouteColorsForLegs(legs);
+  final alt = LegStrokeColors.forLegs(legs);
   return [
     for (var i = 0; i < legs.length; i++)
       if (legs[i].isBus) alt[i] ?? legs[i].routeColor ?? '',
@@ -41,12 +41,12 @@ void main() {
   group('colores de los tramos de micro', () {
     void expectAllDistinct(List<JourneyLeg> legs) {
       final colors = _strokes(legs).map(AppColors.fromHex).toList();
-      final all = [JourneyOptionCard.walkStrokeColor, ...colors];
+      final all = [LegStrokeColors.walk, ...colors];
       for (var i = 0; i < all.length; i++) {
         for (var j = i + 1; j < all.length; j++) {
           expect(
-            JourneyOptionCard.strokeColorDistance(all[i], all[j]),
-            greaterThanOrEqualTo(JourneyOptionCard.minStrokeColorDistance),
+            LegStrokeColors.distance(all[i], all[j]),
+            greaterThanOrEqualTo(LegStrokeColors.minDistance),
             reason: 'trazos $i y $j se confunden',
           );
         }
@@ -89,7 +89,7 @@ void main() {
 
     test('colores ya distintos se respetan tal cual', () {
       final legs = _legs([_bus('8', 'D35400'), _bus('10', '1E88E5')]);
-      expect(JourneyOptionCard.alternativeRouteColorsForLegs(legs), isEmpty);
+      expect(LegStrokeColors.forLegs(legs), isEmpty);
     });
   });
 
@@ -119,7 +119,7 @@ void main() {
           fromStop: stopX,
         ),
       ]);
-      final connectors = JourneyResultMapState.transferConnectors(legs);
+      final connectors = JourneyMapGeometry.transferConnectors(legs);
       expect(connectors, hasLength(1));
       expect(connectors.single.first, const LatLng(-17.78, -63.15015));
       expect(connectors.single[1], const LatLng(-17.78, -63.15));
@@ -146,7 +146,7 @@ void main() {
           ],
         ),
       ]);
-      expect(JourneyResultMapState.transferConnectors(legs), isEmpty);
+      expect(JourneyMapGeometry.transferConnectors(legs), isEmpty);
     });
 
     test('trazados que ya se tocan no generan conector', () {
@@ -168,7 +168,7 @@ void main() {
           ],
         ),
       ]);
-      expect(JourneyResultMapState.transferConnectors(legs), isEmpty);
+      expect(JourneyMapGeometry.transferConnectors(legs), isEmpty);
     });
   });
 }

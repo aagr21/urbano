@@ -267,7 +267,7 @@ Colores hex **sin** `#` (ej: `D35400`), tal como vienen en GTFS.
 - **INVARIANTE — sentido de la geometría (fuente única de verdad)**: para
   todo tramo de micro, `geometry` empieza en `fromStop` (subida) y termina en
   `toStop` (bajada), es decir, en el sentido de marcha REAL del viaje. El
-  backend lo garantiza con `orientBusLegGeometry` (`domain/journey-planner.ts`)
+  backend lo garantiza con `orientBusLegGeometry` (`domain/journey-geometry.ts`)
   para **ambos** motores (OTP2 y planner PostGIS), invirtiendo solo las
   coordenadas cuando hace falta (margen 1 m); paradas, horarios e ids no se
   tocan. **El cliente NO reorienta: confía en este contrato y solo dibuja.**

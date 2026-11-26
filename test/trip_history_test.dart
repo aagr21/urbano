@@ -193,4 +193,32 @@ void main() {
       expect(store.saved, isEmpty);
     });
   });
+
+  group('filterTripHistory', () {
+    final entries = [
+      TripHistoryEntry(
+        label: 'Ventura Mall',
+        subtitle: '4to Anillo',
+        lat: 1,
+        lon: 1,
+        lastUsed: DateTime(2026),
+      ),
+      TripHistoryEntry(
+        label: 'Plaza',
+        lat: 2,
+        lon: 2,
+        lastUsed: DateTime(2026),
+      ),
+    ];
+
+    test('sin texto devuelve todo', () {
+      expect(filterTripHistory(entries, '  '), same(entries));
+    });
+
+    test('busca en nombre y contexto sin distinguir mayúsculas', () {
+      expect(filterTripHistory(entries, 'PLAZA').single.label, 'Plaza');
+      expect(filterTripHistory(entries, 'anillo').single.label, 'Ventura Mall');
+      expect(filterTripHistory(entries, 'xyz'), isEmpty);
+    });
+  });
 }

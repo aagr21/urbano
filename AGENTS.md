@@ -155,6 +155,32 @@ Visual values come from tokens in `lib/src/core/theme/`, never from literals:
 
 ## Architecture rules of thumb
 
+**Responsabilidad única y testeable por defecto.** Cada archivo/clase tiene UN
+motivo de cambio, y toda decisión que no sea pintar se escribe donde se puede
+probar sin montar widgets:
+
+- **Reglas puras** (qué elegir, cómo filtrar/ordenar/paginar, qué texto toca,
+  cuándo levantar una cortina) → funciones o clases inmutables en
+  `domain/`/`application/` (o `core/utils/`), con su `*_test.dart` unitario.
+  Ejemplos: `DestinationDraft` (hoja «¿A dónde vas?»), `resolveEndpointSubmit`,
+  `pageOf` (`core/utils/paging.dart`), `JourneyMapGeometry`, `LegStrokeColors`,
+  `routeMainPlaces`, `shouldLiftCurtain`/`bootStageFor`, `meaningfulHeadsign`.
+- **Casos de uso con efectos** (planificar + guardar + historial, paginar un
+  catálogo) → un controller/servicio de `application/` probado con
+  `ProviderContainer` (`TripLauncher`, `MicrosCatalogController`).
+- **Plugins** detrás de una interfaz inyectable por provider
+  (`ComplaintPhotoSource` sobre `image_picker`), nunca instanciados en un `State`.
+- **Widgets**: el `State` solo cablea gestos → transiciones y monta piezas; cada
+  bloque visual grande es su propio widget (`*_sections.dart`, `*_parts.dart`).
+  Un archivo con dos widgets públicos se parte.
+- **Backend**: igual. `journey-planner.ts` es solo la búsqueda; geodesia
+  (`geo.ts`), geometría (`journey-geometry.ts`) y ranking
+  (`journey-ranking.ts`) son módulos propios, y el mapeo de OTP
+  (`otp-itinerary.mapper.ts`) está separado del adaptador HTTP. Los CLIs solo
+  orquestan I/O: el plan de reparación del feed vive puro en
+  `gtfs-feed-repair.ts`.
+
+
 Backend (`backend/src/modules/<feature>/{domain,application,infrastructure,presentation}`
 — hexagonal, don't put business logic in controllers):
 
@@ -368,7 +394,7 @@ platform view; the merged map/result-sheet design is deliberate (see README).
   cover's first frame at srgb(4,55,49) — the dark corner of the gradient made the handoff read as a
   separate green screen. `urbano_primary` is the gradient's average, so the two phases are the same
   color.
-- **The cover enters already painted.** `_SplashCover._startT` is `0.14` and the loading windows
+- **The cover enters already painted.** (the cover and its painters live in `splash_cover.dart`, a `part` of `splash_gate.dart`) `_SplashCover._startT` is `0.14` and the loading windows
   (`_blockEnd 0.26`, `_barBegin .02`, `_footEnd .14`) are already open by then, so frame 1 shows the
   dial + `Cargando` + the stage line + footer + a bar that has already started. With `begin: 0` the
   first ~9 frames (300 ms) were the brand gradient with **nothing** on it, which is indistinguishable
@@ -513,7 +539,7 @@ animator_duration_scale` — the key is `animator_duration_scale`, NOT `animator
   `test/journey_results_trigger_test.dart`. Walk legs may carry a street-network
   `geometry` (OTP2); the map widget renders that instead of the straight fallback.
   In both cases the walk's bus-side endpoint is joined to the bus `geometry`
-  (`connectWalkAndBusGeometry` in the API, `_joinWalkToBus` in the map): the shape
+  (`connectWalkAndBusGeometry` in the API, `JourneyMapGeometry.joinWalkToBus` in the app): the shape
   never moves — it is the truth of where the micro passes — and the dashed walk is
   stretched to it, so no 10-20 m gap reads as "it makes me cross the avenue".
 

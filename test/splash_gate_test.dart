@@ -201,4 +201,39 @@ void main() {
     expect(find.text('Cargando'), findsNothing);
     expect(find.text('app debajo'), findsOneWidget);
   });
+
+  group('reglas del arranque (puras)', () {
+    test('la cortina sube solo con la entrada hecha y la app lista', () {
+      expect(
+        shouldLiftCurtain(exiting: false, introDone: true, ready: true),
+        isTrue,
+      );
+      expect(
+        shouldLiftCurtain(exiting: false, introDone: false, ready: true),
+        isFalse,
+        reason: 'la entrada es el piso de tiempo: sin parpadeo',
+      );
+      expect(
+        shouldLiftCurtain(exiting: false, introDone: true, ready: false),
+        isFalse,
+      );
+      expect(
+        shouldLiftCurtain(exiting: true, introDone: true, ready: true),
+        isFalse,
+        reason: 'ya está saliendo',
+      );
+    });
+
+    test('la etapa sale del estado real, nunca un «Todo listo» falso', () {
+      BootStage stage({
+        bool exiting = false,
+        bool failed = false,
+        bool started = false,
+      }) => bootStageFor(exiting: exiting, failed: failed, appStarted: started);
+      expect(stage(), BootStage.warming);
+      expect(stage(started: true), BootStage.fetching);
+      expect(stage(exiting: true), BootStage.done);
+      expect(stage(exiting: true, failed: true), BootStage.offline);
+    });
+  });
 }

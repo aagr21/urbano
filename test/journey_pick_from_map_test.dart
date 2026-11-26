@@ -9,6 +9,8 @@ import 'package:urbano/src/core/utils/location.dart';
 import 'package:urbano/src/features/journey/application/journey_planner_controller.dart';
 import 'package:urbano/src/features/journey/presentation/journey_providers.dart';
 import 'package:urbano/src/features/journey/presentation/map_picker_screen.dart';
+import 'package:urbano/src/features/journey/presentation/widgets/map_picker_widgets.dart';
+import 'package:urbano/src/features/journey/presentation/widgets/pick_endpoint_from_map.dart';
 
 import 'helpers/fake_location_service.dart';
 import 'helpers/journey_fixtures.dart';
@@ -123,5 +125,50 @@ void main() {
     expect(find.byType(MapPickerScreen), findsNothing);
     final picked = container.read(journeyPlannerControllerProvider).origin;
     expect(picked?.pointOrNull, (lat: -17.77, lon: -63.16));
+  });
+
+  group('mapPickerLocation (pura)', () {
+    test('un solo «?» y el título primero', () {
+      final location = mapPickerLocation(title: 'Origen');
+      expect(location, '/journey/pick?title=Origen');
+      expect('?'.allMatches(location), hasLength(1));
+    });
+
+    test('con punto actual lleva lat/lon para abrir encima', () {
+      final uri = Uri.parse(
+        mapPickerLocation(title: 'Destino', current: (lat: -17.8, lon: -63.15)),
+      );
+      expect(uri.queryParameters, {
+        'title': 'Destino',
+        'lat': '-17.8',
+        'lon': '-63.15',
+      });
+    });
+  });
+
+  group('reglas del selector (puras)', () {
+    test('solo se auto-centra si nada lo impide', () {
+      bool center({
+        bool initial = false,
+        bool touched = false,
+        bool applied = false,
+        bool ready = true,
+      }) => shouldAutoCenterPicker(
+        hasInitialPoint: initial,
+        userInteracted: touched,
+        alreadyApplied: applied,
+        mapReady: ready,
+      );
+      expect(center(), isTrue);
+      expect(center(initial: true), isFalse);
+      expect(center(touched: true), isFalse, reason: 'el gesto manda');
+      expect(center(applied: true), isFalse, reason: 'una sola vez');
+      expect(center(ready: false), isFalse);
+    });
+
+    test('la coordenada va con 5 decimales y sin «-0»', () {
+      expect(formatPickerCoordinate(-17.784321), '-17.78432');
+      expect(formatPickerCoordinate(-0.0), '0.00000');
+    });
   });
 }

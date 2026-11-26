@@ -5,9 +5,9 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/utils/extensions.dart';
 import '../../../../core/widgets/loading_shimmer.dart';
+import '../../application/route_main_places.dart';
 import '../../data/route_models.dart';
 import '../route_providers.dart';
-import 'route_places.dart';
 
 /// «Por dónde pasa»: el recorrido del sentido elegido como una línea vertical,
 /// de donde sale a donde llega, con las calles y lugares principales en el
@@ -17,7 +17,7 @@ import 'route_places.dart';
 /// 1. las calles y avenidas del trazado ([routeStreetsProvider], OSM): son
 ///    los nombres más limpios y ya vienen en el sentido del micro;
 /// 2. si OSM no responde, los lugares principales derivados de las paradas
-///    del feed ([RoutePlaces.mainPlaces]).
+///    del feed ([routeMainPlaces]).
 ///
 /// Arranca PLEGADO: solo «Sale de» y «Llega a», con «Ver las N calles» entre
 /// ambos. El detalle no se vuelve una lista larga a menos que el pasajero la
@@ -67,7 +67,7 @@ class _RoutePathTimelineState extends ConsumerState<RoutePathTimeline> {
 
     final middle = streetList.isNotEmpty
         ? streetList
-        : RoutePlaces.mainPlaces(stopList, max: 12);
+        : routeMainPlaces(stopList, max: 12);
     final origin =
         widget.origin ??
         (stopList.isNotEmpty ? _shortStop(stopList.first.name) : null);

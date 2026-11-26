@@ -6,7 +6,6 @@ import 'package:latlong2/latlong.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../../../core/animation/motion.dart';
-import '../../../core/location/reverse_geocoding.dart';
 import '../../../core/map/map.dart';
 import '../../../core/utils/extensions.dart';
 import '../application/journey_leg_routes.dart';
@@ -19,6 +18,7 @@ import 'widgets/journey_loading_overlay.dart';
 import 'widgets/journey_map_chips.dart';
 import 'widgets/journey_result_map.dart';
 import 'widgets/journey_results_sheet.dart';
+import 'widgets/pick_endpoint_from_map.dart';
 
 /// Pantalla única **Viaje + Mapa**: un mapa didáctico a pantalla completa
 /// (UN solo `JourneyResultMap` montado, nunca se crea/destruye la vista
@@ -112,46 +112,20 @@ class _JourneyPlannerScreenState extends ConsumerState<JourneyPlannerScreen> {
   // ------------------------------------------------------------------
   // Viaje: editar un extremo tocando su pin
   // ------------------------------------------------------------------
-  /// Abre el selector de punto en el mapa y rellena el campo con EL PUNTO
-  /// elegido (el origen/destino nunca es una parada GTFS).
-  ///
-  /// El punto actual (lugar ya marcado) se pasa como coordenadas iniciales
-  /// para que el selector ABRA ENCIMA de él: si no, ajustar un extremo ya
-  /// elegido te mandaba al GPS/ciudad y el punto quedaba en otra ubicación.
-  /// El título viaja también: el `Uri` se construye con `path` +
-  /// `queryParameters` (un solo `?`); concatenar otro `?` a mano rompía la
-  /// primera clave del query y el selector perdía el título.
+  /// Tocar un pin abre el selector encima de ese punto (ver
+  /// [mapPickerLocation]) y el extremo pasa a ser EL PUNTO elegido (nunca una
+  /// parada GTFS).
   Future<void> _pickFromMap({required bool isOrigin}) async {
-    final current =
-        (isOrigin
-                ? ref.read(journeyPlannerControllerProvider).origin
-                : ref.read(journeyPlannerControllerProvider).destination)
-            .pointOrNull;
-    final params = <String, String>{'title': isOrigin ? 'Origen' : 'Destino'};
-    if (current != null) {
-      params['lat'] = '${current.lat}';
-      params['lon'] = '${current.lon}';
-    }
-    final point = await context.push<JourneyPoint>(
-      Uri(path: '/journey/pick', queryParameters: params).toString(),
+    final planner = ref.read(journeyPlannerControllerProvider);
+    final place = await pickEndpointFromMap(
+      context: context,
+      ref: ref,
+      title: isOrigin ? 'Origen' : 'Destino',
+      currentPoint:
+          (isOrigin ? planner.origin : planner.destination).pointOrNull,
     );
-    if (point == null || !mounted) return;
-
-    // Fetch reverse geocoded address
-    String? address;
-    try {
-      final result = await ref.read(
-        reverseGeocodeProvider(LatLng(point.lat, point.lon)).future,
-      );
-      address = result?.shortFormatted;
-    } catch (_) {
-      // Ignore geocoding errors, fall back to coordinates
-    }
-
-    _commitPlace(
-      JourneyPlacePoint(lat: point.lat, lon: point.lon, address: address),
-      isOrigin: isOrigin,
-    );
+    if (place == null || !mounted) return;
+    _commitPlace(place, isOrigin: isOrigin);
   }
 
   /// Compromete un lugar en el extremo (selector de lugares, "mi ubicación"

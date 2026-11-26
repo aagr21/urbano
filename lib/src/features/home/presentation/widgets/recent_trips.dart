@@ -8,6 +8,7 @@ import '../../../../core/theme/html_design_tokens.dart' show HtmlDesignTokens;
 import '../../../../core/utils/extensions.dart';
 import '../../../../core/utils/location.dart';
 import '../../../../core/utils/time_formatters.dart';
+import '../../../journey/application/journey_place_factory.dart';
 import '../../../journey/application/journey_providers.dart';
 import '../../../journey/application/trip_history_controller.dart';
 import '../../../journey/data/trip_history.dart';
@@ -167,12 +168,7 @@ class RecentTrips extends ConsumerWidget {
     TripHistoryEntry entry,
   ) async {
     // Pre-llena el destino con el viaje reciente.
-    final destination = JourneyPlacePoi(
-      name: entry.label,
-      lat: entry.lat,
-      lon: entry.lon,
-      subtitle: entry.subtitle,
-    );
+    final destination = JourneyPlaceFactory.fromHistory(entry);
     // Sin origen, el viaje no se puede calcular: si ya hay ubicación conocida
     // (sin abrir el GPS otra vez), se usa como punto de partida. Se prefiere la
     // última conocida porque `myLocationProvider` es `autoDispose` y la
@@ -182,7 +178,7 @@ class RecentTrips extends ConsumerWidget {
         ref.read(lastKnownLocationProvider) ??
         ref.read(myLocationProvider).valueOrNull;
     if (position != null) {
-      origin = JourneyPlaceLocation(
+      origin = JourneyPlaceFactory.here(
         lat: position.latitude,
         lon: position.longitude,
       );

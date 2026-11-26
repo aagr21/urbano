@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:urbano/src/features/routes/application/route_main_places.dart';
 import 'package:urbano/src/features/routes/data/route_models.dart';
-import 'package:urbano/src/features/routes/presentation/widgets/route_places.dart';
 
 RouteStop _stop(int sequence, String name) => RouteStop(
   id: 'S$sequence',
@@ -16,18 +16,18 @@ List<RouteStop> _brasilRun() => [
 ];
 
 void main() {
-  group('RoutePlaces.mainPlaces · heurística de lugares principales', () {
+  group('routeMainPlaces · heurística de lugares principales', () {
     test(
       'vías de refuerzo: la recurrente gana y sale primera (geográfica)',
       () {
-        final result = RoutePlaces.mainPlaces(_brasilRun());
+        final result = routeMainPlaces(_brasilRun());
         expect(result.first, 'Avenida Brasil');
         expect(result.length, lessThanOrEqualTo(10));
       },
     );
 
     test('el «esquina» separa dos vías y ambas cuentan como candidatos', () {
-      final result = RoutePlaces.mainPlaces([
+      final result = routeMainPlaces([
         _stop(1, 'Cuarto Anillo esquina Radial 12'),
         _stop(2, 'Tercer Anillo esquina Radial 12'),
         _stop(3, 'Cuarto Anillo esquina Radial 27'),
@@ -43,11 +43,11 @@ void main() {
         for (var i = 1; i <= 20; i++)
           _stop(i, 'Vía ${i % 10} esquina Calle ${i % 9}'),
       ];
-      expect(RoutePlaces.mainPlaces(stops).length, 10);
+      expect(routeMainPlaces(stops).length, 10);
     });
 
     test('un hito conocido vale doble aunque el micro pase pocas veces', () {
-      final result = RoutePlaces.mainPlaces([
+      final result = routeMainPlaces([
         for (var i = 1; i <= 8; i++)
           _stop(i, 'Calle Común $i esquina Avenida Relleno'),
         // «Terminal Bimodal» solo aparece 2 veces pero ES el destino.
@@ -58,7 +58,7 @@ void main() {
     });
 
     test('variantes del mismo vía (« - » vs «-») cuentan como UNA', () {
-      final result = RoutePlaces.mainPlaces([
+      final result = routeMainPlaces([
         for (var i = 1; i <= 10; i++)
           _stop(i, 'Doble Vía Santa Cruz - La Guardia esquina Calle $i'),
         _stop(11, 'Otra Calle esquina Doble Vía Santa Cruz-La Guardia'),
@@ -67,11 +67,11 @@ void main() {
     });
 
     test('lista vacía ⇒ vacía, sin error', () {
-      expect(RoutePlaces.mainPlaces(const []), isEmpty);
+      expect(routeMainPlaces(const []), isEmpty);
     });
 
     test('nombres sin «esquina» se conservan íntegros (uno cada uno)', () {
-      final result = RoutePlaces.mainPlaces([
+      final result = routeMainPlaces([
         _stop(1, 'Terminal Bimodal'),
         _stop(2, 'Terminal Bimodal'),
       ]);

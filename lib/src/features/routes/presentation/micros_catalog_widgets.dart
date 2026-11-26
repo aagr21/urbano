@@ -1,4 +1,4 @@
-// Piezas del catálogo de micros (MicrosScreen): orden del catálogo,
+// Piezas del catálogo de micros (MicrosScreen): selector de orden,
 // estadísticas del banner y anillos decorativos.
 
 import 'package:material_ui/material_ui.dart';
@@ -7,23 +7,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/html_design_tokens.dart' show HtmlDesignTokens;
 import '../../../core/utils/extensions.dart';
-
-/// Orden del catálogo. Se traduce al `sort` del contrato (`/routes`).
-enum CatalogSort {
-  number('name', 'número de línea', '1–9'),
-  corridor('longName', 'nombre del recorrido', 'A–Z');
-
-  const CatalogSort(this.value, this.label, this.short);
-
-  /// Valor que entiende el backend.
-  final String value;
-
-  /// Cómo se lee en la app.
-  final String label;
-
-  /// Etiqueta del selector.
-  final String short;
-}
+import '../application/micros_catalog_controller.dart';
 
 /// Dato de la banda de identidad (fondo oscuro fijo: la tinta es clara).
 class MicrosHeroStat extends StatelessWidget {

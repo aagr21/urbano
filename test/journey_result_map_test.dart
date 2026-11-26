@@ -14,6 +14,7 @@ import 'package:urbano/src/core/widgets/urbano_map.dart';
 import 'package:urbano/src/features/journey/application/journey_planner_controller.dart';
 import 'package:urbano/src/features/journey/data/journey_models.dart';
 import 'package:urbano/src/features/journey/presentation/journey_providers.dart';
+import 'package:urbano/src/features/journey/presentation/widgets/journey_map_layers.dart';
 import 'package:urbano/src/features/journey/presentation/widgets/journey_result_map.dart';
 import 'package:urbano/src/features/journey/presentation/widgets/journey_results_sheet.dart';
 
@@ -181,9 +182,7 @@ void main() {
             point: arrows.first.point,
             width: arrows.first.width,
             height: arrows.first.height,
-            iconKey: JourneyResultMapState.arrowIconKey(
-              const Color(0xFF27AE60),
-            ),
+            iconKey: JourneyMapLayers.arrowIconKey(const Color(0xFF27AE60)),
             child: const RouteArrowMarker(color: Color(0xFF27AE60)),
           ).imageCacheKey,
         ),

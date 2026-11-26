@@ -7,7 +7,7 @@ import '../../../core/utils/extensions.dart';
 import '../../../core/widgets/error_view.dart';
 import '../../../core/widgets/loading_shimmer.dart';
 import 'route_providers.dart';
-import 'widgets/route_map_card.dart';
+import 'widgets/route_full_map.dart';
 import 'widgets/route_map_chrome.dart';
 
 /// Mapa de **un sentido** del recorrido, abierto desde «Recorrido completo».

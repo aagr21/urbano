@@ -4,6 +4,7 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/theme/html_design_tokens.dart' show HtmlDesignTokens;
 import '../../../../core/utils/extensions.dart';
+import '../../../../core/utils/paging.dart';
 import '../../../../core/utils/time_formatters.dart';
 import '../../../journey/data/trip_history.dart';
 import 'recent_trips_route_indicator.dart';
@@ -41,27 +42,11 @@ class _AllTripsSheetState extends State<AllTripsSheet> {
     super.dispose();
   }
 
-  List<TripHistoryEntry> get _filtered {
-    final q = _query.trim().toLowerCase();
-    if (q.isEmpty) return widget.entries;
-    return widget.entries
-        .where(
-          (entry) =>
-              entry.label.toLowerCase().contains(q) ||
-              (entry.subtitle?.toLowerCase().contains(q) ?? false),
-        )
-        .toList(growable: false);
-  }
+  List<TripHistoryEntry> get _filtered =>
+      filterTripHistory(widget.entries, _query);
 
-  int get _pages => (_filtered.length / AllTripsSheet._pageSize).ceil();
-
-  List<TripHistoryEntry> get _visible {
-    final filtered = _filtered;
-    final start = _page * AllTripsSheet._pageSize;
-    final end = (start + AllTripsSheet._pageSize).clamp(0, filtered.length);
-    if (start >= end) return const [];
-    return filtered.sublist(start, end);
-  }
+  ListPage<TripHistoryEntry> get _pageView =>
+      pageOf(_filtered, page: _page, pageSize: AllTripsSheet._pageSize);
 
   void _onSearch(String value) {
     setState(() {
@@ -85,8 +70,10 @@ class _AllTripsSheetState extends State<AllTripsSheet> {
         : AppColors.legible(colors.primary, fill);
     final hairline = dark ? AppColors.lineDark : colors.outlineVariant;
 
+    final view = _pageView;
     final filtered = _filtered;
-    final pages = _pages;
+    final pages = view.totalPages;
+    final page = view.page;
 
     return SafeArea(
       top: false,
@@ -204,7 +191,7 @@ class _AllTripsSheetState extends State<AllTripsSheet> {
               )
             else
               _AllTripsHistoryList(
-                entries: _visible,
+                entries: view.items,
                 onSelect: widget.onSelect,
               ),
             if (pages > 1) ...[
@@ -215,11 +202,11 @@ class _AllTripsSheetState extends State<AllTripsSheet> {
                   IconButton(
                     key: const ValueKey('recent-trips-prev-page'),
                     tooltip: 'Página anterior',
-                    onPressed: _page > 0 ? () => _goToPage(_page - 1) : null,
+                    onPressed: page > 0 ? () => _goToPage(page - 1) : null,
                     icon: const Icon(Icons.chevron_left_rounded),
                   ),
                   Text(
-                    'Página ${_page + 1} de $pages',
+                    'Página ${page + 1} de $pages',
                     key: const ValueKey('recent-trips-page-label'),
                     style: text.labelMedium?.copyWith(
                       color: colors.onSurfaceVariant,
@@ -229,8 +216,8 @@ class _AllTripsSheetState extends State<AllTripsSheet> {
                   IconButton(
                     key: const ValueKey('recent-trips-next-page'),
                     tooltip: 'Página siguiente',
-                    onPressed: _page < pages - 1
-                        ? () => _goToPage(_page + 1)
+                    onPressed: page < pages - 1
+                        ? () => _goToPage(page + 1)
                         : null,
                     icon: const Icon(Icons.chevron_right_rounded),
                   ),
