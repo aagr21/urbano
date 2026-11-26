@@ -16,7 +16,7 @@ import { DepartureSourceRecord, RouteDeparture } from '../domain/route.model';
 export function computeUpcomingDepartures(
   sources: DepartureSourceRecord[],
   fromSeconds: number,
-  maxResults = 20,
+  maxResults = 20
 ): RouteDeparture[] {
   const departures: RouteDeparture[] = [];
 

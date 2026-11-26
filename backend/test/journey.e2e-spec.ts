@@ -19,8 +19,20 @@ interface BusLegBody {
 
 interface OptionBody {
   type: string;
-  walkToStop: { id: string; name: string; distanceMeters: number; lat?: number; lon?: number };
-  walkFromStop: { id: string; name: string; distanceMeters: number; lat?: number; lon?: number };
+  walkToStop: {
+    id: string;
+    name: string;
+    distanceMeters: number;
+    lat?: number;
+    lon?: number;
+  };
+  walkFromStop: {
+    id: string;
+    name: string;
+    distanceMeters: number;
+    lat?: number;
+    lon?: number;
+  };
   legs: BusLegBody[];
 }
 
@@ -39,7 +51,7 @@ describe('Journey (e2e) — geometría de mapa', () => {
 
     const res = await request(app.getHttpServer())
       .get(
-        '/api/v1/journey?originLat=-17.78&originLon=-63.15&destLat=-17.80&destLon=-63.17&time=08:00',
+        '/api/v1/journey?originLat=-17.78&originLon=-63.15&destLat=-17.80&destLon=-63.17&time=08:00'
       )
       .expect(200);
     options = res.body.data.options;
@@ -53,12 +65,14 @@ describe('Journey (e2e) — geometría de mapa', () => {
     expect(Array.isArray(options)).toBe(true);
     expect(options.length).toBeGreaterThan(0);
     expect(options.map((o) => o.type)).toEqual(
-      expect.arrayContaining([expect.stringMatching(/^(direct|transfer)$/)]),
+      expect.arrayContaining([expect.stringMatching(/^(direct|transfer)$/)])
     );
   });
 
   it('todo tramo de bus trae geometry LineString con ≥2 puntos dentro del bbox de Santa Cruz', () => {
-    const busLegs = options.flatMap((o) => o.legs).filter((l) => l.kind === 'bus');
+    const busLegs = options
+      .flatMap((o) => o.legs)
+      .filter((l) => l.kind === 'bus');
     expect(busLegs.length).toBeGreaterThan(0);
 
     for (const leg of busLegs) {
@@ -84,7 +98,9 @@ describe('Journey (e2e) — geometría de mapa', () => {
   });
 
   it('todo tramo de bus trae fromStop/toStop con lat/lon', () => {
-    const busLegs = options.flatMap((o) => o.legs).filter((l) => l.kind === 'bus');
+    const busLegs = options
+      .flatMap((o) => o.legs)
+      .filter((l) => l.kind === 'bus');
 
     for (const leg of busLegs) {
       for (const stop of [leg.fromStop, leg.toStop]) {

@@ -24,7 +24,10 @@ export class NearbyStopsQueryDto {
   @Type(() => Number)
   lon: number;
 
-  @ApiPropertyOptional({ description: 'Radio en metros (máx 2000)', default: 400 })
+  @ApiPropertyOptional({
+    description: 'Radio en metros (máx 2000)',
+    default: 400,
+  })
   @IsOptional()
   @Type(() => Number)
   @IsNumber()

@@ -59,7 +59,9 @@ describe('MetaService (contrato de la API meta)', () => {
 
   it('consulta el repositorio de feed_info (una fila)', async () => {
     const { repo } = makeService(feed);
-    await new MetaService({ getRepository: () => ({ findOne: repo }) } as never).get();
+    await new MetaService({
+      getRepository: () => ({ findOne: repo }),
+    } as never).get();
     expect(repo).toHaveBeenCalledTimes(1);
   });
 });

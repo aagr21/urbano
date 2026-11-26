@@ -86,36 +86,37 @@ const row = (over: Partial<Route> = {}): Route =>
 
 const repo = (ds: FakeDataSource) => new TypeOrmRouteRepository(ds as never);
 
-const query = (over: Partial<RouteQuery> = {}): RouteQuery => ({
-  page: 1,
-  limit: 20,
-  sort: 'name',
-  q: '',
-  ...over,
-}) as unknown as RouteQuery;
+const query = (over: Partial<RouteQuery> = {}): RouteQuery =>
+  ({
+    page: 1,
+    limit: 20,
+    sort: 'name',
+    q: '',
+    ...over,
+  }) as unknown as RouteQuery;
 
 describe('TypeOrmRouteRepository', () => {
   it('findAll pagina por (page-1)*limit, límite del query y sort válido', async () => {
-    const ds = new FakeDataSource()
-      .next([{ total: 1 }])
-      .next([
-        {
-          id: 'R1',
-          shortName: '7',
-          longName: 'Barrio San Salvador - Centro',
-          color: 'FF0000',
-          textColor: 'FFFFFF',
-          description: null,
-          type: 3,
-          directions: 2,
-          stopCount: 40,
-          tripCount: 12,
-          imageUrl: null,
-          keyStops: [],
-        },
-      ]);
+    const ds = new FakeDataSource().next([{ total: 1 }]).next([
+      {
+        id: 'R1',
+        shortName: '7',
+        longName: 'Barrio San Salvador - Centro',
+        color: 'FF0000',
+        textColor: 'FFFFFF',
+        description: null,
+        type: 3,
+        directions: 2,
+        stopCount: 40,
+        tripCount: 12,
+        imageUrl: null,
+        keyStops: [],
+      },
+    ]);
 
-    const page = await repo(ds).findAll(query({ page: 3, limit: 10, sort: 'stopCount' }));
+    const page = await repo(ds).findAll(
+      query({ page: 3, limit: 10, sort: 'stopCount' })
+    );
 
     // Verifica que la consulta SQL usa el sort correcto y los parámetros de paginación
     expect(ds.queryCalls).toHaveLength(2);
@@ -143,12 +144,12 @@ describe('TypeOrmRouteRepository', () => {
       expect(sql).toContain(ROUTE_NATURAL_ORDER_COLUMNS[2]);
       // "60 ROJO" va junto al 60: primero el prefijo numérico, luego el sufijo.
       expect(ROUTE_NATURAL_ORDER_COLUMNS[0]).toContain(
-        "substring(r.route_short_name from '^[0-9]+')",
+        "substring(r.route_short_name from '^[0-9]+')"
       );
       expect(ROUTE_NATURAL_ORDER_COLUMNS[1]).toContain(
-        "regexp_replace(r.route_short_name, '^[0-9]+', '')",
+        "regexp_replace(r.route_short_name, '^[0-9]+', '')"
       );
-    },
+    }
   );
 
   it('findAll con sort=longName conserva el orden literal (sin clave natural)', async () => {

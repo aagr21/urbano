@@ -16,14 +16,23 @@ type Mocked<T> = { [K in keyof T]?: jest.Mock };
 class FakeStorage implements PhotoStoragePort {
   uploads: { name: string; contentType: string }[] = [];
   constructor(public configured = true) {}
-  async upload(name: string, _data: Buffer, contentType: string): Promise<string> {
+  async upload(
+    name: string,
+    _data: Buffer,
+    contentType: string
+  ): Promise<string> {
     this.uploads.push({ name, contentType });
     return `https://blob.test/${name}`;
   }
 }
 
 const file = (name: string, mimetype = 'image/jpeg', size = 100) =>
-  ({ originalname: name, mimetype, size, buffer: Buffer.from('x') }) as Express.Multer.File;
+  ({
+    originalname: name,
+    mimetype,
+    size,
+    buffer: Buffer.from('x'),
+  }) as Express.Multer.File;
 
 describe('ComplaintsService', () => {
   let complaints: Mocked<Repository<Complaint>>;
@@ -47,7 +56,11 @@ describe('ComplaintsService', () => {
     };
     comments = {
       find: jest.fn(),
-      save: jest.fn(async (row) => ({ id: 'k1', createdAt: new Date(0), ...row })),
+      save: jest.fn(async (row) => ({
+        id: 'k1',
+        createdAt: new Date(0),
+        ...row,
+      })),
       query: jest.fn(),
     };
     storage = new FakeStorage();
@@ -76,32 +89,44 @@ describe('ComplaintsService', () => {
         routeId: '17',
         category: 'vehicle',
         description: 'frenó tarde',
-        photoUrls: ['https://blob.test/complaints/42-a.jpg', 'https://blob.test/complaints/42-b.png'],
+        photoUrls: [
+          'https://blob.test/complaints/42-a.jpg',
+          'https://blob.test/complaints/42-b.png',
+        ],
         status: 'pending',
       });
     });
 
     it('una foto inválida rechaza la queja SIN subir ninguna (antes quedaban huérfanas)', async () => {
       await expect(
-        service.create('17', 'vehicle', '', [file('a.jpg'), file('b.gif', 'image/gif')])
-      ).rejects.toThrow(new BadRequestException('Solo se permiten JPG, PNG o WebP'));
+        service.create('17', 'vehicle', '', [
+          file('a.jpg'),
+          file('b.gif', 'image/gif'),
+        ])
+      ).rejects.toThrow(
+        new BadRequestException('Solo se permiten JPG, PNG o WebP')
+      );
       expect(storage.uploads).toEqual([]);
       expect(complaints.save).not.toHaveBeenCalled();
     });
 
     it('sin almacenamiento configurado rechaza las fotos, pero acepta quejas sin fotos', async () => {
       storage.configured = false;
-      await expect(service.create('17', 'vehicle', '', [file('a.jpg')])).rejects.toThrow(
-        'La subida de fotos no está configurada'
-      );
-      await expect(service.create('17', 'vehicle', undefined, [])).resolves.toEqual({
+      await expect(
+        service.create('17', 'vehicle', '', [file('a.jpg')])
+      ).rejects.toThrow('La subida de fotos no está configurada');
+      await expect(
+        service.create('17', 'vehicle', undefined, [])
+      ).resolves.toEqual({
         id: 'c1',
         status: 'pending',
       });
     });
 
     it('categoría inválida es un 400', async () => {
-      await expect(service.create('17', 'ruido', '', [])).rejects.toBeInstanceOf(BadRequestException);
+      await expect(
+        service.create('17', 'ruido', '', [])
+      ).rejects.toBeInstanceOf(BadRequestException);
     });
   });
 
@@ -114,19 +139,37 @@ describe('ComplaintsService', () => {
 
     it('cruza apoyos, comentarios y lo que apoyó este dispositivo', async () => {
       complaints.find!.mockResolvedValue([
-        { id: 'a', routeId: '1', category: 'vehicle', description: '', photoUrls: [], status: 'approved', createdAt: new Date(1) },
-        { id: 'b', routeId: '2', category: 'safety', description: '', photoUrls: [], status: 'pending', createdAt: new Date(0) },
+        {
+          id: 'a',
+          routeId: '1',
+          category: 'vehicle',
+          description: '',
+          photoUrls: [],
+          status: 'approved',
+          createdAt: new Date(1),
+        },
+        {
+          id: 'b',
+          routeId: '2',
+          category: 'safety',
+          description: '',
+          photoUrls: [],
+          status: 'pending',
+          createdAt: new Date(0),
+        },
       ]);
       Object.assign(likes, { metadata: { tableName: 'complaint_like' } });
       Object.assign(comments, { metadata: { tableName: 'complaint_comment' } });
-      likes.query!
-        .mockResolvedValueOnce([{ complaint_id: 'a', total: '4' }]) // conteo de apoyos
+      likes
+        .query!.mockResolvedValueOnce([{ complaint_id: 'a', total: '4' }]) // conteo de apoyos
         .mockResolvedValueOnce([{ complaint_id: 'b' }]); // apoyados por mí
       comments.query!.mockResolvedValue([{ complaint_id: 'b', total: '2' }]);
 
       const list = await service.list('dev');
 
-      expect(list.map((c) => [c.id, c.likeCount, c.commentCount, c.likedByMe])).toEqual([
+      expect(
+        list.map((c) => [c.id, c.likeCount, c.commentCount, c.likedByMe])
+      ).toEqual([
         ['a', 4, 0, false],
         ['b', 0, 2, true],
       ]);
@@ -134,7 +177,15 @@ describe('ComplaintsService', () => {
 
     it('sin dispositivo nadie aparece como apoyado y no se consulta por él', async () => {
       complaints.find!.mockResolvedValue([
-        { id: 'a', routeId: '1', category: 'vehicle', description: '', photoUrls: [], status: 'approved', createdAt: new Date(1) },
+        {
+          id: 'a',
+          routeId: '1',
+          category: 'vehicle',
+          description: '',
+          photoUrls: [],
+          status: 'approved',
+          createdAt: new Date(1),
+        },
       ]);
       Object.assign(likes, { metadata: { tableName: 'complaint_like' } });
       Object.assign(comments, { metadata: { tableName: 'complaint_comment' } });
@@ -161,13 +212,20 @@ describe('ComplaintsService', () => {
         likeCount: 3,
         likedByMe: false,
       });
-      expect(likes.delete).toHaveBeenCalledWith({ complaintId: 'a', deviceKey: 'dev' });
+      expect(likes.delete).toHaveBeenCalledWith({
+        complaintId: 'a',
+        deviceKey: 'dev',
+      });
     });
 
     it('queja inexistente es 404; sin dispositivo es 400', async () => {
       complaints.exist!.mockResolvedValueOnce(false);
-      await expect(service.toggleLike('x', 'dev', true)).rejects.toBeInstanceOf(NotFoundException);
-      await expect(service.toggleLike('a', '', true)).rejects.toBeInstanceOf(BadRequestException);
+      await expect(service.toggleLike('x', 'dev', true)).rejects.toBeInstanceOf(
+        NotFoundException
+      );
+      await expect(service.toggleLike('a', '', true)).rejects.toBeInstanceOf(
+        BadRequestException
+      );
     });
   });
 
@@ -182,7 +240,12 @@ describe('ComplaintsService', () => {
     });
 
     it('con apodo lo limpia', async () => {
-      const saved = await service.addComment('a', 'dev-1', 'hola', '  Ana   María ');
+      const saved = await service.addComment(
+        'a',
+        'dev-1',
+        'hola',
+        '  Ana   María '
+      );
       expect(saved.authorName).toBe('Ana María');
     });
 

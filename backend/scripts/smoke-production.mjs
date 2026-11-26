@@ -19,7 +19,7 @@ for (const [path, valid] of checks) {
     const text = await response.text().catch(() => '(no se pudo leer)');
     const preview = text.length > 200 ? text.slice(0, 200) + '…' : text;
     throw new Error(
-      `Smoke falló en ${path}: HTTP ${response.status} — ${preview}`,
+      `Smoke falló en ${path}: HTTP ${response.status} — ${preview}`
     );
   }
 
@@ -29,7 +29,7 @@ for (const [path, valid] of checks) {
   } catch (e) {
     throw new Error(
       `Smoke falló en ${path}: la respuesta no es JSON — ${e.message}`,
-      { cause: e },
+      { cause: e }
     );
   }
 

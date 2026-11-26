@@ -13,14 +13,19 @@ describe('complaint-rules', () => {
     const base = { routeId: '17', category: 'vehicle', photos: [] };
 
     it('acepta una queja válida y recorta la descripción', () => {
-      expect(checkNewComplaint({ ...base, description: '  frenó tarde  ' })).toEqual({
+      expect(
+        checkNewComplaint({ ...base, description: '  frenó tarde  ' })
+      ).toEqual({
         ok: true,
         value: { description: 'frenó tarde' },
       });
     });
 
     it('sin descripción queda vacía (es opcional)', () => {
-      expect(checkNewComplaint(base)).toEqual({ ok: true, value: { description: '' } });
+      expect(checkNewComplaint(base)).toEqual({
+        ok: true,
+        value: { description: '' },
+      });
     });
 
     it.each([
@@ -41,7 +46,9 @@ describe('complaint-rules', () => {
     });
 
     it('rechaza más fotos de las permitidas', () => {
-      const photos = Array.from({ length: COMPLAINT_LIMITS.photos + 1 }, () => jpg());
+      const photos = Array.from({ length: COMPLAINT_LIMITS.photos + 1 }, () =>
+        jpg()
+      );
       expect(checkNewComplaint({ ...base, photos })).toEqual({
         ok: false,
         error: 'Puedes adjuntar hasta 5 fotos',
@@ -57,8 +64,18 @@ describe('complaint-rules', () => {
     });
 
     it('rechaza una foto de más de 5 MB; justo 5 MB se acepta', () => {
-      expect(checkNewComplaint({ ...base, photos: [jpg(COMPLAINT_LIMITS.photoBytes + 1)] }).ok).toBe(false);
-      expect(checkNewComplaint({ ...base, photos: [jpg(COMPLAINT_LIMITS.photoBytes)] }).ok).toBe(true);
+      expect(
+        checkNewComplaint({
+          ...base,
+          photos: [jpg(COMPLAINT_LIMITS.photoBytes + 1)],
+        }).ok
+      ).toBe(false);
+      expect(
+        checkNewComplaint({
+          ...base,
+          photos: [jpg(COMPLAINT_LIMITS.photoBytes)],
+        }).ok
+      ).toBe(true);
     });
   });
 
@@ -68,20 +85,29 @@ describe('complaint-rules', () => {
     });
 
     it('vacío o solo espacios no vale', () => {
-      expect(checkComment('   ')).toEqual({ ok: false, error: 'El comentario no puede estar vacío' });
+      expect(checkComment('   ')).toEqual({
+        ok: false,
+        error: 'El comentario no puede estar vacío',
+      });
       expect(checkComment(undefined).ok).toBe(false);
     });
 
     it('respeta el tope de caracteres', () => {
-      expect(checkComment('x'.repeat(COMPLAINT_LIMITS.commentChars)).ok).toBe(true);
-      expect(checkComment('x'.repeat(COMPLAINT_LIMITS.commentChars + 1)).ok).toBe(false);
+      expect(checkComment('x'.repeat(COMPLAINT_LIMITS.commentChars)).ok).toBe(
+        true
+      );
+      expect(
+        checkComment('x'.repeat(COMPLAINT_LIMITS.commentChars + 1)).ok
+      ).toBe(false);
     });
   });
 
   describe('cleanAuthorName', () => {
     it('colapsa espacios y corta al tope', () => {
       expect(cleanAuthorName('  Ana   María ')).toBe('Ana María');
-      expect(cleanAuthorName('x'.repeat(60))).toHaveLength(COMPLAINT_LIMITS.authorNameChars);
+      expect(cleanAuthorName('x'.repeat(60))).toHaveLength(
+        COMPLAINT_LIMITS.authorNameChars
+      );
     });
 
     it('sin nombre útil devuelve null', () => {
@@ -91,6 +117,8 @@ describe('complaint-rules', () => {
   });
 
   it('photoObjectName es único por instante y conserva el nombre', () => {
-    expect(photoObjectName(1700000000000, 'bus.jpg')).toBe('complaints/1700000000000-bus.jpg');
+    expect(photoObjectName(1700000000000, 'bus.jpg')).toBe(
+      'complaints/1700000000000-bus.jpg'
+    );
   });
 });

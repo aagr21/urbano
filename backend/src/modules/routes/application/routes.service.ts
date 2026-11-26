@@ -1,6 +1,12 @@
 import { Inject, Injectable, NotFoundException } from '@nestjs/common';
-import { nowSecondsInTimeZone, timeToSeconds } from '../../../core/common/utils/gtfs-time';
-import { ROUTE_REPOSITORY, SERVICE_REPOSITORY } from '../../../core/common/tokens';
+import {
+  nowSecondsInTimeZone,
+  timeToSeconds,
+} from '../../../core/common/utils/gtfs-time';
+import {
+  ROUTE_REPOSITORY,
+  SERVICE_REPOSITORY,
+} from '../../../core/common/tokens';
 import { PaginatedResult } from '../../../core/common/models/paginated';
 import { RouteRepositoryPort } from '../domain/route.repository.port';
 import { ServiceRepositoryPort } from '../domain/service.repository.port';
@@ -21,11 +27,15 @@ function dayOfWeekIso(dateStr: string): number {
 @Injectable()
 export class RoutesService {
   constructor(
-    @Inject(ROUTE_REPOSITORY) private readonly routeRepository: RouteRepositoryPort,
-    @Inject(SERVICE_REPOSITORY) private readonly serviceRepository: ServiceRepositoryPort,
+    @Inject(ROUTE_REPOSITORY)
+    private readonly routeRepository: RouteRepositoryPort,
+    @Inject(SERVICE_REPOSITORY)
+    private readonly serviceRepository: ServiceRepositoryPort
   ) {}
 
-  async list(query: ListRoutesQueryDto): Promise<PaginatedResult<RouteSummary>> {
+  async list(
+    query: ListRoutesQueryDto
+  ): Promise<PaginatedResult<RouteSummary>> {
     const { items, total } = await this.routeRepository.findAll({
       q: query.q,
       page: query.page,
@@ -61,7 +71,8 @@ export class RoutesService {
         ? record.directions.find((d) => d.directionId === directionId)
         : undefined;
     const fallback =
-      record.directions.find((d) => d.directionId === 0) ?? record.directions[0];
+      record.directions.find((d) => d.directionId === 0) ??
+      record.directions[0];
     const selected = wanted ?? fallback;
 
     const shapeId = selected?.shapeId;
@@ -78,7 +89,10 @@ export class RoutesService {
           ? {
               type: 'Feature',
               properties: { id: shapeId },
-              geometry: { type: 'LineString', coordinates: shapeData.coordinates },
+              geometry: {
+                type: 'LineString',
+                coordinates: shapeData.coordinates,
+              },
             }
           : null,
     };
@@ -106,7 +120,7 @@ export class RoutesService {
   async departures(
     id: string,
     stopId: string | undefined,
-    query: RouteDeparturesQueryDto,
+    query: RouteDeparturesQueryDto
   ): Promise<RouteDeparture[]> {
     const exists = await this.routeRepository.findById(id);
     if (!exists) {
@@ -127,7 +141,7 @@ export class RoutesService {
     const sources = await this.routeRepository.findDepartureSources(
       id,
       stopId ?? null,
-      query.directionId,
+      query.directionId
     );
     if (sources.length === 0) {
       return [];

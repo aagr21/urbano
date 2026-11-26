@@ -1,15 +1,12 @@
 import { CacheInterceptor, CacheTTL } from '@nestjs/cache-manager';
-import {
-  Controller,
-  Get,
-  Param,
-  Query,
-  UseInterceptors,
-} from '@nestjs/common';
+import { Controller, Get, Param, Query, UseInterceptors } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { CACHE_TTL_MS } from '../../../core/common/tokens';
 import { StopsService } from '../application/stops.service';
-import { NearbyStopsQueryDto, SearchStopsQueryDto } from '../application/stop.dto';
+import {
+  NearbyStopsQueryDto,
+  SearchStopsQueryDto,
+} from '../application/stop.dto';
 
 @ApiTags('stops')
 @Controller('stops')

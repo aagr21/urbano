@@ -6,9 +6,7 @@ import { TripDetailRecord } from '../domain/trip.model';
 
 @Injectable()
 export class TypeOrmTripRepository implements TripRepositoryPort {
-  constructor(
-    @InjectDataSource() private readonly dataSource: DataSource,
-  ) {}
+  constructor(@InjectDataSource() private readonly dataSource: DataSource) {}
 
   async findById(id: string): Promise<TripDetailRecord | null> {
     const headerRows: Array<{
@@ -30,12 +28,13 @@ export class TypeOrmTripRepository implements TripRepositoryPort {
        FROM trip t
        JOIN route r ON r.route_id = t.route_id
        WHERE t.trip_id = $1`,
-      [id],
+      [id]
     );
     if (headerRows.length === 0) return null;
 
-    const stopTimes: TripDetailRecord['stopTimes'] = await this.dataSource.query(
-      `SELECT st.stop_id AS "stopId",
+    const stopTimes: TripDetailRecord['stopTimes'] =
+      await this.dataSource.query(
+        `SELECT st.stop_id AS "stopId",
               s.stop_name AS name,
               st.stop_sequence AS sequence,
               st.arrival_time AS "arrivalTime",
@@ -47,8 +46,8 @@ export class TypeOrmTripRepository implements TripRepositoryPort {
        LEFT JOIN stop s ON s.stop_id = st.stop_id
        WHERE st.trip_id = $1
        ORDER BY st.stop_sequence ASC`,
-      [id],
-    );
+        [id]
+      );
 
     return { ...headerRows[0], stopTimes };
   }

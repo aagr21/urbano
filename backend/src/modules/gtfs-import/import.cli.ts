@@ -22,7 +22,7 @@ async function main(): Promise<void> {
     const zipPath = resolve(config.gtfsFile);
     if (!existsSync(zipPath)) {
       throw new Error(
-        `No se encontró el zip GTFS en ${zipPath}. Configura GTFS_FILE en .env`,
+        `No se encontró el zip GTFS en ${zipPath}. Configura GTFS_FILE en .env`
       );
     }
     const importer = app.get(GtfsImportService);
@@ -33,11 +33,11 @@ async function main(): Promise<void> {
       table,
       count,
     }));
-     
+
     console.log('\n=== Resumen de importación GTFS ===');
-     
+
     console.table(rows);
-     
+
     console.log(`Duración: ${(summary.durationMs / 1000).toFixed(1)} s\n`);
   } finally {
     await app.close();
@@ -45,7 +45,6 @@ async function main(): Promise<void> {
 }
 
 main().catch((error) => {
-   
   console.error('Error importando GTFS:', error);
   process.exit(1);
 });

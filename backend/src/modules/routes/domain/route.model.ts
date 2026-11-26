@@ -81,8 +81,7 @@ export interface RoutePage {
 }
 
 /** Registro crudo del detalle (lo arma la capa de aplicación). */
-export interface RouteDetailRecord
-  extends Omit<RouteSummary, 'directions'> {
+export interface RouteDetailRecord extends Omit<RouteSummary, 'directions'> {
   directions: Array<
     Omit<RouteDirectionInfo, 'stopCount'> & {
       stopCount: number;
@@ -92,7 +91,10 @@ export interface RouteDetailRecord
   /** shape_id → coordenadas + bbox */
   shapes: Record<
     string,
-    { coordinates: Array<[number, number]>; bbox: [number, number, number, number] }
+    {
+      coordinates: Array<[number, number]>;
+      bbox: [number, number, number, number];
+    }
   >;
 }
 

@@ -11,7 +11,10 @@ import { RequestLoggerInterceptor } from './core/common/interceptors/request-log
  * filtros e interceptores). Compartida entre `main.ts` y los tests e2e
  * para que corran con exactamente el mismo pipeline que producción.
  */
-export function configureApp(app: INestApplication, config: AppConfigService): void {
+export function configureApp(
+  app: INestApplication,
+  config: AppConfigService
+): void {
   app.setGlobalPrefix('api/v1', { exclude: ['docs'] });
 
   const origins = config.corsOrigins;
@@ -26,11 +29,11 @@ export function configureApp(app: INestApplication, config: AppConfigService): v
       transform: true,
       whitelist: true,
       forbidNonWhitelisted: false,
-    }),
+    })
   );
   app.useGlobalFilters(new AllExceptionsFilter());
   app.useGlobalInterceptors(
     new ResponseWrapperInterceptor(),
-    new RequestLoggerInterceptor(),
+    new RequestLoggerInterceptor()
   );
 }

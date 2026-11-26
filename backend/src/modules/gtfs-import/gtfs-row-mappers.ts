@@ -135,7 +135,7 @@ export const rowMappers = {
 export async function* mappedRows<T>(
   reader: GtfsZipReader,
   fileName: string,
-  map: (row: GtfsRow, index: number) => T,
+  map: (row: GtfsRow, index: number) => T
 ): AsyncGenerator<T> {
   let index = 0;
   for await (const row of reader.rows(fileName)) {
@@ -148,7 +148,7 @@ export async function* mappedRows<T>(
  * archivo trae un punto por fila y la tabla guarda una fila por shape.
  */
 export async function readShapePoints(
-  reader: GtfsZipReader,
+  reader: GtfsZipReader
 ): Promise<Map<string, ShapePoint[]>> {
   const points = new Map<string, ShapePoint[]>();
   for await (const row of reader.rows('shapes.txt')) {
@@ -173,7 +173,7 @@ export async function readShapePoints(
  * transacción de inserción.
  */
 export function buildShapeRows(
-  pointsByShape: Map<string, ShapePoint[]>,
+  pointsByShape: Map<string, ShapePoint[]>
 ): Shape[] {
   const rows: Shape[] = [];
   for (const [shapeId, points] of pointsByShape) {

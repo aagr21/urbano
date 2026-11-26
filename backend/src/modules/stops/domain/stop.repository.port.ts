@@ -1,4 +1,1 @@
-export {
-  NearbyQuery,
-  StopRepositoryPort,
-} from './stop.model';
+export { NearbyQuery, StopRepositoryPort } from './stop.model';

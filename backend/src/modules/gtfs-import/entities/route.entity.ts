@@ -12,7 +12,12 @@ export class Route {
   @Column({ name: 'route_short_name', type: 'varchar', length: 128 })
   declare shortName: string;
 
-  @Column({ name: 'route_long_name', type: 'varchar', length: 255, nullable: true })
+  @Column({
+    name: 'route_long_name',
+    type: 'varchar',
+    length: 255,
+    nullable: true,
+  })
   declare longName: string | null;
 
   @Column({ name: 'route_desc', type: 'text', nullable: true })
@@ -26,7 +31,12 @@ export class Route {
   declare color: string | null;
 
   /** Hex GTFS sin '#'. */
-  @Column({ name: 'route_text_color', type: 'varchar', length: 8, nullable: true })
+  @Column({
+    name: 'route_text_color',
+    type: 'varchar',
+    length: 8,
+    nullable: true,
+  })
   declare textColor: string | null;
 
   /** Imagen del itinerario (de micros.csv; URL externa tipo Google). */

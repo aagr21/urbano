@@ -1,9 +1,5 @@
 import { CacheInterceptor, CacheTTL } from '@nestjs/cache-manager';
-import {
-  Controller,
-  Get,
-  UseInterceptors,
-} from '@nestjs/common';
+import { Controller, Get, UseInterceptors } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { CACHE_TTL_MS } from '../../../core/common/tokens';
 import { StatsService } from '../application/stats.service';

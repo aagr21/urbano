@@ -11,7 +11,7 @@ export async function createApp(): Promise<INestApplication> {
     // eslint-disable-next-line no-console
     console.warn(
       'No se pudieron crear las extensiones PostGIS:',
-      error instanceof Error ? error.message : error,
+      error instanceof Error ? error.message : error
     );
   });
 
@@ -30,7 +30,7 @@ export async function createApp(): Promise<INestApplication> {
     const swaggerConfig = new DocumentBuilder()
       .setTitle('Urbano API')
       .setDescription(
-        'API de transporte público (micros urbanos) de Santa Cruz de la Sierra',
+        'API de transporte público (micros urbanos) de Santa Cruz de la Sierra'
       )
       .setVersion('1.0.0')
       .build();

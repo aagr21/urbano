@@ -34,9 +34,7 @@ type RouteSummaryRow = Omit<RouteSummary, 'keyStops'> & {
 
 @Injectable()
 export class TypeOrmRouteRepository implements RouteRepositoryPort {
-  constructor(
-    @InjectDataSource() private readonly dataSource: DataSource,
-  ) {}
+  constructor(@InjectDataSource() private readonly dataSource: DataSource) {}
 
   async findAll(query: RouteQuery): Promise<RoutePage> {
     // Consulta SQL directa para incluir paradas clave (keyStops) sin
@@ -65,7 +63,7 @@ export class TypeOrmRouteRepository implements RouteRepositoryPort {
     const totalResult = await this.dataSource.query(
       `SELECT COUNT(*)::int AS total FROM route r
        WHERE 1=1 ${likeClause(1)}`,
-      pattern ? [pattern] : [],
+      pattern ? [pattern] : []
     );
     const total = Number(totalResult[0]?.total ?? 0);
 
@@ -73,7 +71,8 @@ export class TypeOrmRouteRepository implements RouteRepositoryPort {
     // orden de secuencia de la dirección 0 (ida).
     // jsonb_agg con LIMIT en la consulta externa no funciona en PG,
     // así que usamos un array slice en Node.
-    const rows = await this.dataSource.query(`
+    const rows = await this.dataSource.query(
+      `
       SELECT r.route_id AS "id",
              r.route_short_name AS "shortName",
              r.route_long_name AS "longName",
@@ -101,7 +100,9 @@ export class TypeOrmRouteRepository implements RouteRepositoryPort {
       WHERE 1=1 ${likeClause(3)}
       ORDER BY ${sortColumn}, r.route_id ASC
       LIMIT $1 OFFSET $2
-    `, pattern ? [query.limit, offset, pattern] : [query.limit, offset]);
+    `,
+      pattern ? [query.limit, offset, pattern] : [query.limit, offset]
+    );
 
     return {
       items: (rows as RouteSummaryRow[]).map((row) => ({
@@ -124,7 +125,9 @@ export class TypeOrmRouteRepository implements RouteRepositoryPort {
   }
 
   async findById(id: string): Promise<RouteDetailRecord | null> {
-    const route = await this.dataSource.getRepository(Route).findOne({ where: { id } });
+    const route = await this.dataSource
+      .getRepository(Route)
+      .findOne({ where: { id } });
     if (!route) return null;
 
     const directions = await this.dataSource.query(
@@ -140,7 +143,7 @@ export class TypeOrmRouteRepository implements RouteRepositoryPort {
        LEFT JOIN frequency f ON f.trip_id = t.trip_id
        WHERE t.route_id = $1
        ORDER BY t.direction_id ASC`,
-      [id],
+      [id]
     );
 
     const shapeIds = directions
@@ -165,12 +168,17 @@ export class TypeOrmRouteRepository implements RouteRepositoryPort {
                 bbox_max_lat AS "bboxMaxLat"
          FROM shape
          WHERE shape_id = ANY($1)`,
-        [shapeIds],
+        [shapeIds]
       );
       for (const row of shapeRows) {
         shapes[row.shapeId] = {
           coordinates: row.coordinates,
-          bbox: [row.bboxMinLon, row.bboxMinLat, row.bboxMaxLon, row.bboxMaxLat],
+          bbox: [
+            row.bboxMinLon,
+            row.bboxMinLat,
+            row.bboxMaxLon,
+            row.bboxMaxLat,
+          ],
         };
       }
     }
@@ -196,7 +204,7 @@ export class TypeOrmRouteRepository implements RouteRepositoryPort {
           lastDeparture: d.lastDeparture,
           headwaySeconds: d.headwaySeconds,
           stopCount: d.stopCount,
-        }),
+        })
       ),
       shapes,
     };
@@ -228,7 +236,7 @@ export class TypeOrmRouteRepository implements RouteRepositoryPort {
        JOIN stop s ON s.stop_id = st.stop_id
        WHERE t.route_id = $1 AND t.direction_id = $2
        ORDER BY st.stop_sequence ASC`,
-      [id, directionId],
+      [id, directionId]
     );
     return rows;
   }
@@ -236,7 +244,7 @@ export class TypeOrmRouteRepository implements RouteRepositoryPort {
   async findDepartureSources(
     id: string,
     stopId: string | null,
-    directionId?: number,
+    directionId?: number
   ): Promise<DepartureSourceRecord[]> {
     const rows: Array<{
       tripId: string;
@@ -261,7 +269,7 @@ export class TypeOrmRouteRepository implements RouteRepositoryPort {
          AND (($2::text IS NULL AND st.stop_sequence = 1) OR st.stop_id = $2)
          AND ($3::int IS NULL OR t.direction_id = $3)
        ORDER BY t.direction_id ASC`,
-      [id, stopId, directionId ?? null],
+      [id, stopId, directionId ?? null]
     );
     return rows;
   }

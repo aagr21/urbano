@@ -14,7 +14,11 @@ export class VercelBlobPhotoStorage implements PhotoStoragePort {
     return !!this.token;
   }
 
-  async upload(name: string, data: Buffer, contentType: string): Promise<string> {
+  async upload(
+    name: string,
+    data: Buffer,
+    contentType: string
+  ): Promise<string> {
     const blob = await put(name, data, {
       access: 'public',
       contentType,

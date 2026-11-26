@@ -27,6 +27,10 @@ export class StopTime {
   declare dropOffType: number;
 
   /** Distancia acumulada desde el inicio del shape (metros). */
-  @Column({ name: 'shape_dist_traveled', type: 'double precision', nullable: true })
+  @Column({
+    name: 'shape_dist_traveled',
+    type: 'double precision',
+    nullable: true,
+  })
   shapeDistTraveled: number | null;
 }

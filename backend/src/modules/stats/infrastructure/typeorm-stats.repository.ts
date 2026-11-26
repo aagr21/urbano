@@ -15,9 +15,7 @@ const WEEKDAY_KEYS = [
 
 @Injectable()
 export class TypeOrmStatsRepository implements StatsRepositoryPort {
-  constructor(
-    @InjectDataSource() private readonly dataSource: DataSource,
-  ) {}
+  constructor(@InjectDataSource() private readonly dataSource: DataSource) {}
 
   async getStats(): Promise<FeedStats> {
     const [counters] = await this.dataSource.query(
@@ -25,7 +23,7 @@ export class TypeOrmStatsRepository implements StatsRepositoryPort {
               (SELECT COUNT(*)::int FROM stop) AS stops,
               (SELECT COUNT(*)::int FROM trip) AS trips,
               -- "shapes" del contrato = total de puntos del feed (filas de shapes.txt)
-              (SELECT COALESCE(SUM(point_count), 0)::int FROM shape) AS shapes`,
+              (SELECT COALESCE(SUM(point_count), 0)::int FROM shape) AS shapes`
     );
 
     const [service] = await this.dataSource.query(
@@ -35,19 +33,19 @@ export class TypeOrmStatsRepository implements StatsRepositoryPort {
               end_date AS "endDate"
        FROM service
        ORDER BY service_id ASC
-       LIMIT 1`,
+       LIMIT 1`
     );
 
     const [frequency] = await this.dataSource.query(
       `SELECT MIN(start_time) AS "firstDeparture",
               MAX(end_time) AS "lastDeparture",
               MIN(headway_secs) AS "headwaySeconds"
-       FROM frequency`,
+       FROM frequency`
     );
 
     const days = service
       ? describeDays(
-          WEEKDAY_KEYS.map((k) => service[k] === true || service[k] === '1'),
+          WEEKDAY_KEYS.map((k) => service[k] === true || service[k] === '1')
         )
       : 'desconocido';
 
@@ -79,11 +77,7 @@ function describeDays(active: boolean[]): string {
   const all = active.every(Boolean);
   if (all) return 'diario';
   const weekdays = [0, 1, 2, 3, 4]; // lunes..viernes (índice 0 = lunes)
-  if (
-    weekdays.every((i) => active[i]) &&
-    !active[5] &&
-    !active[6]
-  ) {
+  if (weekdays.every((i) => active[i]) && !active[5] && !active[6]) {
     return 'lunes a viernes';
   }
   const names = [

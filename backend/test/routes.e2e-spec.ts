@@ -25,7 +25,9 @@ describe('Routes (e2e)', () => {
   });
 
   it('GET /api/v1/routes returns wrapped route list', async () => {
-    const res = await request(app.getHttpServer()).get('/api/v1/routes?q=101').expect(200);
+    const res = await request(app.getHttpServer())
+      .get('/api/v1/routes?q=101')
+      .expect(200);
 
     expect(res.body).toHaveProperty('data');
     expect(res.body).toHaveProperty('meta');
@@ -45,7 +47,9 @@ describe('Routes (e2e)', () => {
   });
 
   it('GET /api/v1/routes returns paginated meta', async () => {
-    const res = await request(app.getHttpServer()).get('/api/v1/routes').expect(200);
+    const res = await request(app.getHttpServer())
+      .get('/api/v1/routes')
+      .expect(200);
 
     expect(res.body.meta).toMatchObject({
       page: 1,
@@ -61,7 +65,7 @@ describe('Routes (e2e)', () => {
       .expect(200);
 
     const names = (res.body.data as Array<{ shortName: string }>).map(
-      (r) => r.shortName,
+      (r) => r.shortName
     );
     // Textual daría 1, 10, 100, 104 C…; natural da 1..8, 9 AMARILLO/9 VERDE, 10, 11.
     expect(names.slice(0, 12)).toEqual([
@@ -86,7 +90,7 @@ describe('Routes (e2e)', () => {
       .expect(200);
 
     const names = (res.body.data as Array<{ shortName: string }>).map(
-      (r) => r.shortName,
+      (r) => r.shortName
     );
     expect(names.indexOf('85')).toBeGreaterThanOrEqual(0);
     expect(names.indexOf('85')).toBeLessThan(names.indexOf('85 FORTALEZA'));

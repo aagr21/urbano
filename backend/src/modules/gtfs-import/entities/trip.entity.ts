@@ -12,7 +12,12 @@ export class Trip {
   @Column({ name: 'service_id', type: 'varchar', length: 64 })
   declare serviceId: string;
 
-  @Column({ name: 'trip_headsign', type: 'varchar', length: 255, nullable: true })
+  @Column({
+    name: 'trip_headsign',
+    type: 'varchar',
+    length: 255,
+    nullable: true,
+  })
   declare headsign: string | null;
 
   @Column({ name: 'direction_id', type: 'int', default: 0 })

@@ -35,7 +35,7 @@ export class MicrosImagesService {
       assigned += 1;
     }
     this.logger.log(
-      `micros.csv: ${assigned} imágenes asignadas por route_short_name`,
+      `micros.csv: ${assigned} imágenes asignadas por route_short_name`
     );
     return assigned;
   }
@@ -53,7 +53,10 @@ export class MicrosImagesService {
     }) as MicrosCatalogueRow[];
 
     return rows
-      .map((row) => ({ name: row.name?.trim() ?? '', url: row.url?.trim() ?? '' }))
+      .map((row) => ({
+        name: row.name?.trim() ?? '',
+        url: row.url?.trim() ?? '',
+      }))
       .filter((row) => row.name !== '' && row.url !== '');
   }
 }

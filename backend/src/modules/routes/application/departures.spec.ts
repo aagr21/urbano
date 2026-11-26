@@ -57,7 +57,7 @@ describe('computeUpcomingDepartures (cálculo puro de próximas salidas)', () =>
     const result = computeUpcomingDepartures(
       [source, other],
       toSec('06:00:00'),
-      4,
+      4
     );
     // other: 06:02:00, 06:07:00, 06:12:00... | source: 06:07:18, 06:12:18...
     expect(result.map((r) => r.time)).toEqual([

@@ -8,12 +8,17 @@ const DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
 
 /** GET /routes?q=&page=&limit=&sort= */
 export class ListRoutesQueryDto extends PaginationDto {
-  @ApiPropertyOptional({ description: 'Búsqueda insensible a mayúsculas sobre shortName/longName' })
+  @ApiPropertyOptional({
+    description: 'Búsqueda insensible a mayúsculas sobre shortName/longName',
+  })
   @IsOptional()
   @MaxLength(80)
   q?: string;
 
-  @ApiPropertyOptional({ enum: ['name', 'shortName', 'longName', 'stopCount'], default: 'name' })
+  @ApiPropertyOptional({
+    enum: ['name', 'shortName', 'longName', 'stopCount'],
+    default: 'name',
+  })
   @IsOptional()
   @IsIn(['name', 'shortName', 'longName', 'stopCount'])
   sort?: 'name' | 'shortName' | 'longName' | 'stopCount' = 'name';
@@ -47,7 +52,10 @@ export class RouteDeparturesQueryDto {
   @IsIn([0, 1])
   directionId?: 0 | 1;
 
-  @ApiPropertyOptional({ description: 'Hora de referencia HH:mm o HH:mm:ss (default: ahora America/La_Paz)' })
+  @ApiPropertyOptional({
+    description:
+      'Hora de referencia HH:mm o HH:mm:ss (default: ahora America/La_Paz)',
+  })
   @IsOptional()
   @Matches(TIME_REGEX, { message: 'time debe tener formato HH:mm o HH:mm:ss' })
   time?: string;

@@ -32,7 +32,9 @@ describe('Stops (e2e)', () => {
     expect(Array.isArray(res.body.data)).toBe(true);
     expect(res.body.data.length).toBeGreaterThan(0);
 
-    const distances = res.body.data.map((s: { distanceMeters: number }) => s.distanceMeters);
+    const distances = res.body.data.map(
+      (s: { distanceMeters: number }) => s.distanceMeters
+    );
     expect([...distances].sort((a, b) => a - b)).toEqual(distances);
     expect(distances[distances.length - 1]).toBeLessThanOrEqual(500);
 
@@ -75,7 +77,9 @@ describe('Stops (e2e)', () => {
   });
 
   it('GET /api/v1/stops/:id returns detail with GeoJSON location', async () => {
-    const res = await request(app.getHttpServer()).get('/api/v1/stops/S19386').expect(200);
+    const res = await request(app.getHttpServer())
+      .get('/api/v1/stops/S19386')
+      .expect(200);
 
     expect(res.body.data).toMatchObject({
       id: 'S19386',
@@ -88,7 +92,9 @@ describe('Stops (e2e)', () => {
   });
 
   it('GET /api/v1/stops/:id returns 404 for unknown stop', async () => {
-    const res = await request(app.getHttpServer()).get('/api/v1/stops/NOPE').expect(404);
+    const res = await request(app.getHttpServer())
+      .get('/api/v1/stops/NOPE')
+      .expect(404);
 
     expect(res.body).toMatchObject({
       error: { statusCode: 404, message: expect.any(String) },

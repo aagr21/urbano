@@ -5,7 +5,8 @@ import { FeedStats, StatsRepositoryPort } from '../domain/stats.model';
 @Injectable()
 export class StatsService {
   constructor(
-    @Inject(STATS_REPOSITORY) private readonly statsRepository: StatsRepositoryPort,
+    @Inject(STATS_REPOSITORY)
+    private readonly statsRepository: StatsRepositoryPort
   ) {}
 
   getStats(): Promise<FeedStats> {

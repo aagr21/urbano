@@ -15,7 +15,9 @@ export function straightLineMeters(
 }
 
 /** `[lon, lat]` finito (GeoJSON). */
-export function isLonLat(value: number[] | undefined): value is [number, number] {
+export function isLonLat(
+  value: number[] | undefined
+): value is [number, number] {
   return (
     !!value &&
     value.length >= 2 &&

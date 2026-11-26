@@ -21,9 +21,7 @@ export const BATCH_SIZE = 5000;
 export class GtfsImportRepository {
   private readonly logger = new Logger(GtfsImportRepository.name);
 
-  constructor(
-    @InjectDataSource() private readonly dataSource: DataSource,
-  ) {}
+  constructor(@InjectDataSource() private readonly dataSource: DataSource) {}
 
   /** Ejecuta [work] dentro de una transacción (una sola conexión). */
   transaction<T>(work: (manager: EntityManager) => Promise<T>): Promise<T> {
@@ -33,7 +31,7 @@ export class GtfsImportRepository {
   /** Vacía las tablas del feed (las dependencias caen en cascada). */
   async truncate(manager: EntityManager): Promise<void> {
     await manager.query(
-      `TRUNCATE TABLE frequency, stop_time, trip, shape, stop, route, feed_info, service, agency RESTART IDENTITY CASCADE`,
+      `TRUNCATE TABLE frequency, stop_time, trip, shape, stop, route, feed_info, service, agency RESTART IDENTITY CASCADE`
     );
   }
 
@@ -41,7 +39,7 @@ export class GtfsImportRepository {
   async insertInBatches<T>(
     manager: EntityManager,
     entity: EntityTarget<T>,
-    rows: T[],
+    rows: T[]
   ): Promise<number> {
     let inserted = 0;
     for (let offset = 0; offset < rows.length; offset += BATCH_SIZE) {
@@ -59,7 +57,7 @@ export class GtfsImportRepository {
   async insertStream<T>(
     manager: EntityManager,
     entity: EntityTarget<T>,
-    rows: AsyncIterable<T>,
+    rows: AsyncIterable<T>
   ): Promise<number> {
     let count = 0;
     let batch: T[] = [];
@@ -102,7 +100,7 @@ export class GtfsImportRepository {
   async populateStopGeometry(): Promise<void> {
     const result = await this.dataSource.query(
       `UPDATE stop SET geom = ST_SetSRID(ST_MakePoint(stop_lon, stop_lat), 4326)::geography
-       WHERE geom IS NULL`,
+       WHERE geom IS NULL`
     );
     this.logger.log(`stop.geom populada en ${result[1] ?? '?'} filas`);
   }
@@ -139,13 +137,13 @@ export class GtfsImportRepository {
   private async insert<T>(
     manager: EntityManager,
     entity: EntityTarget<T>,
-    batch: T[],
+    batch: T[]
   ): Promise<void> {
     // TypeORM tipa `insert` contra `ObjectLiteral`; aquí el lote es homogéneo
     // y ya viene mapeado a la entidad, así que el cast queda contenido.
     await manager.insert(
       entity as EntityTarget<ObjectLiteral>,
-      batch as QueryDeepPartialEntity<ObjectLiteral>[],
+      batch as QueryDeepPartialEntity<ObjectLiteral>[]
     );
   }
 }

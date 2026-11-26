@@ -57,7 +57,6 @@ export function orientBusLegGeometry(
   return options;
 }
 
-
 /**
  * Distancia máxima (m) entre una parada y el trazado del micro para coserlos.
  * En una avenida de doble calzada el `shape` corre por el eje del carril y la

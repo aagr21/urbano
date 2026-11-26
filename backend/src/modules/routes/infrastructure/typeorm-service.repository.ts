@@ -8,9 +8,7 @@ import {
 
 @Injectable()
 export class TypeOrmServiceRepository implements ServiceRepositoryPort {
-  constructor(
-    @InjectDataSource() private readonly dataSource: DataSource,
-  ) {}
+  constructor(@InjectDataSource() private readonly dataSource: DataSource) {}
 
   async findActiveCalendar(): Promise<ServiceCalendarRecord | null> {
     const rows: ServiceCalendarRecord[] = await this.dataSource.query(
@@ -20,7 +18,7 @@ export class TypeOrmServiceRepository implements ServiceRepositoryPort {
               end_date AS "endDate"
        FROM service
        ORDER BY service_id ASC
-       LIMIT 1`,
+       LIMIT 1`
     );
     return rows[0] ?? null;
   }

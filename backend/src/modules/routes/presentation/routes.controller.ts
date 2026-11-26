@@ -1,11 +1,5 @@
 import { CacheInterceptor, CacheTTL } from '@nestjs/cache-manager';
-import {
-  Controller,
-  Get,
-  Param,
-  Query,
-  UseInterceptors,
-} from '@nestjs/common';
+import { Controller, Get, Param, Query, UseInterceptors } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { CACHE_TTL_MS } from '../../../core/common/tokens';
 import { fullList } from '../../../core/common/models/paginated';
@@ -50,12 +44,12 @@ export class RoutesController {
   @ApiOperation({ summary: 'Próximas salidas en una parada de la ruta' })
   async departures(
     @Param('id') id: string,
-    @Query() query: RouteDeparturesQueryDto,
+    @Query() query: RouteDeparturesQueryDto
   ) {
     const departures = await this.routesService.departures(
       id,
       query.stopId,
-      query,
+      query
     );
     return fullList(departures);
   }

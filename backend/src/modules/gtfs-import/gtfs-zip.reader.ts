@@ -25,7 +25,9 @@ export class GtfsZipReader {
     }
     const entry =
       this.directory.files.find((f) => f.path === fileName) ??
-      this.directory.files.find((f) => f.path.replace(/^\.\//, '') === fileName);
+      this.directory.files.find(
+        (f) => f.path.replace(/^\.\//, '') === fileName
+      );
     if (!entry) {
       throw new Error(`Archivo ${fileName} no encontrado en ${this.zipPath}`);
     }
@@ -37,7 +39,7 @@ export class GtfsZipReader {
         relax_column_count: true,
         relax_quotes: true,
         trim: true,
-      }),
+      })
     );
     for await (const record of parser) {
       yield record as GtfsRow;

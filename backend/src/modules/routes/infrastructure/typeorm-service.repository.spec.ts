@@ -10,9 +10,7 @@ class FakeDataSource {
   }
 
   async query(sql: string): Promise<unknown> {
-    expect(sql).toContain(
-      'ORDER BY service_id ASC\n       LIMIT 1',
-    );
+    expect(sql).toContain('ORDER BY service_id ASC\n       LIMIT 1');
     return this.result;
   }
 }
@@ -28,13 +26,17 @@ describe('TypeOrmServiceRepository', () => {
       },
     ]);
 
-    const calendar = await new TypeOrmServiceRepository(ds as never).findActiveCalendar();
+    const calendar = await new TypeOrmServiceRepository(
+      ds as never
+    ).findActiveCalendar();
 
     expect(calendar!.serviceId).toBe('SE1');
   });
 
   it('sin filas devuelve null (rows[0] ?? null)', async () => {
     const ds = new FakeDataSource().next([]);
-    await expect(new TypeOrmServiceRepository(ds as never).findActiveCalendar()).resolves.toBeNull();
+    await expect(
+      new TypeOrmServiceRepository(ds as never).findActiveCalendar()
+    ).resolves.toBeNull();
   });
 });

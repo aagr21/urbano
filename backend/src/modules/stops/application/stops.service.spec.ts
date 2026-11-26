@@ -1,6 +1,11 @@
 import { NotFoundException } from '@nestjs/common';
 import { StopsService } from './stops.service';
-import type { StopNearbyPage, StopSearchPage, StopDetail, StopRepositoryPort } from '../domain/stop.model';
+import type {
+  StopNearbyPage,
+  StopSearchPage,
+  StopDetail,
+  StopRepositoryPort,
+} from '../domain/stop.model';
 
 /** Puerto LED de parada cerca: responde lo configurado y registra los args. */
 class RecordingPort implements Partial<StopRepositoryPort> {
@@ -9,7 +14,7 @@ class RecordingPort implements Partial<StopRepositoryPort> {
   constructor(
     private readonly nearbyPage: StopNearbyPage = { items: [], total: 0 },
     private readonly searchPage: StopSearchPage = { items: [], total: 0 },
-    private readonly detail: StopDetail | null = null,
+    private readonly detail: StopDetail | null = null
   ) {}
 
   async findNearby(query: {
@@ -39,7 +44,12 @@ describe('StopsService', () => {
     const port = new RecordingPort({ items: [], total: 0 });
     const service = new StopsService(port as unknown as StopRepositoryPort);
 
-    const result = await service.nearby({ lat: -17.78, lon: -63.15, radius: 400, limit: 10 });
+    const result = await service.nearby({
+      lat: -17.78,
+      lon: -63.15,
+      radius: 400,
+      limit: 10,
+    });
 
     expect(port.calls[0]).toEqual({
       op: 'nearby',
@@ -53,12 +63,19 @@ describe('StopsService', () => {
   });
 
   it('search hace TRIM del texto antes de pedir al puerto', async () => {
-    const port = new RecordingPort({ items: [], total: 0 }, { items: [], total: 7 });
+    const port = new RecordingPort(
+      { items: [], total: 0 },
+      { items: [], total: 7 }
+    );
     const service = new StopsService(port as unknown as StopRepositoryPort);
 
     const result = await service.search({ q: '  cuatro anillo  ', limit: 10 });
 
-    expect(port.calls[0]).toEqual({ op: 'search', q: 'cuatro anillo', limit: 10 });
+    expect(port.calls[0]).toEqual({
+      op: 'search',
+      q: 'cuatro anillo',
+      limit: 10,
+    });
     expect(result.meta).toEqual({ page: 1, limit: 10, total: 7 });
   });
 
@@ -73,15 +90,21 @@ describe('StopsService', () => {
       location: { type: 'Point', coordinates: [0, 0] },
     };
     const service = new StopsService(
-      new RecordingPort({ items: [], total: 0 }, { items: [], total: 0 }, stop) as unknown as StopRepositoryPort,
+      new RecordingPort(
+        { items: [], total: 0 },
+        { items: [], total: 0 },
+        stop
+      ) as unknown as StopRepositoryPort
     );
     await expect(service.detail('S1')).resolves.toBe(stop);
   });
 
   it('detail inexistente: NotFoundException con el id del mensaje (contrato 404)', async () => {
     const service = new StopsService(
-      new RecordingPort() as unknown as StopRepositoryPort,
+      new RecordingPort() as unknown as StopRepositoryPort
     );
-    await expect(service.detail('S-x')).rejects.toThrowError(new NotFoundException('Stop S-x not found'));
+    await expect(service.detail('S-x')).rejects.toThrowError(
+      new NotFoundException('Stop S-x not found')
+    );
   });
 });

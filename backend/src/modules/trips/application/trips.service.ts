@@ -5,7 +5,7 @@ import { TripDetail, TripRepositoryPort } from '../domain/trip.model';
 @Injectable()
 export class TripsService {
   constructor(
-    @Inject(TRIP_REPOSITORY) private readonly tripRepository: TripRepositoryPort,
+    @Inject(TRIP_REPOSITORY) private readonly tripRepository: TripRepositoryPort
   ) {}
 
   async detail(id: string): Promise<TripDetail> {

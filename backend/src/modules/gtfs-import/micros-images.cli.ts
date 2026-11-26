@@ -15,7 +15,7 @@ async function main(): Promise<void> {
   try {
     const images = app.get(MicrosImagesService);
     const assigned = await images.apply();
-     
+
     console.log(`\nImágenes de micros asignadas: ${assigned}\n`);
   } finally {
     await app.close();
@@ -23,7 +23,6 @@ async function main(): Promise<void> {
 }
 
 main().catch((error) => {
-   
   console.error('Error asignando imágenes de micros:', error);
   process.exit(1);
 });

@@ -38,7 +38,7 @@ export class GtfsImportService {
 
   constructor(
     private readonly repository: GtfsImportRepository,
-    private readonly microsImages: MicrosImagesService,
+    private readonly microsImages: MicrosImagesService
   ) {}
 
   async import(zipPath: string): Promise<ImportSummary> {
@@ -47,7 +47,7 @@ export class GtfsImportService {
     this.logger.log(`Importando GTFS desde ${zipPath}`);
 
     const counts = await this.repository.transaction((manager) =>
-      this.importFeed(manager, reader),
+      this.importFeed(manager, reader)
     );
 
     // Geometrías e índices espaciales fuera de la transacción de inserción.
@@ -66,7 +66,7 @@ export class GtfsImportService {
    */
   private async importFeed(
     manager: EntityManager,
-    reader: GtfsZipReader,
+    reader: GtfsZipReader
   ): Promise<Record<string, number>> {
     await this.repository.truncate(manager);
 
@@ -76,14 +76,14 @@ export class GtfsImportService {
       reader,
       'agency.txt',
       Agency,
-      rowMappers.agency,
+      rowMappers.agency
     );
     counts.service = await this.importTable(
       manager,
       reader,
       'calendar.txt',
       Service,
-      rowMappers.service,
+      rowMappers.service
     );
     counts.feedInfo = await this.importFeedInfo(manager, reader);
     counts.routes = await this.importTable(
@@ -91,28 +91,28 @@ export class GtfsImportService {
       reader,
       'routes.txt',
       Route,
-      rowMappers.route,
+      rowMappers.route
     );
     counts.stops = await this.importTable(
       manager,
       reader,
       'stops.txt',
       Stop,
-      rowMappers.stop,
+      rowMappers.stop
     );
     counts.trips = await this.importTable(
       manager,
       reader,
       'trips.txt',
       Trip,
-      rowMappers.trip,
+      rowMappers.trip
     );
     counts.stopTimes = await this.importTable(
       manager,
       reader,
       'stop_times.txt',
       StopTime,
-      rowMappers.stopTime,
+      rowMappers.stopTime
     );
     counts.shapes = await this.importShapes(manager, reader);
     counts.frequencies = await this.importTable(
@@ -120,7 +120,7 @@ export class GtfsImportService {
       reader,
       'frequencies.txt',
       Frequency,
-      rowMappers.frequency,
+      rowMappers.frequency
     );
 
     await this.repository.deriveRouteCounts(manager);
@@ -133,19 +133,19 @@ export class GtfsImportService {
     reader: GtfsZipReader,
     fileName: string,
     entity: EntityTarget<T>,
-    map: (row: GtfsRow, index: number) => T,
+    map: (row: GtfsRow, index: number) => T
   ): Promise<number> {
     return this.repository.insertStream(
       manager,
       entity,
-      mappedRows(reader, fileName, map),
+      mappedRows(reader, fileName, map)
     );
   }
 
   /** feed_info.txt es opcional: su ausencia no falla la importación. */
   private async importFeedInfo(
     manager: EntityManager,
-    reader: GtfsZipReader,
+    reader: GtfsZipReader
   ): Promise<number> {
     try {
       return await this.importTable(
@@ -153,7 +153,7 @@ export class GtfsImportService {
         reader,
         'feed_info.txt',
         FeedInfo,
-        rowMappers.feedInfo,
+        rowMappers.feedInfo
       );
     } catch {
       this.logger.warn('feed_info.txt no presente en el zip; se omite');
@@ -164,21 +164,18 @@ export class GtfsImportService {
   /** shapes.txt se agrupa por shape_id en memoria antes de insertar. */
   private async importShapes(
     manager: EntityManager,
-    reader: GtfsZipReader,
+    reader: GtfsZipReader
   ): Promise<number> {
     const rows = buildShapeRows(await readShapePoints(reader));
     return this.repository.insertInBatches(manager, Shape, rows);
   }
 
-  private logSummary(
-    durationMs: number,
-    counts: Record<string, number>,
-  ): void {
+  private logSummary(durationMs: number, counts: Record<string, number>): void {
     this.logger.log(
       `Importación completada en ${durationMs} ms: ` +
         Object.entries(counts)
           .map(([key, value]) => `${key}=${value}`)
-          .join(', '),
+          .join(', ')
     );
   }
 }

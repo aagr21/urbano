@@ -14,7 +14,10 @@ import {
 export abstract class RouteRepositoryPort {
   abstract findAll(query: RouteQuery): Promise<RoutePage>;
   abstract findById(id: string): Promise<RouteDetailRecord | null>;
-  abstract findStops(id: string, directionId: number): Promise<RouteStopRecord[]>;
+  abstract findStops(
+    id: string,
+    directionId: number
+  ): Promise<RouteStopRecord[]>;
   /**
    * Fuentes de salidas de la ruta. Con `stopId` = null usa la primera
    * parada de cada viaje (salidas desde el inicio del recorrido).
@@ -22,6 +25,6 @@ export abstract class RouteRepositoryPort {
   abstract findDepartureSources(
     id: string,
     stopId: string | null,
-    directionId?: number,
+    directionId?: number
   ): Promise<DepartureSourceRecord[]>;
 }

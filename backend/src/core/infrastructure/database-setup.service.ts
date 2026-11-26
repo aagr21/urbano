@@ -18,7 +18,9 @@ export class DatabaseSetupService implements OnModuleInit {
 
   async onModuleInit(): Promise<void> {
     if (!this.dataSource) {
-      this.logger.warn('No hay base de datos configurada; saltando setup de esquema');
+      this.logger.warn(
+        'No hay base de datos configurada; saltando setup de esquema'
+      );
       return;
     }
     // En serverless (Vercel) este setup son ~25 round-trips a una base remota
@@ -110,14 +112,15 @@ export class DatabaseSetupService implements OnModuleInit {
     column: string,
     target: string
   ): Promise<void> {
-    const rows: Array<{ current: string | null }> = await this.dataSource!.query(
-      `SELECT pg_catalog.format_type(a.atttypid, a.atttypmod) AS current
+    const rows: Array<{ current: string | null }> =
+      await this.dataSource!.query(
+        `SELECT pg_catalog.format_type(a.atttypid, a.atttypmod) AS current
        FROM pg_catalog.pg_attribute a
        WHERE a.attrelid = to_regclass($1)
          AND a.attname = $2
          AND NOT a.attisdropped`,
-      [table, column]
-    );
+        [table, column]
+      );
     if (rows.length === 0) {
       // Tabla todavía no existe (primera ejecución sin synchronize) — nada que hacer
       return;
