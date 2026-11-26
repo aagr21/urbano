@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:latlong2/latlong.dart';
@@ -7,20 +9,21 @@ import 'package:urbano/src/core/router/app_router.dart';
 import 'package:urbano/src/core/theme/app_theme.dart';
 import 'package:urbano/src/core/utils/location.dart';
 import 'package:urbano/src/features/journey/application/journey_planner_controller.dart';
+import 'package:urbano/src/features/journey/data/journey_models.dart';
 import 'package:urbano/src/features/journey/presentation/journey_providers.dart';
 import 'package:urbano/src/features/journey/presentation/map_picker_screen.dart';
-import 'package:urbano/src/features/journey/presentation/widgets/journey_planner_card.dart';
+import 'package:urbano/src/features/journey/presentation/widgets/journey_loading_overlay.dart';
 import 'package:urbano/src/features/journey/presentation/widgets/journey_result_map.dart';
 import 'package:urbano/src/features/journey/presentation/widgets/journey_results_sheet.dart';
 
 import 'helpers/fake_location_service.dart';
 import 'helpers/journey_fixtures.dart';
+import 'helpers/plan_trip.dart';
 
-/// El globo `planner-trigger` (la píldora que abre el panel de origen y
-/// destino) solo existe SIN resultados: con la hoja de resultados en pantalla
-/// el mapa queda libre para leer la ruta, y el viaje se edita desde los pines
-/// o con «Quitar resultados». Contrato completo en
-/// `specs/003-hide-results-trigger/contracts/ui-planner-trigger.md`.
+/// Viaje (`/journey`) NO tiene el globo `planner-trigger` («¿A dónde vas?» /
+/// «Origen → Destino») ni el panel de origen/destino: ni sin viaje, ni
+/// calculando, ni con resultados. El viaje se arma en la portada y aquí se
+/// edita tocando o arrastrando los pines; «Quitar resultados» vuelve a Inicio.
 void main() {
   const trigger = ValueKey('planner-trigger');
 
@@ -32,6 +35,7 @@ void main() {
   Future<ProviderContainer> pumpPlanner(
     WidgetTester tester, {
     bool phone = true,
+    Future<List<JourneyOption>> Function()? journey,
   }) async {
     if (phone) {
       tester.view.physicalSize = const Size(1080, 2340);
@@ -45,10 +49,9 @@ void main() {
           (ref) async => const LatLng(-17.7833, -63.1821),
         ),
         journeyProvider.overrideWith(
-          (ref, query) async => [
-            fixtureDirectOption(),
-            fixtureTransferOption(),
-          ],
+          (ref, query) =>
+              journey?.call() ??
+              Future.value([fixtureDirectOption(), fixtureTransferOption()]),
         ),
         locationServiceProvider.overrideWithValue(FakeLocationService()),
       ],
@@ -71,11 +74,6 @@ void main() {
     return container;
   }
 
-  Future<void> openPanel(WidgetTester tester) async {
-    await tester.tap(find.byKey(trigger));
-    await tester.pumpAndSettle();
-  }
-
   /// Mueve la cámara del selector de punto y confirma (mismo flujo que el
   /// usuario: el pin fijo queda donde se ve).
   Future<void> confirmPickerAt(WidgetTester tester, LatLng point) async {
@@ -92,36 +90,14 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  /// Marca un punto en el mapa como origen/destino desde el panel.
-  Future<void> pickPoint(
-    WidgetTester tester,
-    String hint, {
-    required LatLng point,
-  }) async {
-    await tester.tap(find.text(hint));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Punto en el mapa'));
-    await tester.pumpAndSettle();
-    await confirmPickerAt(tester, point);
-  }
-
-  /// Planifica un viaje completo con el globo (la única entrada sin
-  /// resultados) y deja la hoja de resultados en pantalla.
-  Future<void> planTrip(WidgetTester tester) async {
-    await openPanel(tester);
-    await pickPoint(
-      tester,
-      'Marca un punto en el mapa o usa tu ubicación',
-      point: const LatLng(-17.78, -63.15),
-    );
-    await pickPoint(
-      tester,
-      'Marca dónde quieres llegar',
-      point: const LatLng(-17.80, -63.17),
-    );
-    await tester.tap(find.text('Viajar'));
-    await tester.pumpAndSettle();
-  }
+  /// Planifica como la portada («¿A dónde vas?» → Planificar viaje).
+  Future<void> planTrip(WidgetTester tester, ProviderContainer container) =>
+      planTripFromHome(
+        tester,
+        container,
+        origin: const LatLng(-17.78, -63.15),
+        destination: const LatLng(-17.80, -63.17),
+      );
 
   FakeMapEngineState plannerEngine(WidgetTester tester) =>
       tester.state<FakeMapEngineState>(find.byType(FakeMapEngine));
@@ -130,8 +106,8 @@ void main() {
     testWidgets('con resultados no hay globo y la ruta sigue trazada', (
       tester,
     ) async {
-      await pumpPlanner(tester);
-      await planTrip(tester);
+      final container = await pumpPlanner(tester);
+      await planTrip(tester, container);
 
       expect(find.byType(JourneyResultsSheet), findsOneWidget);
       expect(find.byKey(trigger), findsNothing);
@@ -150,7 +126,7 @@ void main() {
       tester,
     ) async {
       final container = await pumpPlanner(tester);
-      await planTrip(tester);
+      await planTrip(tester, container);
       final before = tester
           .widget<JourneyResultMap>(find.byType(JourneyResultMap))
           .option;
@@ -177,8 +153,8 @@ void main() {
     testWidgets('tocar el pin de destino abre el selector y no trae el globo', (
       tester,
     ) async {
-      await pumpPlanner(tester, phone: false);
-      await planTrip(tester);
+      final container = await pumpPlanner(tester, phone: false);
+      await planTrip(tester, container);
 
       plannerEngine(tester).debugFireMarkerTap('journey-map-destination');
       await tester.pumpAndSettle();
@@ -192,8 +168,8 @@ void main() {
     });
 
     testWidgets('arrastrar el origen recalcula sin globo', (tester) async {
-      await pumpPlanner(tester, phone: false);
-      await planTrip(tester);
+      final container = await pumpPlanner(tester, phone: false);
+      await planTrip(tester, container);
 
       plannerEngine(
         tester,
@@ -206,66 +182,90 @@ void main() {
       expect(find.byKey(trigger), findsNothing);
     });
 
-    testWidgets(
-      'con resultados el panel abierto desde el home se cierra con la '
-      'X',
-      (tester) async {
-        final container = await pumpPlanner(tester);
-        await planTrip(tester);
-        expect(find.byType(JourneyPlannerCard), findsNothing);
+    testWidgets('mientras se calcula el primer viaje no hay globo', (
+      tester,
+    ) async {
+      final pending = Completer<List<JourneyOption>>();
+      final container = await pumpPlanner(
+        tester,
+        journey: () => pending.future,
+      );
+      await planTrip(tester, container);
 
-        // Acceso «Viajes» del home: abre el panel aunque haya resultados.
-        container.read(pendingPlannerPanelProvider.notifier).state = true;
-        await tester.pumpAndSettle();
-        expect(find.byType(JourneyPlannerCard), findsOneWidget);
-        expect(find.byKey(trigger), findsNothing);
-
-        await tester.tap(find.byKey(const ValueKey('planner-close')));
-        await tester.pumpAndSettle();
-        expect(find.byType(JourneyPlannerCard), findsNothing);
-        expect(find.byType(JourneyResultsSheet), findsOneWidget);
-      },
-    );
-
-    testWidgets('quitar los resultados devuelve el globo', (tester) async {
-      await pumpPlanner(tester);
-      await planTrip(tester);
+      // Todavía sin opciones: la carga es la protagonista y el globo
+      // «Origen → Destino» no asoma encima.
+      expect(find.byType(JourneyLoadingOverlay), findsOneWidget);
       expect(find.byKey(trigger), findsNothing);
+
+      pending.complete([fixtureDirectOption()]);
+      await tester.pumpAndSettle();
+      expect(find.byType(JourneyResultsSheet), findsOneWidget);
+      expect(find.byKey(trigger), findsNothing);
+    });
+
+    testWidgets('si el primer viaje falla, la carga se va y lo dice (sin '
+        'globo)', (tester) async {
+      final container = await pumpPlanner(
+        tester,
+        journey: () => Future.error(Exception('sin red')),
+      );
+      await planTrip(tester, container);
+
+      expect(find.byType(JourneyLoadingOverlay), findsNothing);
+      expect(find.byKey(trigger), findsNothing);
+      expect(
+        find.textContaining('No pudimos calcular el viaje'),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('la hoja no se cierra del todo y recogida se reabre con un '
+        'toque', (tester) async {
+      final container = await pumpPlanner(tester);
+      await planTrip(tester, container);
+      const grip = ValueKey('journey-sheet-grip');
+      expect(find.byKey(const ValueKey('grip-open')), findsOneWidget);
+
+      // Arrastre largo hacia abajo desde la cabecera: cae al mínimo, no fuera.
+      await tester.drag(find.byKey(grip), const Offset(0, 2000));
+      await tester.pumpAndSettle();
+      expect(find.byType(JourneyResultsSheet), findsOneWidget);
+      expect(find.byKey(const ValueKey('grip-collapsed')), findsOneWidget);
+      final size = tester.view.physicalSize / tester.view.devicePixelRatio;
+      expect(tester.getRect(find.byKey(grip)).bottom, lessThan(size.height));
+      expect(find.byKey(trigger), findsNothing);
+
+      await tester.tap(find.byKey(grip));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('grip-open')), findsOneWidget);
+    });
+
+    testWidgets('quitar los resultados vuelve a Inicio, sin globo', (
+      tester,
+    ) async {
+      final container = await pumpPlanner(tester);
+      await planTrip(tester, container);
 
       await tester.tap(find.byTooltip('Quitar resultados'));
       await tester.pumpAndSettle();
 
-      expect(find.byType(JourneyResultsSheet), findsNothing);
-      expect(find.byKey(trigger), findsOneWidget);
+      final router = container.read(appRouterProvider);
+      expect(router.routerDelegate.currentConfiguration.uri.path, '/');
+      expect(container.read(journeyPlannerControllerProvider).submitted, false);
+      expect(find.byKey(trigger), findsNothing);
     });
   });
 
-  group('sin resultados (US3)', () {
-    testWidgets('sin viaje el globo está y abre el panel', (tester) async {
-      await pumpPlanner(tester);
-
-      expect(find.byKey(trigger), findsOneWidget);
-      expect(find.text('¿A dónde vas?'), findsOneWidget);
-
-      await openPanel(tester);
-      expect(find.byType(JourneyPlannerCard), findsOneWidget);
-    });
-
-    testWidgets('con un solo extremo el globo invita a completar', (
+  group('sin viaje (US3)', () {
+    testWidgets('Viaje no tiene globo «¿A dónde vas?» ni panel', (
       tester,
     ) async {
       await pumpPlanner(tester);
-      await openPanel(tester);
-      await pickPoint(
-        tester,
-        'Marca un punto en el mapa o usa tu ubicación',
-        point: const LatLng(-17.78, -63.15),
-      );
-      await tester.tap(find.byKey(const ValueKey('planner-close')));
-      await tester.pumpAndSettle();
 
-      expect(find.byKey(trigger), findsOneWidget);
-      expect(find.text('Toca para completar el viaje'), findsOneWidget);
+      expect(find.byKey(trigger), findsNothing);
+      expect(find.text('¿A dónde vas?'), findsNothing);
+      expect(find.text('Viajar'), findsNothing);
+      expect(find.byType(JourneyResultMap), findsOneWidget);
     });
   });
 }

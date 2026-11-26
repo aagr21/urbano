@@ -14,6 +14,10 @@ import 'journey_option_card.dart';
 /// quitar) es FIJA: solo se desplaza la lista de tarjetas. Arrastrar la
 /// cabecera también mueve la hoja (0.18 / 0.45 / 0.85) para no perder el gesto
 /// de siempre.
+///
+/// La hoja NUNCA se cierra del todo: su mínimo (0.18) deja la cabecera a la
+/// vista, y recogida el asa se vuelve un botón (`journey-sheet-grip`, flecha
+/// hacia arriba) que la reabre con un toque, además de poder jalarla.
 class JourneyResultsSheet extends StatelessWidget {
   const JourneyResultsSheet({
     super.key,
@@ -99,7 +103,11 @@ class JourneyResultsSheet extends StatelessWidget {
                     onVerticalDragUpdate: (details) =>
                         _dragHeader(details.delta.dy, available),
                     onVerticalDragEnd: (_) => _snapHeader(),
+                    // Recogida, tocar la cabecera la reabre: es el «botón» de
+                    // la hoja cuando solo asoma el resumen.
+                    onTap: _expandIfCollapsed,
                     child: _SheetHeader(
+                      controller: controller,
                       options: options,
                       bare: bare,
                       selectedIndex: selectedIndex,
@@ -242,6 +250,17 @@ class JourneyResultsSheet extends StatelessWidget {
     controller.jumpTo(next);
   }
 
+  /// Toque en la cabecera: si la hoja está recogida, vuelve a su altura de
+  /// lectura; abierta no hace nada (para eso está el arrastre).
+  void _expandIfCollapsed() {
+    if (!controller.isAttached || !isSheetCollapsed(controller)) return;
+    controller.animateTo(
+      _initialSize,
+      duration: Motion.quick,
+      curve: Curves.easeOutCubic,
+    );
+  }
+
   /// Al soltar, la hoja cae en el tamaño de enganche más cercano.
   void _snapHeader() {
     if (!controller.isAttached) return;
@@ -272,6 +291,7 @@ class JourneyResultsSheet extends StatelessWidget {
 /// dos líneas: duración y tipo, y el horario.
 class _SheetHeader extends StatelessWidget {
   const _SheetHeader({
+    required this.controller,
     required this.options,
     required this.bare,
     required this.selectedIndex,
@@ -280,6 +300,7 @@ class _SheetHeader extends StatelessWidget {
     required this.onClear,
   });
 
+  final DraggableScrollableController controller;
   final List<JourneyOption> options;
   final bool bare;
   final int selectedIndex;
@@ -304,17 +325,8 @@ class _SheetHeader extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Center(
-            child: Container(
-              width: 36,
-              height: 4,
-              decoration: BoxDecoration(
-                color: colors.outlineVariant,
-                borderRadius: BorderRadius.circular(AppRadius.pill),
-              ),
-            ),
-          ),
-          const SizedBox(height: AppSpace.sm),
+          Center(child: _SheetGrip(controller: controller)),
+          const SizedBox(height: AppSpace.xs),
           Row(
             children: [
               Expanded(
@@ -410,6 +422,69 @@ class _SheetHeader extends StatelessWidget {
     text: value,
     style: text.bodySmall?.copyWith(fontWeight: FontWeight.w800, color: ink),
   );
+}
+
+/// `true` con la hoja en su altura mínima (o casi): solo asoma la cabecera.
+bool isSheetCollapsed(DraggableScrollableController controller) =>
+    controller.isAttached &&
+    controller.size <= JourneyResultsSheet._minSize + 0.02;
+
+/// Asa de la hoja. Abierta es la barrita de siempre; recogida se vuelve una
+/// píldora con flecha hacia arriba para que se lea como «tócame/jálame», no
+/// como una hoja cerrada.
+class _SheetGrip extends StatelessWidget {
+  const _SheetGrip({required this.controller});
+
+  final DraggableScrollableController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    return ListenableBuilder(
+      listenable: controller,
+      builder: (context, _) {
+        final collapsed = isSheetCollapsed(controller);
+        return Semantics(
+          button: collapsed,
+          label: collapsed ? 'Abrir resultados' : null,
+          child: SizedBox(
+            key: const ValueKey('journey-sheet-grip'),
+            height: 20,
+            child: AnimatedSwitcher(
+              duration: Motion.quick,
+              child: collapsed
+                  ? Container(
+                      key: const ValueKey('grip-collapsed'),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: AppSpace.md,
+                      ),
+                      decoration: BoxDecoration(
+                        color: colors.primary.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(AppRadius.pill),
+                      ),
+                      child: Icon(
+                        Icons.keyboard_arrow_up_rounded,
+                        size: 20,
+                        color: colors.primary,
+                      ),
+                    )
+                  : Center(
+                      key: const ValueKey('grip-open'),
+                      child: Container(
+                        width: 36,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: colors.outlineVariant,
+                          borderRadius: BorderRadius.circular(AppRadius.pill),
+                        ),
+                      ),
+                    ),
+            ),
+          ),
+        );
+      },
+    );
+  }
 }
 
 /// Acción «quitar resultados» como ícono con tooltip: el botón con rótulo

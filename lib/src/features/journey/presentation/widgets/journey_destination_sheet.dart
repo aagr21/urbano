@@ -648,7 +648,12 @@ class _DestinationSheetContentState
         .record(destination: _destination!);
 
     if (!mounted) return;
-    context.go('/journey');
+    // La hoja se cierra ANTES de cambiar a Viaje: vive en el navegador de la
+    // rama Inicio, y con solo `go()` quedaba abierta por detrás y reaparecía
+    // al volver a la portada.
+    final router = GoRouter.of(context);
+    Navigator.of(context).pop();
+    router.go('/journey');
   }
 
   Future<void> _useSavedTrip(SavedTrip trip) async {

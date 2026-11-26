@@ -9,8 +9,6 @@ import '../../../core/animation/motion.dart';
 import '../../../core/location/reverse_geocoding.dart';
 import '../../../core/map/map.dart';
 import '../../../core/utils/extensions.dart';
-import '../../../core/utils/location.dart';
-import '../../../core/utils/time_formatters.dart';
 import '../application/journey_leg_routes.dart';
 import '../application/trip_history_controller.dart';
 import 'journey_planner_controller.dart';
@@ -19,10 +17,6 @@ import 'journey_results_view.dart';
 import 'widgets/journey_live_map.dart';
 import 'widgets/journey_loading_overlay.dart';
 import 'widgets/journey_map_chips.dart';
-import 'widgets/journey_place_picker_sheet.dart';
-import 'widgets/journey_planner_card.dart';
-import 'widgets/journey_planner_close_button.dart';
-import 'widgets/journey_planner_trigger.dart';
 import 'widgets/journey_result_map.dart';
 import 'widgets/journey_results_sheet.dart';
 
@@ -59,13 +53,6 @@ class _JourneyPlannerScreenState extends ConsumerState<JourneyPlannerScreen> {
   double _sheetExtent = 0.45;
   double _mapBearing = 0;
 
-  /// `true` cuando el panel de origen/destino está desplegado sobre el mapa.
-  /// Arranca cerrado: el mapa es el protagonista y el panel se abre con la
-  /// píldora inferior "¿A dónde vas?". Con resultados la píldora no existe:
-  /// el panel solo se abre por [pendingPlannerPanelProvider] (acceso «Viajes»
-  /// del home) y se cierra con su botón `planner-close`.
-  bool _panelOpen = false;
-
   /// Firma del último viaje que ya se anotó en el historial del home.
   ///
   /// Evita reescribir la fila en cada rebuild de `journeyResultsProvider`
@@ -73,28 +60,23 @@ class _JourneyPlannerScreenState extends ConsumerState<JourneyPlannerScreen> {
   /// consulta se vuelve a anotar.
   String? _historySignature;
 
-  /// Abre/cierra el panel de origen/destino (con animación de despliegue).
-  void _togglePanel() => setState(() => _panelOpen = !_panelOpen);
   @override
   void initState() {
     super.initState();
     _sheetController.addListener(_onSheetExtentChanged);
-    // «Viajar» desde el home (ver [pendingPlannerPanelProvider]): la bandera
-    // llega puesta y aquí se convierte en desplegar el panel de origen/destino.
-    //
-    // `listenManual` + `fireImmediately` en vez de `ref.listen` en el `build`:
-    // si esta rama NUNCA se había visitado, su primer `build` corre en el
-    // mismo frame del `go()` y el listener nacería con la bandera ya en `true`
-    // sin ningún cambio posterior que lo disparara. Limpiar y abrir se
-    // difieren al frame siguiente para no escribir el provider a media build.
-    ref.listenManual(pendingPlannerPanelProvider, (_, next) {
-      if (!next) return;
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted) return;
-        ref.read(pendingPlannerPanelProvider.notifier).state = false;
-        setState(() => _panelOpen = true);
-      });
-    }, fireImmediately: true);
+    // Primera búsqueda fallida: la carga se retira (ver `firstSearchFailed`
+    // en `build`) y aquí se dice por qué, una sola vez por fallo.
+    ref.listenManual(journeyResultsProvider, (previous, next) {
+      bool failed(JourneyResultsView? view) =>
+          view != null && !view.hasResults && (view.result?.hasError ?? false);
+      if (failed(next) && !failed(previous) && mounted) {
+        context.showSnack(
+          'No pudimos calcular el viaje. Revisa tu conexión e inténtalo de '
+          'nuevo.',
+          isError: true,
+        );
+      }
+    });
     // «Tus viajes recientes» del home: en cuanto hay una respuesta fresca con
     // opciones, el destino queda anotado. La firma de la consulta evita
     // reescribir la fila en cada rebuild (elegir otra opción, replanificar por
@@ -128,60 +110,8 @@ class _JourneyPlannerScreenState extends ConsumerState<JourneyPlannerScreen> {
   JourneyPlannerController get _planner =>
       ref.read(journeyPlannerControllerProvider.notifier);
   // ------------------------------------------------------------------
-  // Viaje: origen/destino/hora/swap/planificar
+  // Viaje: editar un extremo tocando su pin
   // ------------------------------------------------------------------
-  /// Selector completo de origen/destino: "Mi ubicación" (GPS), punto del
-  /// mapa o un lugar popular de Santa Cruz.
-  Future<void> _pickPlace({required bool isOrigin}) async {
-    final picked = await showJourneyPlacePickerSheet(
-      context,
-      ref: ref,
-      title: isOrigin ? '¿De dónde sales?' : '¿A dónde vas?',
-    );
-    if (picked == null || !mounted) return;
-    switch (picked) {
-      case JourneyPlacePickSource.myLocation:
-        await _useMyLocationAs(isOrigin: isOrigin);
-      case JourneyPlacePickSource():
-        await _pickFromMap(isOrigin: isOrigin);
-      case JourneyPlacePickPoi(:final poi):
-        _commitPlace(
-          JourneyPlacePoi(
-            name: poi.name,
-            lat: poi.lat,
-            lon: poi.lon,
-            subtitle: poi.ringOrZone,
-          ),
-          isOrigin: isOrigin,
-        );
-    }
-  }
-
-  /// Coloca "mi ubicación" en el extremo, resolviendo el flujo de permisos.
-  Future<void> _useMyLocationAs({required bool isOrigin}) async {
-    final granted = await ref
-        .read(locationControllerProvider.notifier)
-        .activate(context);
-    if (!mounted) return;
-    if (!granted) {
-      context.showSnack(
-        'Necesitamos tu ubicación para completar el viaje.',
-        isError: true,
-      );
-      return;
-    }
-    final position = await ref.read(myLocationProvider.future);
-    if (!mounted) return;
-    if (position == null) {
-      context.showSnack('No pudimos leer tu ubicación.', isError: true);
-      return;
-    }
-    _commitPlace(
-      JourneyPlaceLocation(lat: position.latitude, lon: position.longitude),
-      isOrigin: isOrigin,
-    );
-  }
-
   /// Abre el selector de punto en el mapa y rellena el campo con EL PUNTO
   /// elegido (el origen/destino nunca es una parada GTFS).
   ///
@@ -249,48 +179,13 @@ class _JourneyPlannerScreenState extends ConsumerState<JourneyPlannerScreen> {
     _journeyMapKey.currentState?.fitToPoints(points);
   }
 
-  Future<void> _pickTime() async {
-    final current = ref.read(journeyPlannerControllerProvider).time;
-    final parts = GtfsTime.parseHm(current);
-    final now = TimeOfDay.now();
-    final initial = parts == null
-        ? now
-        : TimeOfDay(hour: parts.$1, minute: parts.$2);
-    final picked = await showTimePicker(context: context, initialTime: initial);
-    if (picked == null || !mounted) return;
-    _planner.setTime(GtfsTime.formatHm(picked.hour, picked.minute));
-  }
-
-  /// Envía la consulta, salvo que origen y destino estén en el mismo sitio
-  /// (o casi): en ese caso avisa en vez de pedir un viaje imposible.
-  void _submit() {
-    final planner = ref.read(journeyPlannerControllerProvider);
-    final distance = planner.endpointsDistanceM;
-    if (distance != null &&
-        distance < JourneyPlannerState.minTransitDistanceM) {
-      context.showSnack(
-        distance < 1
-            ? 'El origen y el destino son el mismo punto: mueve uno de ellos.'
-            : 'El origen y el destino están a ${distance.round()} m: '
-                  'mueve uno de los puntos.',
-        isError: true,
-      );
-      return;
-    }
-    _planner.submit();
-    setState(() {
-      // Al planificar, el panel se guarda solo para dejar ver el viaje.
-      _panelOpen = false;
-    });
-  }
-
-  void _swap() {
-    _planner.swap();
-  }
-
-  /// Vuelve al modo exploración: limpia origen/destino y resultados.
+  /// «Quitar resultados»: limpia origen/destino y resultados y vuelve a
+  /// Inicio. Viaje ya no tiene panel ni globo para armar otro viaje (eso vive
+  /// en «¿A dónde vas?» de la portada), así que quedarse en un mapa vacío era
+  /// un callejón sin salida.
   void _clear() {
     _planner.clear();
+    context.go('/');
   }
 
   /// El usuario marcó una opción en la hoja de resultados (o la expandió).
@@ -338,7 +233,6 @@ class _JourneyPlannerScreenState extends ConsumerState<JourneyPlannerScreen> {
     // dentro de `build` (impl. y spec: `journey_results_view.dart`).
     final results = ref.watch(journeyResultsProvider);
     final query = results.query;
-    final _ = results.result; // solo se usa showStatusPanel/replanning
     final cached = results.options;
     final hasResults = results.hasResults;
     final bare = results.bare;
@@ -348,11 +242,19 @@ class _JourneyPlannerScreenState extends ConsumerState<JourneyPlannerScreen> {
     final mapOption = results.mapOption;
     final mapOrigin = results.mapOrigin;
     final mapDestination = results.mapDestination;
+    // Primera búsqueda fallida (sin viaje anterior que conservar): la carga
+    // se retira (un snack dice por qué) y los pines siguen tocables para
+    // corregir origen/destino. Antes el overlay se quedaba encima para siempre.
+    final firstSearchFailed =
+        !hasResults && (results.result?.hasError ?? false);
     final showStatusPanel =
-        planner.submitted && planner.ready && (!hasResults || replanning);
+        planner.submitted &&
+        planner.ready &&
+        ((!hasResults && !firstSearchFailed) || replanning);
+    final loading = showStatusPanel && query != null;
     // El sheet de resultados desaparece mientras el backend calcula (primera
     // búsqueda o recálculo) para que el overlay de carga sea el protagonista.
-    final sheetVisible = hasResults && !(showStatusPanel && query != null);
+    final sheetVisible = hasResults && !loading;
     return Scaffold(
       // El mapa decide su tile (estilo y fondo) mirando el provider propio;
       // todo lo que flota sobre él (tarjeta de extremos, chips, controles,
@@ -362,9 +264,8 @@ class _JourneyPlannerScreenState extends ConsumerState<JourneyPlannerScreen> {
           final sheetTop = sheetVisible
               ? _sheetExtent * constraints.maxHeight
               : 0.0;
-          // Reserva de mapa arriba: solo hace falta cuando el panel está
-          // desplegado; al cerrarlo, el mapa gana casi toda la pantalla.
-          final mapTopPad = _panelOpen ? 240.0 : 104.0;
+          // Reserva de mapa arriba: solo los chips de estado.
+          const mapTopPad = 104.0;
           // Reserva de mapa abajo: la hoja de resultados tapa SU ALTURA REAL
           // (extent arrastrable × altura del mapa), no un valor fijo. Con la
           // reserva fija anterior (260 px) el destino de un viaje largo
@@ -381,9 +282,8 @@ class _JourneyPlannerScreenState extends ConsumerState<JourneyPlannerScreen> {
             24.0,
             mediaQuery.viewPadding.bottom + 16.0,
           );
-          // Los controles del mapa quedan anclados ABAJO siempre: abrir el
-          // panel de origen/destino NO los mueve (el panel cabe encima del
-          // mapa); con resultados, la hoja de resultados los sube.
+          // Los controles del mapa quedan anclados ABAJO; con resultados, la
+          // hoja de resultados los sube.
           final controlsBottom = sheetVisible ? sheetTop + 12.0 : bottomBase;
           return Stack(
             children: [
@@ -410,7 +310,10 @@ class _JourneyPlannerScreenState extends ConsumerState<JourneyPlannerScreen> {
                   onPositionChanged: _onMapMoved,
                 ),
               ),
-              // 2. Tarjeta origen→destino + chips de estado del mapa.
+              // 2. Chips de estado del mapa (opción en el mapa, recálculo).
+              //    Viaje NO tiene panel de origen/destino ni globo «¿A dónde
+              //    vas?»: el viaje se arma en la portada y aquí se edita
+              //    tocando o arrastrando los pines.
               Positioned(
                 top: MediaQuery.of(context).padding.top + 8,
                 left: 16,
@@ -419,66 +322,6 @@ class _JourneyPlannerScreenState extends ConsumerState<JourneyPlannerScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    // Panel desplegable de origen/destino: aparece y se
-                    // oculta con una animación de despliegue vertical
-                    // (tamaño + flojedad + desvanecido).
-                    AnimatedSwitcher(
-                      duration: Motion.settle,
-                      reverseDuration: Motion.release,
-                      switchInCurve: Curves.easeOutCubic,
-                      switchOutCurve: Curves.easeInCubic,
-                      transitionBuilder: (child, animation) => SizeTransition(
-                        sizeFactor: animation,
-                        alignment: Alignment.topCenter,
-                        child: FadeTransition(
-                          opacity: animation,
-                          child: SlideTransition(
-                            position: Tween(
-                              begin: const Offset(0, -0.06),
-                              end: Offset.zero,
-                            ).animate(animation),
-                            child: child,
-                          ),
-                        ),
-                      ),
-                      child: _panelOpen
-                          ? Padding(
-                              key: const ValueKey('planner-panel-open'),
-                              padding: const EdgeInsets.only(bottom: 8),
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  JourneyPlannerCard(
-                                    origin: planner.origin,
-                                    destination: planner.destination,
-                                    time: planner.time,
-                                    ready: planner.ready,
-                                    hasResults: hasResults,
-                                    onSwap: _swap,
-                                    onPickOrigin: () =>
-                                        _pickPlace(isOrigin: true),
-                                    onPickDestination: () =>
-                                        _pickPlace(isOrigin: false),
-                                    onPickOriginOnMap: () =>
-                                        _pickFromMap(isOrigin: true),
-                                    onPickDestinationOnMap: () =>
-                                        _pickFromMap(isOrigin: false),
-                                    onPickTime: _pickTime,
-                                    onSubmit: _submit,
-                                    onClear: _clear,
-                                  ),
-                                  const SizedBox(height: 8),
-                                  JourneyPlannerCloseButton(
-                                    key: const ValueKey('planner-close'),
-                                    onTap: _togglePanel,
-                                  ),
-                                ],
-                              ),
-                            )
-                          : const SizedBox.shrink(
-                              key: ValueKey('planner-panel-closed'),
-                            ),
-                    ),
                     JourneyMapChips(
                       hasResults: hasResults,
                       bare: bare,
@@ -543,37 +386,8 @@ class _JourneyPlannerScreenState extends ConsumerState<JourneyPlannerScreen> {
                 ),
               // 5. Overlay de carga a pantalla completa (cuando el backend
               //    está calculando el viaje: primera búsqueda o recálculo).
-              if (showStatusPanel && query != null)
+              if (loading)
                 const Positioned.fill(child: JourneyLoadingOverlay()),
-              // 6. Zona inferior izquierda: la píldora que abre/cierra
-              //    el panel de origen y destino. Solo existe SIN resultados:
-              //    con la hoja de resultados (o mientras se recalcula) el mapa
-              //    queda libre para leer la ruta, y el viaje se edita tocando o
-              //    arrastrando los pines, o con «Quitar resultados». Se saca
-              //    del árbol (no se vuelve transparente) para que tampoco
-              //    se trague los gestos del mapa en esa franja.
-              if (!hasResults)
-                AnimatedPositioned(
-                  duration: Motion.fade,
-                  curve: Curves.easeOutCubic,
-                  left: 16,
-                  right: 76,
-                  // Sin resultados la hoja nunca está visible: la píldora
-                  // siempre se apoya en la base segura de la pantalla.
-                  bottom: bottomBase,
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      JourneyPlannerTrigger(
-                        originLabel: planner.origin?.label,
-                        destinationLabel: planner.destination?.label,
-                        panelOpen: _panelOpen,
-                        onTap: _togglePanel,
-                      ),
-                    ],
-                  ),
-                ),
             ],
           );
         },

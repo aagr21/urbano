@@ -1,5 +1,3 @@
-import 'dart:math' as math;
-
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:geolocator/geolocator.dart' show LocationPermission;
@@ -13,15 +11,15 @@ import 'package:urbano/src/core/theme/app_theme.dart';
 import 'package:urbano/src/core/theme/map_theme_controller.dart';
 import 'package:urbano/src/core/utils/location.dart';
 import 'package:urbano/src/core/widgets/urbano_map.dart';
+import 'package:urbano/src/features/journey/application/journey_planner_controller.dart';
 import 'package:urbano/src/features/journey/data/journey_models.dart';
 import 'package:urbano/src/features/journey/presentation/journey_providers.dart';
-import 'package:urbano/src/features/journey/presentation/map_picker_screen.dart';
-import 'package:urbano/src/features/journey/presentation/widgets/journey_planner_card.dart';
 import 'package:urbano/src/features/journey/presentation/widgets/journey_result_map.dart';
 import 'package:urbano/src/features/journey/presentation/widgets/journey_results_sheet.dart';
 
 import 'helpers/fake_location_service.dart';
 import 'helpers/journey_fixtures.dart';
+import 'helpers/plan_trip.dart';
 
 const JourneyPoint _origin = (lat: -17.78, lon: -63.15);
 const JourneyPoint _destination = (lat: -17.79, lon: -63.16);
@@ -615,47 +613,23 @@ void main() {
     const originPoint = LatLng(-17.78, -63.15);
     const destinationPoint = LatLng(-17.80, -63.17);
 
-    /// Marca un punto en el mapa como origen/destino (mismo flujo que el
-    /// usuario: hoja de selección → "Punto en el mapa" → confirmar).
-    Future<void> pickPlace(
-      WidgetTester tester,
-      String hint, {
-      required LatLng point,
-    }) async {
-      await tester.tap(find.text(hint));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Punto en el mapa'));
-      await tester.pumpAndSettle();
-      tester
-          .state<FakeMapEngineState>(
-            find.descendant(
-              of: find.byType(MapPickerScreen),
-              matching: find.byType(FakeMapEngine),
-            ),
-          )
-          .moveCamera(point, 15);
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Usar este punto'));
-      await tester.pumpAndSettle();
-    }
+    /// Planifica como la portada (Viaje ya no tiene panel ni globo).
+    Future<void> planTrip(WidgetTester tester, ProviderContainer container) =>
+        planTripFromHome(
+          tester,
+          container,
+          origin: originPoint,
+          destination: destinationPoint,
+        );
 
-    // El panel de origen/destino arranca cerrado: se abre con la píldora
-    // inferior antes de poder tocar los campos.
-    Future<void> openPanel(WidgetTester tester) async {
-      await tester.tap(find.byKey(const ValueKey('planner-trigger')));
-      await tester.pumpAndSettle();
-    }
-
-    // Con resultados la píldora no existe (se monta solo sin viaje): para leer
-    // los campos de origen/destino tras «Viajar», el panel se reabre por el
-    // mismo camino que el acceso «Viajes» del home.
-    Future<void> reopenPanelWithResults(
-      WidgetTester tester,
-      ProviderContainer container,
-    ) async {
-      container.read(pendingPlannerPanelProvider.notifier).state = true;
-      await tester.pumpAndSettle();
-    }
+    /// Extremos que el planeador muestra AHORA (antes se leían en los campos
+    /// del panel de origen/destino, que se retiró de Viaje).
+    Object? shownOrigin(ProviderContainer container) =>
+        container.read(journeyPlannerControllerProvider).origin?.pointOrNull;
+    Object? shownDestination(ProviderContainer container) => container
+        .read(journeyPlannerControllerProvider)
+        .destination
+        ?.pointOrNull;
 
     testWidgets('un evento de ubicación mueve SOLO el mapa: el panel y la hoja no se '
         'reconstruyen (regresión de rendimiento)', (tester) async {
@@ -671,35 +645,15 @@ void main() {
 
       // Viaje real planificado: así la hoja de resultados también está en el
       // árbol y puede medirse.
-      await openPanel(tester);
-      await pickPlace(
-        tester,
-        'Marca un punto en el mapa o usa tu ubicación',
-        point: originPoint,
-      );
-      await pickPlace(
-        tester,
-        'Marca dónde quieres llegar',
-        point: destinationPoint,
-      );
-      await tester.tap(find.text('Viajar'));
-      await tester.pumpAndSettle();
-      // Al planificar el panel se guarda solo: se vuelve a abrir para tener
-      // también la tarjeta de origen/destino medida (sin píldora, porque con
-      // resultados no existe).
-      await reopenPanelWithResults(tester, container);
+      await planTrip(tester, container);
 
-      // Sondas: `JourneyPlannerCard` (panel de origen/destino) y
-      // `JourneyResultsSheet` (hoja inferior). Son hijos directos del `build`
-      // de la pantalla y se construyen sin `const`, así que su identidad de
-      // widget es una prueba directa de si el `build` corrió o no.
-      final card = find.byType(JourneyPlannerCard);
+      // Sonda: `JourneyResultsSheet` (hoja inferior). Es hija directa del
+      // `build` de la pantalla y se construye sin `const`, así que su
+      // identidad de widget es una prueba directa de si el `build` corrió.
       final sheet = find.byType(JourneyResultsSheet);
       final map = find.byType(JourneyResultMap);
-      expect(card, findsOneWidget);
       expect(sheet, findsOneWidget);
       expect(map, findsOneWidget);
-      final cardBefore = tester.widget(card);
       final sheetBefore = tester.widget(sheet);
       final mapBefore = tester.widget<JourneyResultMap>(map);
 
@@ -717,12 +671,7 @@ void main() {
       );
       // El resto del árbol quedó en su sitio: antes, el `build` de la
       // pantalla miraba `locationControllerProvider` y cada posición nueva
-      // reconstruía panel, chips, controles y hoja de resultados.
-      expect(
-        tester.widget(card),
-        same(cardBefore),
-        reason: 'un tick de GPS no debe reconstruir el panel de origen/destino',
-      );
+      // reconstruía chips, controles y hoja de resultados.
       expect(
         tester.widget(sheet),
         same(sheetBefore),
@@ -730,68 +679,20 @@ void main() {
       );
     });
 
-    testWidgets(
-      'el botón swap queda separado de los iconos de mapa/editar de los '
-      'campos (regresión: antes se encimaba)',
-      (tester) async {
-        await pumpPlanner(tester);
-        await tester.pump();
-        await openPanel(tester);
-
-        final swap = tester.getRect(
-          find.byTooltip('Invertir origen y destino'),
-        );
-        final mapIcons = find.byTooltip('Elegir en el mapa');
-        expect(mapIcons, findsNWidgets(2));
-
-        // El swap vive sobre el conector del timeline (izquierda): debe
-        // quedar ENTERO a la izquierda de los iconos de mapa de ambos
-        // campos, con holgura real (≥80 px en la superficie de test), y sin
-        // tocar el borde derecho de ningún campo.
-        var minGap = double.infinity;
-        for (final element in mapIcons.evaluate()) {
-          final rect = tester.getRect(find.byWidget(element.widget));
-          expect(swap.right, lessThanOrEqualTo(rect.left));
-          minGap = math.min(minGap, rect.left - swap.right);
-        }
-        expect(minGap, greaterThanOrEqualTo(80));
-
-        // Verticalmente centrado sobre el conector entre ambos puntos.
-        expect(swap.center.dy, greaterThan(swap.height)); // bajo el punto verde
-      },
-    );
-
     testWidgets('el mapa es la MISMA instancia antes y después de planificar y '
         'sincroniza con la opción seleccionada', (tester) async {
-      await pumpPlanner(tester);
+      final container = await pumpPlanner(tester);
       await tester.pump();
 
-      // Modo exploración: mapa montado + píldora, panel cerrado, sin capas
-      // de viaje.
+      // Modo exploración: mapa montado, sin globo ni panel (el viaje se arma
+      // en la portada) y sin capas de viaje.
       final mapElement = tester.element(find.byType(JourneyResultMap));
       expect(find.byType(JourneyResultMap), findsOneWidget);
-      expect(find.textContaining('Marca origen y destino'), findsOneWidget);
+      expect(find.byKey(const ValueKey('planner-trigger')), findsNothing);
+      expect(find.text('¿A dónde vas?'), findsNothing);
       expect(find.text('Opción 1 en el mapa'), findsNothing);
-      // Los campos de origen/destino están ocultos hasta abrir el panel.
-      expect(
-        find.text('Marca un punto en el mapa o usa tu ubicación'),
-        findsNothing,
-      );
 
-      await openPanel(tester);
-      await pickPlace(
-        tester,
-        'Marca un punto en el mapa o usa tu ubicación',
-        point: originPoint,
-      );
-      await pickPlace(
-        tester,
-        'Marca dónde quieres llegar',
-        point: destinationPoint,
-      );
-
-      await tester.tap(find.text('Viajar'));
-      await tester.pumpAndSettle();
+      await planTrip(tester, container);
 
       // Mapa con la primera opción + hoja con la lista de opciones.
       // IDENTIDAD: el Element (y su State) del mapa no cambió → la vista
@@ -852,10 +753,9 @@ void main() {
 
     testWidgets(
       'los pines de origen/destino fijados se ven EN EL MAPA antes de '
-      'planificar, y la cámara se mueve hasta ellos (regresión: solo se '
-      'dibujaban con resultados, así que lo marcado no se reflejaba)',
+      'planificar (regresión: solo se dibujaban con resultados)',
       (tester) async {
-        await pumpPlanner(tester);
+        final container = await pumpPlanner(tester);
         await tester.pump();
 
         // Modo exploración sin puntos: el mapa NO pinta extremos.
@@ -867,17 +767,16 @@ void main() {
           reason: 'sin origen fijado no debe haber pin de origen',
         );
 
-        final before = tester
-            .state<FakeMapEngineState>(find.byType(FakeMapEngine))
-            .camera
-            .center;
-
+        final planner = container.read(
+          journeyPlannerControllerProvider.notifier,
+        );
         // Fija SOLO el origen.
-        await openPanel(tester);
-        await pickPlace(
-          tester,
-          'Marca un punto en el mapa o usa tu ubicación',
-          point: originPoint,
+        planner.setPlace(
+          JourneyPlacePoint(
+            lat: originPoint.latitude,
+            lon: originPoint.longitude,
+          ),
+          isOrigin: true,
         );
         await tester.pumpAndSettle();
 
@@ -892,23 +791,13 @@ void main() {
           reason: 'el destino aún no está fijado: no se pinta',
         );
 
-        final afterOrigin = tester
-            .state<FakeMapEngineState>(find.byType(FakeMapEngine))
-            .camera
-            .center;
-        expect(
-          afterOrigin,
-          isNot(equals(before)),
-          reason: 'la cámara debe moverse hasta el punto fijado',
-        );
-        expect(afterOrigin.latitude, closeTo(originPoint.latitude, 0.01));
-        expect(afterOrigin.longitude, closeTo(originPoint.longitude, 0.01));
-
         // Fija también el destino: ahora hay DOS pines.
-        await pickPlace(
-          tester,
-          'Marca dónde quieres llegar',
-          point: destinationPoint,
+        planner.setPlace(
+          JourneyPlacePoint(
+            lat: destinationPoint.latitude,
+            lon: destinationPoint.longitude,
+          ),
+          isOrigin: false,
         );
         await tester.pumpAndSettle();
 
@@ -929,21 +818,7 @@ void main() {
         final container = await pumpPlanner(tester);
         await tester.pump();
 
-        await openPanel(tester);
-        await pickPlace(
-          tester,
-          'Marca un punto en el mapa o usa tu ubicación',
-          point: originPoint,
-        );
-        await pickPlace(
-          tester,
-          'Marca dónde quieres llegar',
-          point: destinationPoint,
-        );
-
-        await tester.tap(find.text('Viajar'));
-        await tester.pumpAndSettle();
-        await reopenPanelWithResults(tester, container);
+        await planTrip(tester, container);
 
         final mapElement = tester.element(find.byType(JourneyResultMap));
         expect(find.byType(JourneyResultMap), findsOneWidget);
@@ -971,7 +846,7 @@ void main() {
         expect(tester.element(find.byType(JourneyResultMap)), same(mapElement));
 
         // El campo de origen ahora es el punto soltado (re-planificado).
-        expect(find.textContaining('-17.77000, -63.14000'), findsOneWidget);
+        expect(shownOrigin(container), (lat: -17.77, lon: -63.14));
       },
     );
 
@@ -984,21 +859,7 @@ void main() {
         final container = await pumpPlanner(tester, queryLog: queries);
         await tester.pump();
 
-        await openPanel(tester);
-        await pickPlace(
-          tester,
-          'Marca un punto en el mapa o usa tu ubicación',
-          point: originPoint,
-        );
-        await pickPlace(
-          tester,
-          'Marca dónde quieres llegar',
-          point: destinationPoint,
-        );
-
-        await tester.tap(find.text('Viajar'));
-        await tester.pumpAndSettle();
-        await reopenPanelWithResults(tester, container);
+        await planTrip(tester, container);
 
         // Drop de origen… sin esperar los 600 ms del debounce…
         tester
@@ -1022,16 +883,14 @@ void main() {
         await tester.pump(const Duration(milliseconds: 650));
         await tester.pumpAndSettle();
 
-        expect(
-          find.textContaining('-17.77000, -63.14000'),
-          findsOneWidget,
-          reason: 'el origen soltado se aplicó',
-        );
-        expect(
-          find.textContaining('-17.80000, -63.17000'),
-          findsOneWidget,
-          reason: 'el destino soltado se aplicó',
-        );
+        expect(shownOrigin(container), (
+          lat: -17.77,
+          lon: -63.14,
+        ), reason: 'el origen soltado se aplicó');
+        expect(shownDestination(container), (
+          lat: -17.80,
+          lon: -63.17,
+        ), reason: 'el destino soltado se aplicó');
 
         // Y la CONSULTA definitiva lleva los DOS puntos soltados: con el
         // debounce compartido el origen se cancelaba y se planificaba con el
@@ -1056,20 +915,7 @@ void main() {
         final container = await pumpPlanner(tester);
         await tester.pump();
 
-        await openPanel(tester);
-        await pickPlace(
-          tester,
-          'Marca un punto en el mapa o usa tu ubicación',
-          point: originPoint,
-        );
-        await pickPlace(
-          tester,
-          'Marca dónde quieres llegar',
-          point: destinationPoint,
-        );
-        await tester.tap(find.text('Viajar'));
-        await tester.pumpAndSettle();
-        await reopenPanelWithResults(tester, container);
+        await planTrip(tester, container);
 
         // Simula el drop nativo del marcador de origen…
         tester
@@ -1082,8 +928,8 @@ void main() {
         await tester.pump();
 
         expect(
-          find.textContaining('-17.77000, -63.14000'),
-          findsOneWidget,
+          shownOrigin(container),
+          (lat: -17.77, lon: -63.14),
           reason: 'las coordenadas del campo deben cambiar al soltar el punto',
         );
         // La replanificación de red sigue coactuada por el debounce.
@@ -1102,20 +948,7 @@ void main() {
         final container = await pumpPlanner(tester);
         await tester.pump();
 
-        await openPanel(tester);
-        await pickPlace(
-          tester,
-          'Marca un punto en el mapa o usa tu ubicación',
-          point: originPoint,
-        );
-        await pickPlace(
-          tester,
-          'Marca dónde quieres llegar',
-          point: destinationPoint,
-        );
-        await tester.tap(find.text('Viajar'));
-        await tester.pumpAndSettle();
-        await reopenPanelWithResults(tester, container);
+        await planTrip(tester, container);
 
         // Evento intermedio del arrastre (el dedo sigue moviéndose)…
         tester
@@ -1129,8 +962,8 @@ void main() {
         await tester.pump();
 
         expect(
-          find.textContaining('-17.77500, -63.14500'),
-          findsOneWidget,
+          shownOrigin(container),
+          (lat: -17.775, lon: -63.145),
           reason:
               'las coordenadas deben seguir el arrastre mientras se arrastra',
         );
@@ -1150,20 +983,7 @@ void main() {
       final container = await pumpPlanner(tester, queryLog: queries);
       await tester.pump();
 
-      await openPanel(tester);
-      await pickPlace(
-        tester,
-        'Marca un punto en el mapa o usa tu ubicación',
-        point: originPoint,
-      );
-      await pickPlace(
-        tester,
-        'Marca dónde quieres llegar',
-        point: destinationPoint,
-      );
-      await tester.tap(find.text('Viajar'));
-      await tester.pumpAndSettle();
-      await reopenPanelWithResults(tester, container);
+      await planTrip(tester, container);
       expect(queries, hasLength(1));
 
       // Pellizco que el detector cancela: hubo move intermedio (marcó el
@@ -1203,7 +1023,7 @@ void main() {
 
       // El campo refleja el punto FINAL del gesto (las coordenadas del
       // arranque): sin replanificar porque las coordenadas ya eran esas.
-      expect(find.textContaining('-17.78000, -63.15000'), findsOneWidget);
+      expect(shownOrigin(container), (lat: -17.78, lon: -63.15));
     });
   });
 

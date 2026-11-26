@@ -329,8 +329,9 @@ void main() {
       router.go('/map');
       await tester.pumpAndSettle();
       expect(router.routerDelegate.currentConfiguration.uri.path, '/journey');
-      expect(find.byKey(const ValueKey('planner-trigger')), findsOneWidget);
-      expect(find.textContaining('Marca origen y destino'), findsOneWidget);
+      // Viaje sin globo ni panel: el viaje se arma en la portada.
+      expect(find.byKey(const ValueKey('planner-trigger')), findsNothing);
+      expect(find.textContaining('Marca origen y destino'), findsNothing);
 
       await tester.pump(const Duration(seconds: 1));
     },

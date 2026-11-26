@@ -8,10 +8,10 @@ import 'package:urbano/src/core/theme/app_theme.dart';
 import 'package:urbano/src/core/utils/location.dart';
 import 'package:urbano/src/features/journey/data/journey_models.dart';
 import 'package:urbano/src/features/journey/presentation/journey_providers.dart';
-import 'package:urbano/src/features/journey/presentation/map_picker_screen.dart';
 
 import 'helpers/fake_location_service.dart';
 import 'helpers/journey_fixtures.dart';
+import 'helpers/plan_trip.dart';
 
 /// Origen y destino en el MISMO sitio (o casi): no hay viaje de bus posible.
 ///
@@ -20,94 +20,13 @@ import 'helpers/journey_fixtures.dart';
 /// con las paradas a ~100 m (un viaje de una parada a la de al lado) y el
 /// resultado mostraba origen y destino en la misma ubicación.
 ///
-/// Ahora hay dos defensas coordinadas (mismo umbral 150 m en ambos lados):
-/// - el cliente no envía la consulta y avisa con un snack;
-/// - el backend responde `[]` sin tocar la base y la hoja explica que están
-///   muy cerca (aquí se simula el guard del backend en el override).
+/// Defensa: el backend responde `[]` sin tocar la base (umbral 150 m) y la
+/// hoja explica que están muy cerca (aquí se simula el guard del backend en
+/// el override). La guarda del cliente vivía en el panel de origen/destino
+/// de `/journey`, que se retiró: el viaje se arma en la portada.
 void main() {
-  group('guarda de envío (mismo punto)', () {
-    Future<void> pumpApp(
-      WidgetTester tester,
-      List<Override> extraOverrides,
-    ) async {
-      final container = ProviderContainer(overrides: extraOverrides);
-      addTearDown(container.dispose);
-      final router = container.read(appRouterProvider);
-      addTearDown(router.dispose);
-
-      await tester.pumpWidget(
-        UncontrolledProviderScope(
-          container: container,
-          child: MaterialApp.router(
-            theme: AppTheme.light(),
-            routerConfig: router,
-          ),
-        ),
-      );
-      router.go('/journey');
-      await tester.pumpAndSettle();
-    }
-
-    testWidgets(
-      'planificar con el MISMO punto en origen y destino avisa con un '
-      'snack y NO consulta el backend',
-      (tester) async {
-        final calls = <Object>[];
-        await pumpApp(tester, [
-          myLocationProvider.overrideWith(
-            (ref) async => const LatLng(-17.7833, -63.1821),
-          ),
-          journeyProvider.overrideWith((ref, query) async {
-            calls.add(query);
-            return [fixtureDirectOption()];
-          }),
-          locationServiceProvider.overrideWithValue(FakeLocationService()),
-        ]);
-
-        await tester.tap(find.byKey(const ValueKey('planner-trigger')));
-        await tester.pumpAndSettle();
-
-        // Origen marcado en el mapa.
-        await tester.tap(find.byTooltip('Elegir en el mapa').at(0));
-        await tester.pumpAndSettle();
-        tester
-            .state<FakeMapEngineState>(find.byType(FakeMapEngine))
-            .moveCamera(const LatLng(-17.78, -63.15), 15);
-        await tester.pumpAndSettle();
-        await tester.tap(find.text('Usar este punto'));
-        await tester.pumpAndSettle();
-
-        // Destino: EXACTAMENTE el mismo punto.
-        await tester.tap(find.byTooltip('Elegir en el mapa').at(1));
-        await tester.pumpAndSettle();
-        tester
-            .state<FakeMapEngineState>(find.byType(FakeMapEngine))
-            .moveCamera(const LatLng(-17.78, -63.15), 15);
-        await tester.pumpAndSettle();
-        await tester.tap(find.text('Usar este punto'));
-        await tester.pumpAndSettle();
-
-        await tester.tap(find.text('Viajar'));
-        await tester.pump();
-        await tester.pump(const Duration(milliseconds: 350));
-
-        expect(
-          find.textContaining('mismo punto'),
-          findsOneWidget,
-          reason: 'debe avisar de que origen y destino son el mismo sitio',
-        );
-        expect(
-          calls,
-          isEmpty,
-          reason: 'no debe consultar el backend con origen == destino',
-        );
-        expect(find.textContaining('38 min'), findsNothing);
-      },
-    );
-  });
-
   group('resultado vacío tras arrastrar los puntos juntos', () {
-    Future<void> pumpApp(WidgetTester tester) async {
+    Future<ProviderContainer> pumpApp(WidgetTester tester) async {
       final container = ProviderContainer(
         overrides: [
           myLocationProvider.overrideWith(
@@ -144,53 +63,20 @@ void main() {
       );
       router.go('/journey');
       await tester.pumpAndSettle();
-    }
-
-    /// Marca un punto en el mapa como origen/destino (mismo flujo que el
-    /// usuario: hoja de selección → "Punto en el mapa" → confirmar).
-    Future<void> pickPoint(
-      WidgetTester tester,
-      String hint, {
-      required LatLng point,
-    }) async {
-      await tester.tap(find.text(hint));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Punto en el mapa'));
-      await tester.pumpAndSettle();
-      tester
-          .state<FakeMapEngineState>(
-            find.descendant(
-              of: find.byType(MapPickerScreen),
-              matching: find.byType(FakeMapEngine),
-            ),
-          )
-          .moveCamera(point, 15);
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Usar este punto'));
-      await tester.pumpAndSettle();
+      return container;
     }
 
     testWidgets(
       'la hoja explica que están muy cerca en vez de devolver un viaje de '
       'punto a punto pegados',
       (tester) async {
-        await pumpApp(tester);
-
-        await tester.tap(find.byKey(const ValueKey('planner-trigger')));
-        await tester.pumpAndSettle();
-        await pickPoint(
+        final container = await pumpApp(tester);
+        await planTripFromHome(
           tester,
-          'Marca un punto en el mapa o usa tu ubicación',
-          point: const LatLng(-17.78, -63.15),
+          container,
+          origin: const LatLng(-17.78, -63.15),
+          destination: const LatLng(-17.80, -63.17),
         );
-        await pickPoint(
-          tester,
-          'Marca dónde quieres llegar',
-          point: const LatLng(-17.80, -63.17),
-        );
-
-        await tester.tap(find.text('Viajar'));
-        await tester.pumpAndSettle();
 
         // Con los extremos a ~3 km sí hay viaje.
         expect(find.textContaining('38 min'), findsWidgets);

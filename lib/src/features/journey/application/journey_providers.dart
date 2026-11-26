@@ -29,13 +29,3 @@ final journeyProvider = FutureProvider.autoDispose
                 refineJourneyOptions(options, maxShown: query.maxResults),
           );
     });
-
-/// Intento pendiente de abrir el **panel de origen/destino** desde otra pantalla.
-///
-/// Lo usan la barra «¿A dónde vas?» del home (y una fila del historial): el
-/// usuario ya pidió viajar,
-/// así que llegar a `/journey` con el
-/// panel cerrado (la píldora «¿A dónde vas?») lo obligaba a tocar otra vez.
-/// El despliegue es acción del `State` del planeador, así que el home deja
-/// esta bandera, cambia de rama, y el planeador la lee, la limpia y abre.
-final pendingPlannerPanelProvider = StateProvider<bool>((_) => false);

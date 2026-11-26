@@ -177,8 +177,8 @@ tarjetas `MicroCard`), que abre el acceso **Micros** de Inicio con
 `UrbanoRoutes.openMicrosCatalog`; cada tarjeta lleva al detalle `/routes/:id?from=micros`.
 `/map` redirects to `/journey`. El antiguo panel lateral de micros de `/journey` (cajón con
 toggles ida/vuelta y modo «Lugares») se **retiró** —había quedado sin entrada—; no lo
-repongas sin decidir antes cómo convive con `/micros`. Las banderas «abrir X al llegar a
-Viaje» (hoy solo `pendingPlannerPanelProvider`) se consumen en `initState` con
+repongas sin decidir antes cómo convive con `/micros`. Si vuelve a hacer falta una bandera
+«abrir X al llegar a Viaje», se consume en `initState` con
 `listenManual(fireImmediately: true)` (a `ref.listen` inside `build` misses it when
 the Viaje branch has never been visited, because that first build runs in the same
 frame as the `go()`). dio in `core/network/`, map
@@ -493,18 +493,23 @@ animator_duration_scale` — the key is `animator_duration_scale`, NOT `animator
   uses the sentinel `keepJourneyField`: omit the parameter to KEEP the field,
   pass `null` to CLEAR it, pass a value to REPLACE it. Above it,
   `journey_planner_screen.dart` is just the UI wiring (map `GlobalKey`,
-  draggable sheet, open panel) and `journey/presentation/widgets/` are pure
+  draggable sheet) and `journey/presentation/widgets/` are pure
   props/callbacks. Keep new trip policy in `domain/`, orchestration in the
   controller, and new journey UI in those widgets. Tests lock behavior around
-  `ValueKey('planner-trigger')`, the debounce delays (600/700 ms planner,
-  350 ms picker) and the "pin drop right after a camera gesture is discarded"
-  barrier — don't change those without reading
-  `test/journey_result_map_test.dart` first (and `test/endpoint_drag_policy_test.dart`
-  for the pure decision). La píldora `planner-trigger` solo se monta **sin
-  resultados** (`!hasResults`): con la hoja de resultados (o recalculando) el
-  mapa queda libre, el viaje se edita tocando/arrastrando los pines o con
-  «Quitar resultados», y el panel se reabre por `pendingPlannerPanelProvider`;
-  un test que toque la píldora tras «Viajar» ya no la encuentra. Locked by
+  the debounce delays (600/700 ms planner, 350 ms picker) and the "pin drop
+  right after a camera gesture is discarded" barrier — don't change those
+  without reading `test/journey_result_map_test.dart` first (and
+  `test/endpoint_drag_policy_test.dart` for the pure decision). **Viaje NO
+  tiene globo «¿A dónde vas?» ni panel de origen/destino** (el usuario lo pidió
+  explícitamente; se retiraron `planner-trigger`, `JourneyPlannerCard`, su
+  botón de cerrar, el selector de lugares y `pendingPlannerPanelProvider`): el
+  viaje se arma SOLO en la portada (`showJourneyDestinationSheet`) y en `/journey`
+  se edita tocando un pin (abre `/journey/pick` encima del punto) o
+  arrastrándolo. «Quitar resultados» limpia y vuelve a Inicio. Si la primera
+  búsqueda falla, la carga se retira y un snack lo dice. La hoja de resultados
+  nunca se cierra del todo (mínimo 0.18) y recogida su asa `journey-sheet-grip`
+  es una píldora con flecha que la reabre con un toque. Los tests arman el viaje
+  con `test/helpers/plan_trip.dart` (`planTripFromHome`). Locked by
   `test/journey_results_trigger_test.dart`. Walk legs may carry a street-network
   `geometry` (OTP2); the map widget renders that instead of the straight fallback.
   In both cases the walk's bus-side endpoint is joined to the bus `geometry`
