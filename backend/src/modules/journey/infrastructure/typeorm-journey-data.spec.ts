@@ -1,5 +1,4 @@
 import { TypeOrmJourneyData } from './typeorm-journey-data';
-import type { LegDetailQuery } from '../domain/journey-data.port';
 
 interface Call {
   sql: string;

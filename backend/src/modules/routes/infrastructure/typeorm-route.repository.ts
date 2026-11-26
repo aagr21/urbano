@@ -27,6 +27,11 @@ const NATURAL_SHORT_NAME_SORTS: ReadonlySet<RouteQuery['sort']> = new Set([
 ]);
 
 /** Implementación TypeORM del puerto de rutas. */
+/** Fila cruda del listado: `keyStops` llega de `jsonb_agg` (null sin paradas). */
+type RouteSummaryRow = Omit<RouteSummary, 'keyStops'> & {
+  keyStops: string[] | null;
+};
+
 @Injectable()
 export class TypeOrmRouteRepository implements RouteRepositoryPort {
   constructor(
@@ -99,7 +104,7 @@ export class TypeOrmRouteRepository implements RouteRepositoryPort {
     `, pattern ? [query.limit, offset, pattern] : [query.limit, offset]);
 
     return {
-      items: rows.map((row: any) => ({
+      items: (rows as RouteSummaryRow[]).map((row) => ({
         id: row.id,
         shortName: row.shortName,
         longName: row.longName,

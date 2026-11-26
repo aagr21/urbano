@@ -33,11 +33,11 @@ async function main(): Promise<void> {
       table,
       count,
     }));
-    // eslint-disable-next-line no-console
+     
     console.log('\n=== Resumen de importación GTFS ===');
-    // eslint-disable-next-line no-console
+     
     console.table(rows);
-    // eslint-disable-next-line no-console
+     
     console.log(`Duración: ${(summary.durationMs / 1000).toFixed(1)} s\n`);
   } finally {
     await app.close();
@@ -45,7 +45,7 @@ async function main(): Promise<void> {
 }
 
 main().catch((error) => {
-  // eslint-disable-next-line no-console
+   
   console.error('Error importando GTFS:', error);
   process.exit(1);
 });

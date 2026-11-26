@@ -1,6 +1,6 @@
 import { Type } from 'class-transformer';
 import { IsIn, IsOptional, Matches, MaxLength } from 'class-validator';
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiPropertyOptional } from '@nestjs/swagger';
 import { PaginationDto } from '../../../core/common/dto/pagination.dto';
 
 const TIME_REGEX = /^([01]\d|2[0-3]):[0-5]\d(:[0-5]\d)?$/;

@@ -41,7 +41,7 @@ import { backupFile, parseCsv, readZipEntries, toCsv, writeZipEntries } from "./
  * grafo.
  */
 
-/* eslint-disable no-console -- es un CLI: la consola ES su salida. */
+ 
 
 interface Args {
     in: string;

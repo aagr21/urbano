@@ -7,11 +7,7 @@ import {
   WalkLeg,
 } from './journey.model';
 import { straightLineMeters } from './geo';
-import {
-  compareJourneyOptions,
-  rankAndCut,
-  totalWalkMeters,
-} from './journey-ranking';
+import { rankAndCut, totalWalkMeters } from './journey-ranking';
 import {
   JOURNEY_LIMITS,
   MIN_BOARDING_PAIR_DISTANCE_M,

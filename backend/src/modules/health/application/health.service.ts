@@ -16,7 +16,7 @@ export class HealthService {
   ) {}
 
   async check(): Promise<HealthReport> {
-    let db: 'up' | 'down' = 'down';
+    let db: 'up' | 'down';
     try {
       await this.dataSource.query('SELECT 1');
       db = 'up';

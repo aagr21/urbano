@@ -29,6 +29,7 @@ for (const [path, valid] of checks) {
   } catch (e) {
     throw new Error(
       `Smoke falló en ${path}: la respuesta no es JSON — ${e.message}`,
+      { cause: e },
     );
   }
 
