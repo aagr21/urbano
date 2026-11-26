@@ -29,7 +29,7 @@ jobs:
         run: flutter test
 
   backend:
-    name: Backend (unit · build)
+    name: Backend (lint · format · unit · build)
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -42,6 +42,10 @@ jobs:
           cache: npm
           cache-dependency-path: backend/package-lock.json
       - run: npm ci
+      - name: eslint
+        run: npm run lint
+      - name: prettier (sin cambios)
+        run: npm run format:check
       - name: unit (sin DB)
         run: npm test
       - name: build

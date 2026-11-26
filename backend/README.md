@@ -121,7 +121,8 @@ docker compose up -d otp
 | `npm run import:gtfs` | Importa `gtfs.zip` (TRUNCATE + bulk insert en una transacción) |
 | `npm test` | Tests unitarios (Jest) |
 | `npm run test:e2e` | Tests e2e (`/routes`, `/stops/nearby`) contra la BD real |
-| `npm run lint` | ESLint |
+| `npm run lint` | ESLint (`eslint.config.mjs`); `lint:fix` corrige lo automático |
+| `npm run format` | Prettier sobre `src/`, `test/` y `scripts/` (`format:check` solo comprueba; lo corre la CI) |
 
 ## Endpoints principales
 

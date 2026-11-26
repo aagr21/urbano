@@ -47,8 +47,11 @@ https://download.geofabrik.de/south-america/bolivia-latest.osm.pbf -o bolivia-la
   with the imported feed** (`--runInBand`, 30s timeout), so Docker DB + import are
   prerequisites. Unit tests alone (`npm test`) run without a DB.
 - `import:gtfs` runs `TRUNCATE` + bulk insert in one transaction — safe to re-run, but it wipes tables.
-- Skip `npm run lint`: it's broken (eslint isn't in `devDependencies` and no ESLint
-  config exists). Verify backend changes with `npm test` + `npm run build`.
+- `npm run lint` (eslint 10 + typescript-eslint, `eslint.config.mjs`) and
+  `npm run format:check` (Prettier, `.prettierrc`) must pass — CI runs both. Format with
+  `npm run format`; `no-console` is an error outside the CLIs/scripts (use Nest's `Logger`).
+  Verify backend changes with the backend trio: `npm run lint && npm run format:check &&
+  npm test && npm run build`. Format-only commits go in `.git-blame-ignore-revs`.
 - Backend unit tests map `@/` → `src/` (tsconfig paths + jest moduleNameMapper); specs live next to source as `*.spec.ts`.
 
 ## API base URL gotcha

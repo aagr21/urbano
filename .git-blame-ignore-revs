@@ -1,0 +1,5 @@
+# Commits de solo formato: `git blame` los salta (GitHub lo lee solo).
+# Local: git config blame.ignoreRevsFile .git-blame-ignore-revs
+
+# style(backend): formato de Prettier en todo el backend
+034332fd703ea5bcec90a134f9cb44ef10c238fd
