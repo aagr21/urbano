@@ -121,9 +121,7 @@ class MapLegend extends StatelessWidget {
 
     // Cada tramo de micro con un color distinto (el mismo reparto que el
     // mapa y la tarjeta).
-    final legAltColors = JourneyOptionCard.alternativeRouteColorsForLegs(
-      option.legs,
-    );
+    final legAltColors = LegStrokeColors.forLegs(option.legs);
 
     // Un micro por ruta (varios tramos de la misma línea = una fila).
     final busRows = <Widget>[];
@@ -167,7 +165,7 @@ class MapLegend extends StatelessWidget {
           ...busRows,
           if (busRows.isNotEmpty) const SizedBox(height: 4),
           bar(
-            JourneyOptionCard.walkStrokeColor,
+            LegStrokeColors.walk,
             'Caminata',
             icon: Icons.directions_walk_rounded,
           ),

@@ -272,43 +272,6 @@ class RouteRef {
   };
 }
 
-/// Próxima salida (`/routes/:id/departures`).
-class Departure {
-  const Departure({
-    required this.tripId,
-    required this.directionId,
-    required this.headsign,
-    required this.time,
-    required this.realTime,
-    required this.headwaySeconds,
-  });
-
-  factory Departure.fromJson(Map<String, dynamic> json) => Departure(
-    tripId: json['tripId'] as String? ?? '',
-    directionId: (json['directionId'] as num?)?.toInt() ?? 0,
-    headsign: json['headsign'] as String? ?? '',
-    time: json['time'] as String? ?? '',
-    realTime: json['realTime'] as bool? ?? false,
-    headwaySeconds: (json['headwaySeconds'] as num?)?.toInt(),
-  );
-
-  final String tripId;
-  final int directionId;
-  final String headsign;
-  final String time;
-  final bool realTime;
-  final int? headwaySeconds;
-
-  Map<String, dynamic> toJson() => {
-    'tripId': tripId,
-    'directionId': directionId,
-    'headsign': headsign,
-    'time': time,
-    'realTime': realTime,
-    'headwaySeconds': headwaySeconds,
-  };
-}
-
 /// Parada del recorrido (`/routes/:id/stops?directionId=`), EN ORDEN de
 /// tránsito. De ella se derivan los «lugares principales» que muestra el
 /// detalle (calles/vías de referencia, no cada esquina).
@@ -334,4 +297,18 @@ class RouteStop {
   final double lat;
   final double lon;
   final int sequence;
+}
+
+/// Destino legible del sentido [directionId] de [detail]. «Ida»/«Vuelta» a
+/// secas no dicen nada (el botón del sentido ya lo dice), así que solo se
+/// devuelve un headsign con nombre real.
+String? meaningfulHeadsign(RouteDetail? detail, int directionId) {
+  if (detail == null) return null;
+  for (final direction in detail.directions) {
+    if (direction.directionId != directionId) continue;
+    final headsign = direction.headsign.trim();
+    const generic = {'ida', 'vuelta', ''};
+    return generic.contains(headsign.toLowerCase()) ? null : headsign;
+  }
+  return null;
 }

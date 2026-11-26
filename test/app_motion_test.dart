@@ -4,7 +4,7 @@ import 'package:urbano/src/core/animation/motion.dart';
 import 'package:urbano/src/core/router/app_router.dart';
 import 'package:urbano/src/core/theme/app_theme.dart';
 import 'package:urbano/src/features/routes/data/route_models.dart';
-import 'package:urbano/src/features/routes/presentation/widgets/route_list_tile.dart';
+import 'package:urbano/src/features/routes/presentation/widgets/micros_card.dart';
 
 /// Guardas del kit de motion.
 ///
@@ -231,23 +231,31 @@ void main() {
       tripCount: 2,
     );
 
-    testWidgets('la fila de lista pone el prefijo en la tag del Hero', (
+    testWidgets('la tarjeta del catálogo pone el prefijo en la tag del Hero', (
       tester,
     ) async {
       await tester.pumpWidget(
-        _host(const RouteListTile(route: route, heroPrefix: 'home')),
+        _host(
+          SizedBox(
+            width: 380,
+            child: MicroCard(route: route, heroPrefix: 'micros', onTap: () {}),
+          ),
+        ),
       );
-      expect(tester.widget<Hero>(find.byType(Hero)).tag, 'route-badge-home-75');
+      expect(
+        tester.widget<Hero>(find.byType(Hero)).tag,
+        'route-badge-micros-75',
+      );
     });
 
     test('el prefijo sobrevive el viaje por la URL hasta el detalle', () {
-      final target = Uri.parse(UrbanoRoutes.routeDetail('75', from: 'home'));
-      expect(target.queryParameters['from'], 'home');
+      final target = Uri.parse(UrbanoRoutes.routeDetail('75', from: 'micros'));
+      expect(target.queryParameters['from'], 'micros');
       // `RouteDetailScreen` usa ese valor como `heroPrefix`, y la tag se arma
       // con la misma plantilla que el tile.
       expect(
         'route-badge-${target.queryParameters['from']}-75',
-        'route-badge-home-75',
+        'route-badge-micros-75',
       );
     });
   });

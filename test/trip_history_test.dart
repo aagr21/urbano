@@ -193,4 +193,73 @@ void main() {
       expect(store.saved, isEmpty);
     });
   });
+
+  group('filterTripHistory', () {
+    final entries = [
+      TripHistoryEntry(
+        label: 'Ventura Mall',
+        subtitle: '4to Anillo',
+        lat: 1,
+        lon: 1,
+        lastUsed: DateTime(2026),
+      ),
+      TripHistoryEntry(
+        label: 'Plaza',
+        lat: 2,
+        lon: 2,
+        lastUsed: DateTime(2026),
+      ),
+    ];
+
+    test('sin texto devuelve todo', () {
+      expect(filterTripHistory(entries, '  '), same(entries));
+    });
+
+    test('busca en nombre y contexto sin distinguir mayúsculas', () {
+      expect(filterTripHistory(entries, 'PLAZA').single.label, 'Plaza');
+      expect(filterTripHistory(entries, 'anillo').single.label, 'Ventura Mall');
+      expect(filterTripHistory(entries, 'xyz'), isEmpty);
+    });
+  });
+
+  group('tripHistoryPillLabel', () {
+    final now = DateTime(2026, 11, 26, 10);
+    TripHistoryEntry entry({int? minutes, required DateTime at}) =>
+        TripHistoryEntry(
+          label: 'Ventura Mall',
+          lat: 1,
+          lon: 1,
+          lastUsed: at,
+          durationMinutes: minutes,
+        );
+
+    test('con duración conocida muestra lo que tardó', () {
+      expect(
+        tripHistoryPillLabel(entry(minutes: 28, at: now), now: now),
+        '28 min',
+      );
+    });
+
+    test('sin duración dice cuándo se intentó', () {
+      expect(tripHistoryPillLabel(entry(at: now), now: now), 'hoy');
+      expect(
+        tripHistoryPillLabel(
+          entry(at: now.subtract(const Duration(days: 1))),
+          now: now,
+        ),
+        'ayer',
+      );
+      expect(
+        tripHistoryPillLabel(
+          entry(at: now.subtract(const Duration(days: 5))),
+          now: now,
+        ),
+        'hace 5 d',
+      );
+    });
+
+    test('una duración de 0 cuenta como desconocida', () {
+      expect(tripHistoryPillLabel(entry(minutes: 0, at: now), now: now), 'hoy');
+    });
+  });
 }

@@ -13,21 +13,6 @@ import '../../../../core/theme/app_theme.dart' show AppRadius, AppSpace;
 import '../../../../core/utils/extensions.dart';
 import '../../data/popular_places.dart';
 
-/// Hitos populares que coinciden con lo escrito (nombre, categoría o zona).
-List<SantaCruzPoi> matchPopularPlaces(String query) {
-  final q = query.trim().toLowerCase();
-  if (q.isEmpty) return const [];
-  return kSantaCruzPopularPlaces
-      .where(
-        (poi) =>
-            poi.name.toLowerCase().contains(q) ||
-            poi.category.toLowerCase().contains(q) ||
-            (poi.ringOrZone?.toLowerCase().contains(q) ?? false),
-      )
-      .take(4)
-      .toList(growable: false);
-}
-
 class DestinationSuggestionPanel extends StatelessWidget {
   const DestinationSuggestionPanel({
     super.key,

@@ -86,8 +86,6 @@ Future<ProviderContainer> _pumpLayer(
             destination: null,
             hasResults: false,
             fitPadding: EdgeInsets.zero,
-            extraPolylines: const [],
-            extraMarkers: const [],
             onEndpointMoved: (_, _) {},
             onEndpointTapped: (_) {},
           ),

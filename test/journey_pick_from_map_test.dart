@@ -6,11 +6,18 @@ import 'package:urbano/src/core/map/fake_map_engine.dart';
 import 'package:urbano/src/core/router/app_router.dart';
 import 'package:urbano/src/core/theme/app_theme.dart';
 import 'package:urbano/src/core/utils/location.dart';
+import 'package:urbano/src/features/journey/application/journey_planner_controller.dart';
+import 'package:urbano/src/features/journey/presentation/journey_providers.dart';
 import 'package:urbano/src/features/journey/presentation/map_picker_screen.dart';
+import 'package:urbano/src/features/journey/presentation/widgets/map_picker_widgets.dart';
+import 'package:urbano/src/features/journey/presentation/widgets/pick_endpoint_from_map.dart';
 
 import 'helpers/fake_location_service.dart';
+import 'helpers/journey_fixtures.dart';
+import 'helpers/plan_trip.dart';
 
-/// Regresión del botón "Elegir en el mapa" de los campos origen/destino.
+/// Regresión del selector de punto en el mapa (hoy se abre tocando el pin de
+/// origen/destino en `/journey`: la pantalla ya no tiene panel de campos).
 ///
 /// Un fallo real hacía que el punto elegido "saliera en otra ubicación" al
 /// planificar: la URL se construía como
@@ -22,17 +29,22 @@ import 'helpers/fake_location_service.dart';
 /// Los tests montan el GoRouter REAL para que la URL construida por la
 /// pantalla se parsee de verdad.
 void main() {
-  Future<void> pumpApp(WidgetTester tester) async {
-    tester.view.physicalSize = const Size(1080, 2340);
-    tester.view.devicePixelRatio = 2.75;
-    addTearDown(tester.view.reset);
+  const origin = LatLng(-17.79, -63.17);
+  const destination = LatLng(-17.80, -63.15);
 
+  // Viewport por defecto (800 px): el recálculo muestra «Recalculando…» y,
+  // medido con Ahem (~1,8× Inter), desbordaría la fila de chips a ancho de
+  // teléfono de forma artificial.
+  Future<ProviderContainer> pumpTrip(WidgetTester tester) async {
     final container = ProviderContainer(
       overrides: [
         myLocationProvider.overrideWith(
           (ref) async => const LatLng(-17.7833, -63.1821),
         ),
         locationServiceProvider.overrideWithValue(FakeLocationService()),
+        journeyProvider.overrideWith(
+          (ref, query) async => [fixtureDirectOption()],
+        ),
       ],
     );
     addTearDown(container.dispose);
@@ -50,19 +62,17 @@ void main() {
     );
     router.go('/journey');
     await tester.pumpAndSettle();
+    await planTripFromHome(
+      tester,
+      container,
+      origin: origin,
+      destination: destination,
+    );
+    return container;
   }
 
-  Future<void> openPanel(WidgetTester tester) async {
-    await tester.tap(find.byKey(const ValueKey('planner-trigger')));
-    await tester.pumpAndSettle();
-  }
-
-  /// Icono del mapa del campo indicado (los dos campos origen/destino lo
-  /// muestran; el orden del panel es origen, destino).
-  Future<void> openMapPicker(WidgetTester tester, {required int field}) async {
-    await tester.tap(find.byTooltip('Elegir en el mapa').at(field));
-    await tester.pumpAndSettle();
-  }
+  FakeMapEngineState plannerEngine(WidgetTester tester) =>
+      tester.state<FakeMapEngineState>(find.byType(FakeMapEngine).first);
 
   FakeMapEngineState pickerEngine(WidgetTester tester) =>
       tester.state<FakeMapEngineState>(
@@ -72,69 +82,93 @@ void main() {
         ),
       );
 
-  testWidgets(
-    'elegir "Punto en el mapa" abre el selector con su título y confirma '
-    'el punto marcado',
-    (tester) async {
-      await pumpApp(tester);
-      await openPanel(tester);
+  Future<void> tapPin(WidgetTester tester, String id) async {
+    plannerEngine(tester).debugFireMarkerTap(id);
+    await tester.pumpAndSettle();
+  }
 
-      // Flujo del campo: tap en el hint → hoja → "Punto en el mapa".
-      await tester.tap(
-        find.text('Marca un punto en el mapa o usa tu ubicación'),
-      );
-      await tester.pumpAndSettle();
-      expect(find.text('¿De dónde sales?'), findsOneWidget);
-      await tester.tap(find.text('Punto en el mapa'));
-      await tester.pumpAndSettle();
+  testWidgets('tocar el pin de origen abre el selector en ese punto y con '
+      'su título', (tester) async {
+    await pumpTrip(tester);
+    await tapPin(tester, 'journey-map-origin');
 
-      // Mover el mapa (pin fijo al centro) y confirmar.
-      pickerEngine(tester).moveCamera(const LatLng(-17.79, -63.17), 15);
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Usar este punto'));
-      await tester.pumpAndSettle();
-
-      expect(find.byType(MapPickerScreen), findsNothing);
-      expect(find.textContaining('-17.79000, -63.17000'), findsWidgets);
-    },
-  );
-
-  testWidgets(
-    'un punto marcado a mano reabre el selector en ese punto y con el '
-    'título',
-    (tester) async {
-      await pumpApp(tester);
-      await openPanel(tester);
-
-      // Marca un punto a mano: mueve el mapa por debajo del pin y confirma.
-      await openMapPicker(tester, field: 0);
-      pickerEngine(tester).moveCamera(const LatLng(-17.79, -63.17), 15);
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Usar este punto'));
-      await tester.pumpAndSettle();
-
-      // Reabrir: el selector conserva el punto elegido (y su título).
-      await openMapPicker(tester, field: 0);
-
-      final picker = tester.widget<MapPickerScreen>(
-        find.byType(MapPickerScreen),
-      );
-      expect(picker.title, 'Origen');
-      expect(picker.initial, const (lat: -17.79, lon: -63.17));
-    },
-  );
+    final picker = tester.widget<MapPickerScreen>(find.byType(MapPickerScreen));
+    expect(picker.title, 'Origen');
+    expect(picker.initial, (lat: origin.latitude, lon: origin.longitude));
+  });
 
   testWidgets('el destino también abre el selector con su título', (
     tester,
   ) async {
-    await pumpApp(tester);
-    await openPanel(tester);
-
-    await openMapPicker(tester, field: 1);
+    await pumpTrip(tester);
+    await tapPin(tester, 'journey-map-destination');
 
     final picker = tester.widget<MapPickerScreen>(find.byType(MapPickerScreen));
     expect(picker.title, 'Destino');
-    // Sin punto aún: el selector abre en la ubicación del usuario.
-    expect(picker.initial, isNull);
+    expect(picker.initial, (
+      lat: destination.latitude,
+      lon: destination.longitude,
+    ));
+  });
+
+  testWidgets('confirmar en el selector mueve el extremo al punto marcado', (
+    tester,
+  ) async {
+    final container = await pumpTrip(tester);
+    await tapPin(tester, 'journey-map-origin');
+
+    pickerEngine(tester).moveCamera(const LatLng(-17.77, -63.16), 15);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Usar este punto'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(MapPickerScreen), findsNothing);
+    final picked = container.read(journeyPlannerControllerProvider).origin;
+    expect(picked?.pointOrNull, (lat: -17.77, lon: -63.16));
+  });
+
+  group('mapPickerLocation (pura)', () {
+    test('un solo «?» y el título primero', () {
+      final location = mapPickerLocation(title: 'Origen');
+      expect(location, '/journey/pick?title=Origen');
+      expect('?'.allMatches(location), hasLength(1));
+    });
+
+    test('con punto actual lleva lat/lon para abrir encima', () {
+      final uri = Uri.parse(
+        mapPickerLocation(title: 'Destino', current: (lat: -17.8, lon: -63.15)),
+      );
+      expect(uri.queryParameters, {
+        'title': 'Destino',
+        'lat': '-17.8',
+        'lon': '-63.15',
+      });
+    });
+  });
+
+  group('reglas del selector (puras)', () {
+    test('solo se auto-centra si nada lo impide', () {
+      bool center({
+        bool initial = false,
+        bool touched = false,
+        bool applied = false,
+        bool ready = true,
+      }) => shouldAutoCenterPicker(
+        hasInitialPoint: initial,
+        userInteracted: touched,
+        alreadyApplied: applied,
+        mapReady: ready,
+      );
+      expect(center(), isTrue);
+      expect(center(initial: true), isFalse);
+      expect(center(touched: true), isFalse, reason: 'el gesto manda');
+      expect(center(applied: true), isFalse, reason: 'una sola vez');
+      expect(center(ready: false), isFalse);
+    });
+
+    test('la coordenada va con 5 decimales y sin «-0»', () {
+      expect(formatPickerCoordinate(-17.784321), '-17.78432');
+      expect(formatPickerCoordinate(-0.0), '0.00000');
+    });
   });
 }

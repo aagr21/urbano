@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:geolocator/geolocator.dart' show LocationPermission;
+import 'package:go_router/go_router.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:urbano/src/core/location/location_service.dart';
@@ -90,10 +91,39 @@ Future<void> _pumpSheet(
           () => SavedTripsController(_MemorySavedTripsStore()),
         ),
       ],
-      child: MaterialApp(
+      // GoRouter real con el MISMO shell de ramas que la app (Inicio y un
+      // `/journey` de mentira): la hoja vive en el navegador de la rama
+      // Inicio, que sigue montada al cambiar a Viaje.
+      child: MaterialApp.router(
         theme: AppTheme.light(),
         darkTheme: AppTheme.dark(),
-        home: const _Harness(),
+        routerConfig: GoRouter(
+          routes: [
+            StatefulShellRoute.indexedStack(
+              builder: (_, _, shell) => shell,
+              branches: [
+                StatefulShellBranch(
+                  routes: [
+                    GoRoute(path: '/', builder: (_, _) => const _Harness()),
+                  ],
+                ),
+                StatefulShellBranch(
+                  routes: [
+                    GoRoute(
+                      path: '/journey',
+                      builder: (context, _) => Scaffold(
+                        body: TextButton(
+                          onPressed: () => context.go('/'),
+                          child: const Text('Volver a Inicio'),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     ),
   );
@@ -145,6 +175,65 @@ void main() {
       );
       // Al elegir, la lista de sugerencias se cierra.
       expect(find.text('Elegir en el mapa'), findsNothing);
+    });
+
+    testWidgets('planificar cierra la hoja y abre Viaje (regresión: la hoja '
+        'quedaba abierta y reaparecía al volver a Inicio)', (tester) async {
+      await _pumpSheet(tester);
+
+      // Ventura Mall queda a ~3,4 km de «Mi ubicación» (la plaza principal).
+      await tester.enterText(
+        find.byKey(const ValueKey('journey-destination-input')),
+        'ventura',
+      );
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('Ventura Mall'));
+      await tester.tap(find.text('Ventura Mall'));
+      await tester.pumpAndSettle();
+
+      await tester.ensureVisible(find.byType(JourneyPlanButton));
+      await tester.tap(find.byType(JourneyPlanButton));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Volver a Inicio'), findsOneWidget);
+
+      // De vuelta en la portada la hoja ya no está esperando.
+      await tester.tap(find.text('Volver a Inicio'));
+      await tester.pumpAndSettle();
+      expect(find.text('Abrir'), findsOneWidget);
+      expect(find.byType(JourneyPlanButton), findsNothing);
+    });
+
+    testWidgets('con destino en el mismo punto que el origen no se planifica '
+        'y el campo dice por qué', (tester) async {
+      await _pumpSheet(tester);
+
+      // La Plaza 24 de Septiembre está EXACTAMENTE en «Mi ubicación».
+      await tester.enterText(
+        find.byKey(const ValueKey('journey-destination-input')),
+        'plaza',
+      );
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('Plaza 24 de Septiembre'));
+      await tester.tap(find.text('Plaza 24 de Septiembre'));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text('Es el mismo punto que el origen: elige otro destino'),
+        findsOneWidget,
+      );
+      final button = tester.widget<JourneyPlanButton>(
+        find.byType(JourneyPlanButton),
+      );
+      expect(button.enabled, isFalse);
+      expect(button.onPressed, isNull);
+
+      // Tocarlo igual no navega: la hoja sigue abierta.
+      await tester.ensureVisible(find.byType(JourneyPlanButton));
+      await tester.tap(find.byType(JourneyPlanButton), warnIfMissed: false);
+      await tester.pumpAndSettle();
+      expect(find.text('Volver a Inicio'), findsNothing);
+      expect(find.byType(JourneyPlanButton), findsOneWidget);
     });
 
     testWidgets('escribir en el origen quita el GPS y se puede recuperar', (

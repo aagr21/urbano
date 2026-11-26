@@ -6,8 +6,7 @@ import '../../../../core/utils/extensions.dart';
 
 /// Chips sobre el mapa, entre la tarjeta del planeador y los controles:
 /// qué opción se está viendo ("Opción N en el mapa"), el estado del
-/// recálculo ("Recalculando…" / error con reintento) y el spinner de
-/// polilíneas de rutas cargándose.
+/// recálculo ("Recalculando…" / error con reintento).
 class JourneyMapChips extends StatelessWidget {
   const JourneyMapChips({
     super.key,
@@ -16,7 +15,6 @@ class JourneyMapChips extends StatelessWidget {
     required this.selectedIndex,
     required this.replanning,
     required this.refreshFailed,
-    required this.loadingRoutes,
     this.onRetryRefresh,
   });
 
@@ -36,9 +34,6 @@ class JourneyMapChips extends StatelessWidget {
   /// `true` si el recálculo falló y seguimos mostrando el viaje anterior.
   final bool refreshFailed;
 
-  /// `true` mientras se carga el recorrido de un micro.
-  final bool loadingRoutes;
-
   /// Reintentar el recálculo fallido (solo aplica con [refreshFailed]).
   final VoidCallback? onRetryRefresh;
   @override
@@ -56,7 +51,7 @@ class JourneyMapChips extends StatelessWidget {
           child: child,
         ),
       ),
-      child: hasResults || loadingRoutes
+      child: hasResults
           ? Row(
               key: const ValueKey('map-chips'),
               mainAxisSize: MainAxisSize.min,
@@ -70,15 +65,6 @@ class JourneyMapChips extends StatelessWidget {
                     failed: refreshFailed,
                     onRetry: refreshFailed ? onRetryRefresh : null,
                   ),
-                if (loadingRoutes) ...[
-                  if (hasResults || replanning || refreshFailed)
-                    const SizedBox(width: 8),
-                  const SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  ),
-                ],
               ],
             )
           : const SizedBox.shrink(key: ValueKey('map-chips-empty')),

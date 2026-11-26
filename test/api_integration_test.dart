@@ -3,7 +3,6 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:urbano/src/core/network/api_client.dart';
 import 'package:urbano/src/core/network/api_exception.dart';
-import 'package:urbano/src/features/home/data/stats_repository.dart';
 import 'package:urbano/src/features/journey/data/journey_repository.dart';
 import 'package:urbano/src/features/routes/data/route_repository.dart';
 
@@ -42,31 +41,16 @@ Future<void> main() async {
   late ApiClient api;
   late RemoteRouteRepository routes;
   late RemoteJourneyRepository journey;
-  late RemoteStatsRepository stats;
 
   setUp(() {
     api = ApiClient(baseUrl: baseUrl, maxRetries: 0);
     routes = RemoteRouteRepository(api);
     journey = RemoteJourneyRepository(api);
-    stats = RemoteStatsRepository(api);
   });
 
   tearDown(() => api.close());
 
   group('integración API real ($baseUrl)', () {
-    test(
-      'stats refleja el feed GTFS importado',
-      () => guard(() async {
-        final s = await stats.stats();
-        expect(s.routes, 154);
-        expect(s.stops, 31461);
-        expect(s.trips, 308);
-        expect(s.headwaySeconds, 300);
-        expect(s.firstDeparture, '06:00:00');
-        expect(s.lastDeparture, '22:00:00');
-      }),
-    );
-
     test(
       'listado de rutas con colores y meta',
       () => guard(() async {
@@ -94,21 +78,6 @@ Future<void> main() async {
         // Coordenadas de Santa Cruz.
         expect(shape.points.first.longitude, inInclusiveRange(-64, -62));
         expect(shape.points.first.latitude, inInclusiveRange(-19, -17));
-      }),
-    );
-
-    test(
-      'próximas salidas con horario GTFS',
-      () => guard(() async {
-        final page = await routes.list(limit: 1);
-        final list = await routes.departures(
-          page.items.first.id,
-          time: '08:00',
-        );
-        expect(list, isNotEmpty);
-        expect(list, hasLength(lessThanOrEqualTo(20)));
-        expect(list.first.time, matches(RegExp(r'^\d{2}:\d{2}:\d{2}$')));
-        expect(list.first.headwaySeconds, 300);
       }),
     );
 

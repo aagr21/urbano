@@ -1,27 +1,31 @@
 import {
   BadRequestException,
+  Inject,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { put } from '@vercel/blob';
 import 'multer';
 import { Repository } from 'typeorm';
+import { COMPLAINT_PHOTO_STORAGE } from '../../../core/common/tokens';
+import {
+  Checked,
+  checkComment,
+  checkNewComplaint,
+  cleanAuthorName,
+  photoObjectName,
+} from '../domain/complaint-rules';
+import { PhotoStoragePort } from '../domain/photo-storage.port';
 import { ComplaintComment } from '../entities/complaint-comment.entity';
 import { ComplaintLike } from '../entities/complaint-like.entity';
 import { Complaint } from '../entities/complaint.entity';
 import { avatarColorFor, nicknameFor } from './passenger-identity';
 
-const categories = new Set([
-  'vehicle',
-  'driver_treatment',
-  'route_deviation',
-  'schedule',
-  'safety',
-  'other',
-]);
-
-const MAX_COMMENT_LENGTH = 500;
+/** Valor de una validación, o 400 con su motivo. */
+function orBadRequest<T>(checked: Checked<T>): T {
+  if (!checked.ok) throw new BadRequestException(checked.error);
+  return checked.value;
+}
 
 @Injectable()
 export class ComplaintsService {
@@ -31,8 +35,16 @@ export class ComplaintsService {
     @InjectRepository(ComplaintLike)
     private readonly likes: Repository<ComplaintLike>,
     @InjectRepository(ComplaintComment)
-    private readonly comments: Repository<ComplaintComment>
+    private readonly comments: Repository<ComplaintComment>,
+    @Inject(COMPLAINT_PHOTO_STORAGE)
+    private readonly photos: PhotoStoragePort
   ) {}
+
+  /**
+   * Reloj para nombrar las fotos. Propiedad y no parámetro del constructor:
+   * Nest intentaría inyectarlo. Los tests lo reemplazan.
+   */
+  now: () => number = () => Date.now();
 
   async list(deviceKey?: string) {
     const complaints = await this.complaints.find({
@@ -68,43 +80,25 @@ export class ComplaintsService {
   async create(
     routeId: string,
     category: string,
-    description = '',
+    description: string | undefined,
     files: Express.Multer.File[]
   ): Promise<{ id: string; status: string }> {
-    if (!routeId || !categories.has(category)) {
-      throw new BadRequestException('Ruta o categoría inválida');
-    }
-    const text = description.trim();
-    if (text.length > 2000) {
-      throw new BadRequestException(
-        'La descripción puede tener como máximo 2000 caracteres'
-      );
-    }
-    if (files.length > 5) {
-      throw new BadRequestException('Puedes adjuntar hasta 5 fotos');
+    const { description: text } = orBadRequest(
+      checkNewComplaint({ routeId, category, description, photos: files })
+    );
+    if (files.length > 0 && !this.photos.configured) {
+      throw new BadRequestException('La subida de fotos no está configurada');
     }
 
     const photoUrls: string[] = [];
     for (const file of files) {
-      if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.mimetype)) {
-        throw new BadRequestException('Solo se permiten JPG, PNG o WebP');
-      }
-      if (file.size > 5 * 1024 * 1024) {
-        throw new BadRequestException('Cada foto puede pesar como máximo 5 MB');
-      }
-      if (!process.env.BLOB_READ_WRITE_TOKEN) {
-        throw new BadRequestException('La subida de fotos no está configurada');
-      }
-      const blob = await put(
-        `complaints/${Date.now()}-${file.originalname}`,
-        file.buffer,
-        {
-          access: 'public',
-          contentType: file.mimetype,
-          token: process.env.BLOB_READ_WRITE_TOKEN,
-        }
+      photoUrls.push(
+        await this.photos.upload(
+          photoObjectName(this.now(), file.originalname),
+          file.buffer,
+          file.mimetype
+        )
       );
-      photoUrls.push(blob.url);
     }
 
     const complaint = await this.complaints.save({
@@ -162,19 +156,11 @@ export class ComplaintsService {
     if (!deviceKey) {
       throw new BadRequestException('Falta el identificador de dispositivo');
     }
-    const text = body.trim();
-    if (text.length === 0) {
-      throw new BadRequestException('El comentario no puede estar vacío');
-    }
-    if (text.length > MAX_COMMENT_LENGTH) {
-      throw new BadRequestException(
-        `El comentario puede tener como máximo ${MAX_COMMENT_LENGTH} caracteres`
-      );
-    }
+    const text = orBadRequest(checkComment(body));
     const saved = await this.comments.save({
       complaintId,
       deviceKey,
-      authorName: this.sanitizeName(authorName, deviceKey),
+      authorName: cleanAuthorName(authorName) ?? nicknameFor(deviceKey),
       authorColor: avatarColorFor(deviceKey),
       body: text,
     });
@@ -182,11 +168,6 @@ export class ComplaintsService {
   }
 
   // ----------------------------------------------------------------- helpers
-
-  private sanitizeName(authorName: string | undefined, deviceKey: string) {
-    const clean = (authorName ?? '').replace(/\s+/g, ' ').trim().slice(0, 40);
-    return clean.length > 0 ? clean : nicknameFor(deviceKey);
-  }
 
   private mapComment(comment: ComplaintComment) {
     return {

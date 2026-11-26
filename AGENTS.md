@@ -155,6 +155,37 @@ Visual values come from tokens in `lib/src/core/theme/`, never from literals:
 
 ## Architecture rules of thumb
 
+**Responsabilidad única y testeable por defecto.** Cada archivo/clase tiene UN
+motivo de cambio, y toda decisión que no sea pintar se escribe donde se puede
+probar sin montar widgets:
+
+- **Reglas puras** (qué elegir, cómo filtrar/ordenar/paginar, qué texto toca,
+  cuándo levantar una cortina) → funciones o clases inmutables en
+  `domain/`/`application/` (o `core/utils/`), con su `*_test.dart` unitario.
+  Ejemplos: `DestinationDraft` (hoja «¿A dónde vas?»), `resolveEndpointSubmit`,
+  `pageOf` (`core/utils/paging.dart`), `JourneyMapGeometry`, `LegStrokeColors`,
+  `routeMainPlaces`, `shouldLiftCurtain`/`bootStageFor`, `meaningfulHeadsign`.
+- **Casos de uso con efectos** (planificar + guardar + historial, paginar un
+  catálogo) → un controller/servicio de `application/` probado con
+  `ProviderContainer` (`TripLauncher`, `MicrosCatalogController`).
+- **Plugins** detrás de una interfaz inyectable por provider
+  (`ComplaintPhotoSource` sobre `image_picker`), nunca instanciados en un `State`.
+- **Widgets**: el `State` solo cablea gestos → transiciones y monta piezas; cada
+  bloque visual grande es su propio widget (`*_sections.dart`, `*_parts.dart`).
+  Un archivo con dos widgets públicos se parte.
+- **Backend**: igual. `journey-planner.ts` es solo la búsqueda; geodesia
+  (`geo.ts`), geometría (`journey-geometry.ts`) y ranking
+  (`journey-ranking.ts`) son módulos propios, y el mapeo de OTP
+  (`otp-itinerary.mapper.ts`) está separado del adaptador HTTP. Los CLIs solo
+  orquestan I/O: el plan de reparación del feed vive puro en
+  `gtfs-feed-repair.ts`. Denuncias: validaciones y límites en
+  `complaints/domain/complaint-rules.ts`, fotos detrás de `PhotoStoragePort`
+  (token `COMPLAINT_PHOTO_STORAGE`, adaptador `VercelBlobPhotoStorage`); un
+  servicio Nest no recibe nada que no sea un provider (el reloj de
+  `ComplaintsService` es una propiedad, no un parámetro del constructor), y
+  `complaints.service.spec.ts` lo comprueba armándolo con `Test.createTestingModule`.
+
+
 Backend (`backend/src/modules/<feature>/{domain,application,infrastructure,presentation}`
 — hexagonal, don't put business logic in controllers):
 
@@ -171,12 +202,14 @@ claro/oscuro** (`home-theme-button`: luna en claro, sol en oscuro, `setMode` per
 elección); «Acerca de» (`/info`) y el menú `showUrbanoMenu` se retiraron, no los repongas sin
 decidir dónde vive la navegación; el shell monta las tres
 ramas con `StatefulShellRoute.indexedStack` y solo funde el cuerpo al cambiar de sección).
-La antigua
-pestaña Rutas ahora vive como el panel izquierdo de micros en `/journey`, con per-direction
-ida/vuelta toggles; `/map` redirects to `/journey`). There is **no `/routes` list
-route** anymore — anything wanting the whole catalogue (the home's "Ver todas")
-goes through `UrbanoRoutes.openAllMicros`, which flips the branch and sets
-`pendingMicrosPanelProvider`; the planner consumes that flag in `initState` with
+El catálogo
+completo de líneas es la pantalla **`/micros`** (`routes/presentation/micros_screen.dart`,
+tarjetas `MicroCard`), que abre el acceso **Micros** de Inicio con
+`UrbanoRoutes.openMicrosCatalog`; cada tarjeta lleva al detalle `/routes/:id?from=micros`.
+`/map` redirects to `/journey`. El antiguo panel lateral de micros de `/journey` (cajón con
+toggles ida/vuelta y modo «Lugares») se **retiró** —había quedado sin entrada—; no lo
+repongas sin decidir antes cómo convive con `/micros`. Si vuelve a hacer falta una bandera
+«abrir X al llegar a Viaje», se consume en `initState` con
 `listenManual(fireImmediately: true)` (a `ref.listen` inside `build` misses it when
 the Viaje branch has never been visited, because that first build runs in the same
 frame as the `go()`). dio in `core/network/`, map
@@ -215,7 +248,7 @@ platform view; the merged map/result-sheet design is deliberate (see README).
   `RecentTrips.visibleOnHome = 3` filas; cuando hay más, el rótulo lleva la píldora
   «Ver todos» (sin número) en la esquina superior derecha y abre
   la hoja con el historial completo (`recent-trip-all-*`, misma tarjeta agrupada),
-  que lleva un buscador con lupa y pagina de 10 en 10 cuando hay más de 10 viajes. Sin
+  que lleva un buscador con lupa y pagina de 8 en 8 cuando hay más de 8 viajes. Sin
   historial la sección no ocupa
   espacio; tocar una fila repone el destino, usa `lastKnownLocationProvider` (o
   `myLocationProvider`, que la tarjeta mantiene vivo) como origen si falta, abre
@@ -267,24 +300,11 @@ platform view; the merged map/result-sheet design is deliberate (see README).
   Google ones) are always listed; without `GOOGLE_MAPS_API_KEY` the Google cards are marked
   "Requiere clave" and explain the flag instead of being hidden — and `flutter test` always has an
   empty key, so never make a test depend on Google tiles rendering.
-- The left **micros panel** (`journey/presentation/widgets/journey_micros_sheet.dart`
-  = solo la puerta (catálogo + ruta); el cajón vive en `micros_panel.dart` y sus
-  secciones en `micros_panel_*.dart`, todas de props/callbacks) keeps its working
-  state — searched text, list scroll, cached `/routes` pages and fetched headsign
-  details — in `journeyMicrosSessionProvider` (`journey_providers.dart`), so
-  closing and reopening the panel restores it and costs no network call
-  (pull-to-refresh re-fetches). La lógica de estado/negocio del panel (catálogo,
-  filtro, modos, toggles) vive en `application/micros_panel_controller.dart`
-  (`microsPanelProvider`); en el `State` del cajón solo quedan animaciones,
-  gestos, `TextEditingController` y scroll. Keep any new panel state there, never
-  in the panel `State`. The drawn routes themselves live in the planner screen
-  (`_visibleRouteKeys`).
-- Panel animations are frame-driven (`AnimationController` + implicit widgets);
-  this file deliberately avoids `flutter_animate` because its `Animate` mounts a
-  zero-duration `Timer`, which breaks widget tests that use plain `pump()`
-  ("A Timer is still pending…"). Anything mounted inside the panel must also be
-  test-tappable: a `Positioned` child hanging off the panel's edge is not
-  hit-testable unless its `Stack`/`SizedBox` is wide enough to contain it.
+- Animations are frame-driven (`AnimationController` + implicit widgets), never
+  `flutter_animate`: its `Animate` mounts a zero-duration `Timer`, which breaks widget
+  tests that use plain `pump()` ("A Timer is still pending…"). A `Positioned` child
+  hanging off a panel's edge is not hit-testable unless its `Stack`/`SizedBox` is wide
+  enough to contain it.
 - **Motion kit** (`core/animation/motion.dart`) is what the rest of the app uses for
   movement: `PressScale` (press sink on tappable surfaces), `Reveal` (staggered
   entrance for lists/sections), `CountUp` (number roll-up) and `UrbanoPageTransitions`
@@ -319,8 +339,8 @@ platform view; the merged map/result-sheet design is deliberate (see README).
   and `_LiveMapControls` — may watch the location providers; the screen's `build` resolves
   endpoints **without** the GPS fallback and lets the layer apply it. Locked by the
   "un evento de ubicación mueve SOLO el mapa" test in `test/journey_result_map_test.dart`
-  (it asserts `same()` widget identity for panel/sheet and _not_ `same()` for the map, so
-  the guard can't silently become a no-op). Apply the same split to any new live stream.
+  (it asserts `same()` widget identity for the results sheet and _not_ `same()` for the map,
+  so the guard can't silently become a no-op). Apply the same split to any new live stream.
 - **GPS is opened by demand, never by a listener.** `locationDemandProvider`
   (foreground via `appForegroundProvider` **&&** `followLocationProvider` **&&** status
   `ready`) is the single key: without it `myLocationRealtimeProvider` returns an _empty_
@@ -379,7 +399,7 @@ platform view; the merged map/result-sheet design is deliberate (see README).
   cover's first frame at srgb(4,55,49) — the dark corner of the gradient made the handoff read as a
   separate green screen. `urbano_primary` is the gradient's average, so the two phases are the same
   color.
-- **The cover enters already painted.** `_SplashCover._startT` is `0.14` and the loading windows
+- **The cover enters already painted.** (the cover and its painters live in `splash_cover.dart`, a `part` of `splash_gate.dart`) `_SplashCover._startT` is `0.14` and the loading windows
   (`_blockEnd 0.26`, `_barBegin .02`, `_footEnd .14`) are already open by then, so frame 1 shows the
   dial + `Cargando` + the stage line + footer + a bar that has already started. With `begin: 0` the
   first ~9 frames (300 ms) were the brand gradient with **nothing** on it, which is indistinguishable
@@ -394,13 +414,14 @@ platform view; the merged map/result-sheet design is deliberate (see README).
   condition: the curtain only lifts when `onEnd` fired the intro **and** the future resolved, so a
   fast backend can't make it blink (the intro is the minimum-visible floor) and a slow one is covered
   honestly. `bootReadinessProvider` (`core/boot/boot_readiness.dart`, watched from `_BootGate` in
-  `main.dart` — NOT from the home) awaits the data the app will show (`routesListProvider(homeCatalogQuery)`,
-  la página del catálogo del panel de micros) and never throws: it returns `bool` so an unreachable
+  `main.dart` — NOT from the home) awaits `routesListProvider(homeCatalogQuery)` (una página corta de
+  `/routes`; desde que se retiró el panel de micros nadie más la lee, así que hoy funciona como prueba
+  de que el backend responde) and never throws: it returns `bool` so an unreachable
   backend still lifts, with the `Sin respuesta del servicio` stage instead of a lying `Todo listo`.
   `bootCeiling` (6 s) is that safety — a loading screen that can trap the user is worse than the
   data it is waiting for. `homeCatalogQuery` is a shared const (`routes/presentation/route_providers.dart`)
-  because `SimpleCache` does not dedupe in-flight calls: boot y el panel de micros
-  deben pegarle al mismo elemento del provider o `/routes` se paga dos veces. New
+  because `SimpleCache` does not dedupe in-flight calls: quien quiera aprovechar esa precarga
+  debe pegarle al mismo elemento del provider o `/routes` se paga dos veces. New
   boot data goes into that future, and a `ready` future must never be re-listened in `build` —
   `provider.future` fabricates a new future per rebuild, so the subscription lives in `initState`.
   `TweenAnimationBuilder` also has a trap: if `begin == end` the tween never starts and `onEnd`
@@ -465,8 +486,7 @@ animator_duration_scale` — the key is `animator_duration_scale`, NOT `animator
 - **Ambient motion is bounded by contract.** The idle life of the app lives in
   `Ambient` / `Bob` / `LiveDot` (`core/animation/motion.dart`) plus `HomeRouteLattice`
   (the header paints Santa Cruz's anillos with a bus that drives through them), the
-  planner's scan bar, the self-drawing `_LegRail` of `option.legs` and the floating
-  micros badge. `Ambient` runs ONE `forward()` over `period * cycles` and **rests at
+  planner's scan bar and the self-drawing `_LegRail` of `option.legs`. `Ambient` runs ONE `forward()` over `period * cycles` and **rests at
   `t = 1`**; `Motion.phase(t, cycles)` recovers the per-lap phase. Never swap that for
   `controller.repeat(count: n)`: repeat returns the value to `min`, which erases a
   freshly drawn rail and re-opaques a halo, and an endless ticker freezes the 6 s
@@ -489,7 +509,8 @@ animator_duration_scale` — the key is `animator_duration_scale`, NOT `animator
   tint; semantic colors come from the scheme (`colors.error`, `colors.primary…`).
   Measure the background that is actually painted (`Color.lerp(surface, tint, α)`
   for a translucent fill), not the raw token. Locked by
-  `test/journey_micros_panel_test.dart` (dark and light contrast ≥ 4.5 specs).
+  `test/complaints_feed_test.dart` and `test/nearby_micros_screen_test.dart`
+  (contrast measured in dark and light).
 - The `/journey` slice is hexagonal like the backend:
   `journey/domain` (places, query, planner state, `decideEndpointDrag`),
   `journey/application` (Riverpod controller, results projection, providers),
@@ -503,22 +524,29 @@ animator_duration_scale` — the key is `animator_duration_scale`, NOT `animator
   uses the sentinel `keepJourneyField`: omit the parameter to KEEP the field,
   pass `null` to CLEAR it, pass a value to REPLACE it. Above it,
   `journey_planner_screen.dart` is just the UI wiring (map `GlobalKey`,
-  draggable sheet, open panel) and `journey/presentation/widgets/` are pure
+  draggable sheet) and `journey/presentation/widgets/` are pure
   props/callbacks. Keep new trip policy in `domain/`, orchestration in the
   controller, and new journey UI in those widgets. Tests lock behavior around
-  `ValueKey('planner-trigger')`, the debounce delays (600/700 ms planner,
-  350 ms picker) and the "pin drop right after a camera gesture is discarded"
-  barrier — don't change those without reading
-  `test/journey_result_map_test.dart` first (and `test/endpoint_drag_policy_test.dart`
-  for the pure decision). La píldora `planner-trigger` solo se monta **sin
-  resultados** (`!hasResults`): con la hoja de resultados (o recalculando) el
-  mapa queda libre, el viaje se edita tocando/arrastrando los pines o con
-  «Quitar resultados», y el panel se reabre por `pendingPlannerPanelProvider`;
-  un test que toque la píldora tras «Viajar» ya no la encuentra. Locked by
+  the debounce delays (600/700 ms planner, 350 ms picker) and the "pin drop
+  right after a camera gesture is discarded" barrier — don't change those
+  without reading `test/journey_result_map_test.dart` first (and
+  `test/endpoint_drag_policy_test.dart` for the pure decision). **Viaje NO
+  tiene globo «¿A dónde vas?» ni panel de origen/destino** (el usuario lo pidió
+  explícitamente; se retiraron `planner-trigger`, `JourneyPlannerCard`, su
+  botón de cerrar, el selector de lugares y `pendingPlannerPanelProvider`): el
+  viaje se arma SOLO en la portada (`showJourneyDestinationSheet`, que no deja
+  planificar con los extremos a < 150 m: `DestinationDraft.tooClose`, misma regla
+  que el planeador y el backend en `domain/endpoint_distance.dart`) y en `/journey`
+  se edita tocando un pin (abre `/journey/pick` encima del punto) o
+  arrastrándolo. «Quitar resultados» limpia y vuelve a Inicio. Si la primera
+  búsqueda falla, la carga se retira y un snack lo dice. La hoja de resultados
+  nunca se cierra del todo (mínimo 0.18) y recogida su asa `journey-sheet-grip`
+  es una píldora con flecha que la reabre con un toque. Los tests arman el viaje
+  con `test/helpers/plan_trip.dart` (`planTripFromHome`). Locked by
   `test/journey_results_trigger_test.dart`. Walk legs may carry a street-network
   `geometry` (OTP2); the map widget renders that instead of the straight fallback.
   In both cases the walk's bus-side endpoint is joined to the bus `geometry`
-  (`connectWalkAndBusGeometry` in the API, `_joinWalkToBus` in the map): the shape
+  (`connectWalkAndBusGeometry` in the API, `JourneyMapGeometry.joinWalkToBus` in the app): the shape
   never moves — it is the truth of where the micro passes — and the dashed walk is
   stretched to it, so no 10-20 m gap reads as "it makes me cross the avenue".
 

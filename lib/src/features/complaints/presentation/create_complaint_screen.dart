@@ -2,18 +2,18 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:material_ui/material_ui.dart';
 
-import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/extensions.dart';
 import '../../../core/widgets/urbano_back_button.dart';
-import '../../home/presentation/widgets/home_route_lattice.dart';
 import '../../routes/data/route_models.dart';
+import '../application/complaint_photos.dart';
 import '../application/complaints_feed_controller.dart';
 import '../data/complaint_repository.dart';
 import 'widgets/complaint_chips.dart';
+import 'widgets/complaint_form_parts.dart';
 import 'widgets/complaint_form_section.dart';
 import 'widgets/complaint_photo_picker.dart';
-import 'widgets/complaint_route_image.dart';
+import 'widgets/complaint_photo_source_sheet.dart';
 import 'widgets/complaint_route_selector_sheet.dart';
 
 /// Formulario de creación de queja. Vive separado del feed
@@ -37,91 +37,15 @@ class CreateComplaintScreen extends ConsumerStatefulWidget {
 class _CreateComplaintScreenState extends ConsumerState<CreateComplaintScreen> {
   final _formKey = GlobalKey<FormState>();
   final _description = TextEditingController();
-  final _picker = ImagePicker();
-  late RouteSummary? _route;
+  late RouteSummary? _route = widget.initialRoute;
   String _category = 'vehicle';
   List<XFile> _photos = [];
   bool _sending = false;
 
   @override
-  void initState() {
-    super.initState();
-    _route = widget.initialRoute;
-  }
-
-  @override
   void dispose() {
     _description.dispose();
     super.dispose();
-  }
-
-  Future<void> _pickPhotos(ImageSource source) async {
-    if (_photos.length >= 5) {
-      _showMessage('Puedes adjuntar hasta 5 fotos.');
-      return;
-    }
-    try {
-      final List<XFile> selected;
-      if (source == ImageSource.gallery) {
-        selected = await _picker.pickMultiImage(
-          imageQuality: 82,
-          maxWidth: 1600,
-        );
-      } else {
-        final photo = await _picker.pickImage(
-          source: ImageSource.camera,
-          imageQuality: 82,
-          maxWidth: 1600,
-        );
-        selected = photo == null ? const [] : [photo];
-      }
-      if (!mounted) return;
-      setState(() => _photos = [..._photos, ...selected].take(5).toList());
-    } on Exception catch (error) {
-      if (mounted) {
-        _showMessage(
-          'No se pudo acceder a las fotos o la cámara: ${error.toString()}',
-        );
-      }
-    }
-  }
-
-  Future<void> _showPhotoOptions() async {
-    if (_photos.length >= 5) {
-      _showMessage('Puedes adjuntar hasta 5 fotos.');
-      return;
-    }
-    await showModalBottomSheet<void>(
-      context: context,
-      builder: (context) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.only(bottom: AppSpace.sm),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              ListTile(
-                leading: const Icon(Icons.photo_library_rounded),
-                title: const Text('Elegir de la galería'),
-                subtitle: const Text('Puedes seleccionar varias fotos'),
-                onTap: () {
-                  Navigator.pop(context);
-                  _pickPhotos(ImageSource.gallery);
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.photo_camera_rounded),
-                title: const Text('Tomar una foto'),
-                subtitle: const Text('Usar la cámara del dispositivo'),
-                onTap: () {
-                  Navigator.pop(context);
-                  _pickPhotos(ImageSource.camera);
-                },
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
   }
 
   void _showMessage(String message) {
@@ -130,7 +54,26 @@ class _CreateComplaintScreenState extends ConsumerState<CreateComplaintScreen> {
       ..showSnackBar(SnackBar(content: Text(message)));
   }
 
-  Future<void> _selectRoute() async {
+  /// Pregunta la fuente (galería o cámara) y suma las fotos hasta el tope.
+  Future<void> _addPhotos() async {
+    if (!canAddComplaintPhoto(_photos.length)) {
+      _showMessage('Puedes adjuntar hasta $maxComplaintPhotos fotos.');
+      return;
+    }
+    final source = await showComplaintPhotoSourceSheet(context);
+    if (source == null || !mounted) return;
+    try {
+      final picked = await ref.read(complaintPhotoSourceProvider).pick(source);
+      if (!mounted) return;
+      setState(() => _photos = appendComplaintPhotos(_photos, picked));
+    } on Exception catch (error) {
+      if (mounted) {
+        _showMessage('No se pudo acceder a las fotos o la cámara: $error');
+      }
+    }
+  }
+
+  Future<RouteSummary?> _selectRoute() async {
     final selected = await showModalBottomSheet<RouteSummary>(
       context: context,
       isScrollControlled: true,
@@ -141,9 +84,8 @@ class _CreateComplaintScreenState extends ConsumerState<CreateComplaintScreen> {
       builder: (_) =>
           ComplaintRouteSelectorSheet(routes: widget.routes, selected: _route),
     );
-    if (selected != null && mounted) {
-      setState(() => _route = selected);
-    }
+    if (selected != null && mounted) setState(() => _route = selected);
+    return selected;
   }
 
   Future<void> _submit() async {
@@ -173,8 +115,6 @@ class _CreateComplaintScreenState extends ConsumerState<CreateComplaintScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Tinta medida contra el degradado de marca (nunca un blanco escrito a mano).
-    final onGradient = AppColors.onColor(AppColors.primaryDark);
     return Scaffold(
       appBar: AppBar(
         leading: const UrbanoBackButton(),
@@ -190,174 +130,13 @@ class _CreateComplaintScreenState extends ConsumerState<CreateComplaintScreen> {
             AppSpace.xl + MediaQuery.viewPaddingOf(context).bottom,
           ),
           children: [
-            Container(
-              decoration: BoxDecoration(
-                borderRadius: AppRadius.card,
-                boxShadow: AppTheme.softShadow(
-                  color: AppColors.primaryDark,
-                  opacity: 0.16,
-                ),
-              ),
-              child: ClipRRect(
-                borderRadius: AppRadius.card,
-                child: DecoratedBox(
-                  decoration: const BoxDecoration(gradient: urbanoGradient),
-                  child: Stack(
-                    children: [
-                      // La misma trama de anillos del feed y del home: el
-                      // formulario también es parte de la marca.
-                      const Positioned.fill(child: HomeRouteLattice()),
-                      Padding(
-                        padding: const EdgeInsets.all(AppSpace.lg),
-                        child: Row(
-                          children: [
-                            Icon(
-                              Icons.campaign_rounded,
-                              color: onGradient,
-                              size: 32,
-                            ),
-                            const SizedBox(width: AppSpace.md),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'Cuéntanos qué ocurrió',
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .titleLarge
-                                        ?.copyWith(
-                                          color: onGradient,
-                                          fontWeight: FontWeight.w800,
-                                        ),
-                                  ),
-                                  const SizedBox(height: AppSpace.xs),
-                                  Text(
-                                    'Tu reporte es anónimo y nos ayuda a '
-                                    'mejorar.',
-                                    style: TextStyle(
-                                      color: onGradient.withValues(alpha: 0.88),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
+            const ComplaintFormHero(),
             const SizedBox(height: AppSpace.lg),
             ComplaintFormSection(
               step: 1,
               title: '¿Qué micro está involucrado?',
               icon: Icons.directions_bus_rounded,
-              child: FormField<RouteSummary>(
-                initialValue: _route,
-                validator: (value) =>
-                    value == null ? 'Selecciona el micro relacionado' : null,
-                builder: (field) => Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    InkWell(
-                      onTap: () async {
-                        await _selectRoute();
-                        field.didChange(_route);
-                      },
-                      borderRadius: BorderRadius.circular(AppRadius.input),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Container(
-                            height: 64,
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: AppSpace.md,
-                            ),
-                            decoration: BoxDecoration(
-                              color: _route == null
-                                  ? context.colors.surfaceContainerLow
-                                  : context.colors.primaryContainer,
-                              borderRadius: BorderRadius.circular(
-                                AppRadius.input,
-                              ),
-                              border: Border.all(
-                                color: field.errorText != null
-                                    ? context.colors.error
-                                    : _route == null
-                                    ? context.colors.outlineVariant
-                                    : context.colors.primary.withValues(
-                                        alpha: 0.35,
-                                      ),
-                              ),
-                            ),
-                            child: Row(
-                              children: [
-                                if (_route == null)
-                                  Icon(
-                                    Icons.search_rounded,
-                                    color: context.colors.onSurfaceVariant,
-                                  )
-                                else
-                                  ComplaintRouteImage(route: _route!),
-                                const SizedBox(width: AppSpace.md),
-                                Expanded(
-                                  child: _route == null
-                                      ? Text(
-                                          'Buscar y seleccionar una línea',
-                                          style: TextStyle(
-                                            color:
-                                                context.colors.onSurfaceVariant,
-                                          ),
-                                        )
-                                      : Column(
-                                          mainAxisAlignment:
-                                              MainAxisAlignment.center,
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          children: [
-                                            Text(
-                                              _route!.longName.isEmpty
-                                                  ? 'Micro ${_route!.shortName}'
-                                                  : _route!.longName,
-                                              maxLines: 1,
-                                              overflow: TextOverflow.ellipsis,
-                                              style: const TextStyle(
-                                                fontWeight: FontWeight.w700,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                ),
-                                Icon(
-                                  Icons.chevron_right_rounded,
-                                  color: context.colors.onSurfaceVariant,
-                                ),
-                              ],
-                            ),
-                          ),
-                          if (field.errorText != null)
-                            Padding(
-                              padding: const EdgeInsets.only(
-                                left: AppSpace.md,
-                                top: AppSpace.xs,
-                              ),
-                              child: Text(
-                                field.errorText!,
-                                style: TextStyle(
-                                  color: context.colors.error,
-                                  fontSize: 12,
-                                ),
-                              ),
-                            ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+              child: ComplaintRouteField(route: _route, onPick: _selectRoute),
             ),
             const SizedBox(height: AppSpace.md),
             ComplaintFormSection(
@@ -386,41 +165,7 @@ class _CreateComplaintScreenState extends ConsumerState<CreateComplaintScreen> {
               step: 3,
               title: 'Describe lo ocurrido',
               icon: Icons.edit_note_rounded,
-              child: TextFormField(
-                controller: _description,
-                minLines: 5,
-                maxLines: 7,
-                maxLength: 2000,
-                decoration: const InputDecoration(
-                  hintText: 'Cuéntanos brevemente qué pasó (opcional).',
-                  filled: true,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.all(
-                      Radius.circular(AppRadius.sm),
-                    ),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.all(
-                      Radius.circular(AppRadius.sm),
-                    ),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.all(
-                      Radius.circular(AppRadius.sm),
-                    ),
-                  ),
-                  errorBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.all(
-                      Radius.circular(AppRadius.sm),
-                    ),
-                  ),
-                  focusedErrorBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.all(
-                      Radius.circular(AppRadius.sm),
-                    ),
-                  ),
-                ),
-              ),
+              child: ComplaintDescriptionField(controller: _description),
             ),
             const SizedBox(height: AppSpace.md),
             ComplaintFormSection(
@@ -430,7 +175,7 @@ class _CreateComplaintScreenState extends ConsumerState<CreateComplaintScreen> {
               subtitle: 'Hasta 5 fotos para ayudarnos a revisar el reporte.',
               child: ComplaintPhotoPicker(
                 photos: _photos,
-                onAdd: _sending ? null : _showPhotoOptions,
+                onAdd: _sending ? null : _addPhotos,
                 onRemove: (index) => setState(() => _photos.removeAt(index)),
               ),
             ),

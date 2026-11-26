@@ -1,7 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../routes/data/route_models.dart';
-import '../../stops/data/stop_search_models.dart';
 import '../data/journey_models.dart';
 import '../data/journey_repository.dart';
 import '../domain/journey_query.dart';
@@ -31,71 +29,3 @@ final journeyProvider = FutureProvider.autoDispose
                 refineJourneyOptions(options, maxShown: query.maxResults),
           );
     });
-
-/// Intento pendiente de abrir el **panel de micros** desde otra pantalla.
-///
-/// El listado completo de líneas ya no tiene ruta propia: la pestaña «Rutas»
-/// se retiró y ese catálogo vive en el panel de `/journey`. Abrirlo es acción
-/// del `State` del planeador (necesita las claves de los recorridos ya
-/// dibujados), así que quien pide «ver todas» —el home— cambia de rama y deja
-/// esta bandera; el planeador la lee, la limpia y abre el cajón.
-final pendingMicrosPanelProvider = StateProvider<bool>((_) => false);
-
-/// Intento pendiente de abrir **solo micros** (sin viaje): panel de catálogo
-/// + lugares sobre el mapa, sin la píldora de origen/destino ni la hoja de
-/// resultados. Se usa desde `UrbanoRoutes.openAllMicros`.
-final pendingMicrosOnlyProvider = StateProvider<bool>((_) => false);
-
-/// Intento pendiente de abrir el **panel de origen/destino** desde otra pantalla.
-///
-/// Es el equivalente de [pendingMicrosPanelProvider] para la barra «¿A dónde
-/// vas?» del home (y para una fila del historial): el usuario ya pidió viajar,
-/// así que llegar a `/journey` con el
-/// panel cerrado (la píldora «¿A dónde vas?») lo obligaba a tocar otra vez.
-/// El despliegue es acción del `State` del planeador, así que el home deja
-/// esta bandera, cambia de rama, y el planeador la lee, la limpia y abre.
-final pendingPlannerPanelProvider = StateProvider<bool>((_) => false);
-
-/// Estado de trabajo del **panel de micros**, que sobrevive a cerrarlo y
-/// volverlo a abrir mientras la app esté abierta.
-///
-/// El panel se abre como una ruta sobre el mapa y su `State` muere al
-/// cerrarse: sin este store se perderían cada vez el texto buscado, la
-/// posición del scroll, el listado ya descargado de `/routes` (otro pago de
-/// red) y los headsign de las direcciones consultadas.
-class JourneyMicrosSession {
-  /// Listado de líneas ya descargado (`/routes` paginado por completo).
-  List<RouteSummary> micros = const [];
-
-  /// `true` cuando el listado de [micros] viene de una descarga exitosa.
-  bool loaded = false;
-
-  /// Texto del buscador del panel.
-  String query = '';
-
-  /// Posición del scroll del listado (se va guardando en cada desplazamiento).
-  double scrollOffset = 0;
-
-  /// Modo del panel: `false` = busco LÍNEAS (catálogo); `true` = busco
-  /// LUGARES («¿qué línea pasa por aquí?»). Persiste entre aperturas.
-  bool placesMode = false;
-
-  /// Última búsqueda de lugares confirmada (commit, no borrador). Lleva la
-  /// fuente: texto o «cerca de mí» con el punto usado.
-  String placesQuery = '';
-  ({double lat, double lon})? placesNearbyPoint;
-
-  /// Última lista de lugares mostrada: la restauración instantánea del
-  /// panel no vuelve a pagar la red. «Jalar para actualizar» la invalida.
-  List<StopHit>? placeResults;
-
-  /// Detalles pedidos por id de micro (`/routes/:id`): dan los headsign y las
-  /// direcciones reales de cada tarjeta.
-  final Map<String, RouteDetail> details = {};
-}
-
-/// Proveedor de la sesión: `Provider` a secas (no `autoDispose`) para que el
-/// estado viva mientras exista el `ProviderScope` de la app.
-final journeyMicrosSessionProvider = Provider<JourneyMicrosSession>(
-  (ref) => JourneyMicrosSession(),
-);

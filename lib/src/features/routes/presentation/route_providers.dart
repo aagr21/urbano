@@ -64,37 +64,6 @@ class RouteKey {
   int get hashCode => Object.hash(routeId, directionId);
 }
 
-/// Consulta de una tira de salidas (`/routes/:id/departures`). La UI del
-/// detalle ya no la muestra, pero la capa de datos la conserva para
-/// consultas puntuales (y los tests que la ejercitan).
-class DeparturesQuery {
-  const DeparturesQuery({
-    required this.routeId,
-    this.stopId,
-    this.directionId,
-    this.time,
-    this.date,
-  });
-
-  final String routeId;
-  final String? stopId;
-  final int? directionId;
-  final String? time;
-  final String? date;
-
-  @override
-  bool operator ==(Object other) =>
-      other is DeparturesQuery &&
-      other.routeId == routeId &&
-      other.stopId == stopId &&
-      other.directionId == directionId &&
-      other.time == time &&
-      other.date == date;
-
-  @override
-  int get hashCode => Object.hash(routeId, stopId, directionId, time, date);
-}
-
 /// Listado de rutas (con caché en el repositorio).
 final routesListProvider = FutureProvider.autoDispose
     .family<Paged<RouteSummary>, RoutesQuery>((ref, query) {
@@ -134,18 +103,4 @@ final routeStreetsProvider = FutureProvider.autoDispose
       final points = detail.shape?.points ?? const [];
       if (points.length < 2) return const [];
       return ref.watch(osmStreetRepositoryProvider).streetsAlong(points);
-    });
-
-/// Próximas salidas (sin hora ⇒ hora actual America/La_Paz en el backend).
-final routeDeparturesProvider = FutureProvider.autoDispose
-    .family<List<Departure>, DeparturesQuery>((ref, query) {
-      return ref
-          .watch(routeRepositoryProvider)
-          .departures(
-            query.routeId,
-            stopId: query.stopId,
-            directionId: query.directionId,
-            time: query.time,
-            date: query.date,
-          );
     });

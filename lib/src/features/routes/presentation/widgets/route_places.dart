@@ -9,13 +9,14 @@ import '../../../../core/theme/app_theme.dart';
 import '../../../../core/utils/extensions.dart';
 import '../../../../core/widgets/async_value_view.dart';
 import '../../../../core/widgets/loading_shimmer.dart';
+import '../../application/route_main_places.dart';
 import '../../data/route_models.dart';
 import '../route_providers.dart';
 
 /// «Pasa por»: los lugares principales del recorrido, derivados de las
 /// paradas del feed. Nada de horarios — calles y vías de referencia.
 ///
-/// La heurística vive en [RoutePlaces.mainPlaces] (pública para testing):
+/// La heurística vive en [routeMainPlaces] (`application/route_main_places.dart`):
 /// el nombre de una parada es «X esquina Y»; contamos cuántas veces aparece
 /// cada vía a lo largo de todo el recorrido y nos quedamos con las más
 /// frecuentes, ordenadas por dónde aparecen PRIMERO — la lista se lee en el
@@ -29,64 +30,6 @@ class RoutePlaces extends ConsumerWidget {
 
   final RouteKey routeKey;
   final Color routeColor;
-
-  /// Hitos de Santa Cruz que valen el doble aunque el micro solo pase un
-  /// par de veces: son los lugares que toda la ciudad reconoce.
-  static const _landmarks = [
-    'terminal',
-    'mercado',
-    'anillo',
-    'radial',
-    'doble vía',
-    'rn7',
-    'cristo redentor',
-    'estadio',
-    'hospital',
-    'universidad',
-    'estación',
-  ];
-
-  /// Vías de referencia del recorrido: frecuencia a lo largo de todas las
-  /// paradas — con BONUS a hitos conocidos (terminal, mercado, anillos,
-  /// radiales, doble vía…) para que un punto importante aunque poco
-  /// recorrido también suba — y ordenado por la primera aparición geográfica.
-  static List<String> mainPlaces(List<RouteStop> stops, {int max = 10}) {
-    if (stops.isEmpty) return const [];
-    final frequency = <String, int>{};
-    final label = <String, String>{};
-    final firstSeen = <String, int>{};
-    for (final stop in stops) {
-      for (final raw in stop.name.split(' esquina ')) {
-        // El feed canta la misma vía de dos maneras («RN7: X - Y» con y sin
-        // espacios alrededor del guion): normalizar ANTES de contar.
-        final street = raw.replaceAll(RegExp(r'\s+[-–]\s+'), '-').trim();
-        if (street.isEmpty) continue;
-        frequency[street] = (frequency[street] ?? 0) + 1;
-        label[street] ??= street;
-        firstSeen[street] ??= stop.sequence;
-      }
-    }
-    // La puntuación es la frecuencia, pero un hito conocido vale doble:
-    // «Terminal Bimodal» puede pasar 2 veces y sigue siendo EL lugar.
-    double score(String street) {
-      final base = frequency[street]!.toDouble();
-      final hit = _landmarks.any(
-        (t) =>
-            street.toLowerCase().contains(t) ||
-            street.toLowerCase().startsWith(t),
-      );
-      return hit ? base * 2 : base;
-    }
-
-    final picked = frequency.keys.toList()
-      ..sort((a, b) {
-        final byScore = score(b).compareTo(score(a));
-        if (byScore != 0) return byScore;
-        return firstSeen[a]!.compareTo(firstSeen[b]!);
-      });
-    return picked.take(max).map((s) => label[s]!).toList()
-      ..sort((a, b) => firstSeen[a]!.compareTo(firstSeen[b]!));
-  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -138,9 +81,9 @@ class RoutePlaces extends ConsumerWidget {
       ),
       onError: (error) => const SizedBox.shrink(),
       data: (items) {
-        final places = mainPlaces(items);
-        final originStreet = _street(items.first.name);
-        final endStreet = _street(items.last.name);
+        final places = routeMainPlaces(items);
+        final originStreet = stopStreet(items.first.name);
+        final endStreet = stopStreet(items.last.name);
 
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -252,12 +195,6 @@ class RoutePlaces extends ConsumerWidget {
         );
       },
     );
-  }
-
-  /// El «esquina» saca el cruce: el lugar ES la vía principal.
-  static String _street(String name) {
-    final base = name.split(' esquina ').first.trim();
-    return base.isEmpty ? name : base;
   }
 }
 

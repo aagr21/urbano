@@ -9,11 +9,6 @@ import '../../../core/theme/app_theme.dart';
 import '../../../core/widgets/urbano_map.dart' show MapsPin;
 import '../domain/route_arrows.dart';
 
-/// La clave de un recorrido activo nació aquí; hoy vive con el resto de las
-/// funciones puras del catálogo de micros (`application/micros_catalog.dart`)
-/// y se reexporta para no cambiar los imports de quien la usa.
-export '../application/micros_catalog.dart' show microDirectionKey;
-
 /// Capa de INSIGNIAS del mapa — el pequeño módulo compartido entre los dos
 /// consumidores de capas: la planificación del viaje ([JourneyResultMap]) y
 /// el panel de micros (el controller clava estos marcadores). Vive APARTE de

@@ -11,6 +11,7 @@ import 'package:urbano/src/features/journey/presentation/journey_providers.dart'
 
 import 'helpers/fake_location_service.dart';
 import 'helpers/journey_fixtures.dart';
+import 'helpers/plan_trip.dart';
 
 /// Encuadre del viaje tras planificar: los puntos marcados deben quedar en
 /// el MAPA VISIBLE, no tapados por la hoja de resultados.
@@ -21,7 +22,7 @@ import 'helpers/journey_fixtures.dart';
 /// se proyectaba DETRÁS de la hoja (medido: y≈523 vs hoja en y≈431): el
 /// usuario veía el punto marcado tapado por la hoja de resultados.
 void main() {
-  Future<void> pumpApp(WidgetTester tester) async {
+  Future<ProviderContainer> pumpApp(WidgetTester tester) async {
     tester.view.physicalSize = const Size(1080, 2340);
     tester.view.devicePixelRatio = 2.75;
     addTearDown(tester.view.reset);
@@ -52,41 +53,23 @@ void main() {
     );
     router.go('/journey');
     await tester.pumpAndSettle();
+    return container;
   }
 
   testWidgets(
     'tras planificar, origen y destino proyectados quedan ARRIBA de la '
     'hoja de resultados (regresión: el destino quedaba tapado)',
     (tester) async {
-      await pumpApp(tester);
+      final container = await pumpApp(tester);
 
-      await tester.tap(find.byKey(const ValueKey('planner-trigger')));
-      await tester.pumpAndSettle();
-
-      // Origen marcado al norte con el selector del mapa.
-      await tester.tap(find.byTooltip('Elegir en el mapa').at(0));
-      await tester.pumpAndSettle();
       const origin = LatLng(-17.7600, -63.1821);
-      tester
-          .state<FakeMapEngineState>(find.byType(FakeMapEngine))
-          .moveCamera(origin, 15);
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Usar este punto'));
-      await tester.pumpAndSettle();
-
-      // Destino marcado al sur (viaje largo de ~5 km).
-      await tester.tap(find.byTooltip('Elegir en el mapa').at(1));
-      await tester.pumpAndSettle();
       const destination = LatLng(-17.8000, -63.1500);
-      tester
-          .state<FakeMapEngineState>(find.byType(FakeMapEngine))
-          .moveCamera(destination, 15);
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Usar este punto'));
-      await tester.pumpAndSettle();
-
-      await tester.tap(find.text('Viajar'));
-      await tester.pumpAndSettle();
+      await planTripFromHome(
+        tester,
+        container,
+        origin: origin,
+        destination: destination,
+      );
 
       final engine = tester.state<FakeMapEngineState>(
         find.byType(FakeMapEngine),

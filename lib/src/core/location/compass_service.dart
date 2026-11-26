@@ -116,5 +116,3 @@ final deviceHeadingProvider = StreamProvider.autoDispose<double>((ref) {
   final service = ref.watch(compassServiceProvider);
   return service.headingStream();
 });
-
-double headingRadians(double degrees) => degrees * math.pi / 180;

@@ -7,10 +7,11 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/utils/extensions.dart';
 import '../../../../core/widgets/urbano_map.dart';
+import '../../application/journey_map_geometry.dart';
+import '../../application/leg_stroke_colors.dart';
 import '../../data/journey_models.dart';
 import '../../data/journey_repository.dart';
-import '../journey_markers.dart';
-import './journey_option_card.dart';
+import 'journey_map_layers.dart';
 
 // La flecha de sentido vive en el módulo compartido de marcadores; se
 // reexporta para que quien la importaba desde aquí no cambie.
@@ -126,7 +127,6 @@ class JourneyResultMapState extends State<JourneyResultMap> {
   bool _ready = false;
 
   /// Ancho del pin de extremo (origen/destino).
-  static const _endpointPinSize = 40.0;
 
   /// Puntos soltados a mano (anulados cuando la pantalla cambia el punto).
   LatLng? _originOverride;
@@ -268,7 +268,11 @@ class JourneyResultMapState extends State<JourneyResultMap> {
   /// Encuadra el viaje completo (botón "fit" y cambio de opción).
   void _fitToOption() {
     if (!widget.showJourneyLayers) return;
-    final points = _allPoints(widget.option, _originPoint, _destinationPoint);
+    final points = JourneyMapGeometry.fitPoints(
+      widget.option,
+      _originPoint,
+      _destinationPoint,
+    );
     if (points.length < 2) return;
     _controller.fitBounds(points, padding: widget.fitPadding, maxZoom: 16);
   }
@@ -280,7 +284,7 @@ class JourneyResultMapState extends State<JourneyResultMap> {
     final destination = _destinationPoint;
     final showJourney = widget.showJourneyLayers;
     final points = showJourney
-        ? _allPoints(option, origin, destination)
+        ? JourneyMapGeometry.fitPoints(option, origin, destination)
         : const <LatLng>[];
 
     return Stack(
@@ -307,18 +311,22 @@ class JourneyResultMapState extends State<JourneyResultMap> {
           followMyLocation: widget.followMyLocation,
           onTrackingDismissed: widget.onTrackingDismissed,
           polylines: [
-            if (showJourney) ..._buildPolylines(option, origin, destination),
+            if (showJourney)
+              ...JourneyMapLayers.polylines(option, origin, destination),
             ...widget.extraPolylines,
           ],
           pulses: widget.extraPulses,
           markers: [
-            ..._endpointMarkers(origin, destination),
-            if (showJourney) ..._journeyMarkers(option),
-            if (showJourney)
-              ..._buildRouteArrows(
-                option,
-                JourneyOptionCard.alternativeRouteColorsForLegs(option.legs),
-              ),
+            ...JourneyMapLayers.endpoints(
+              origin: origin,
+              destination: destination,
+              showOrigin: widget.showOrigin,
+              showDestination: widget.showDestination,
+              onOriginTap: widget.onOriginTap,
+              onDestinationTap: widget.onDestinationTap,
+            ),
+            if (showJourney) ...JourneyMapLayers.routeBadges(option),
+            if (showJourney) ...JourneyMapLayers.routeArrows(option),
             ...widget.extraMarkers,
           ],
         ),
@@ -337,400 +345,4 @@ class JourneyResultMapState extends State<JourneyResultMap> {
       ],
     );
   }
-
-  static List<LatLng> _allPoints(
-    JourneyOption option,
-    LatLng origin,
-    LatLng destination,
-  ) {
-    final points = <LatLng>[origin, destination];
-    void add(LatLng? point) {
-      if (point != null) points.add(point);
-    }
-
-    add(option.walkToStop?.position);
-    add(option.walkFromStop?.position);
-    for (final stop in option.stopRefs) {
-      add(stop.position);
-    }
-    for (final leg in option.legs) {
-      final path = leg.mapPoints;
-      if (path != null) points.addAll(path);
-    }
-    return points;
-  }
-
-  static List<MapPolyline> _buildPolylines(
-    JourneyOption option,
-    LatLng origin,
-    LatLng destination,
-  ) {
-    final polylines = <MapPolyline>[];
-
-    // Cada tramo de micro con un color distinto de los demás y del gris de la
-    // caminata (`alternativeRouteColorsForLegs`): dos líneas del mismo color
-    // —o de colores muy parecidos— ya no se confunden en un transbordo.
-    final legAltColors = JourneyOptionCard.alternativeRouteColorsForLegs(
-      option.legs,
-    );
-
-    // Tramos de caminata: geometría trazada por la red viaria (motor OTP)
-    // cuando existe; si no, línea recta entre extremos conocidos (fallback,
-    // y único modo cuando el backend usa el planner interno sin OTP). En
-    // ambos casos el extremo que toca el micro se pega a su trazado
-    // (`_joinWalkToBus`).
-    const walkColor = JourneyOptionCard.walkStrokeColor;
-    final walkLegs = option.walkLegs;
-    if (walkLegs.isEmpty) {
-      // Compatibilidad: opciones sin tramos de caminata explícitos.
-      final walkTo = option.walkToStop?.position;
-      if (walkTo != null) {
-        polylines.add(
-          MapPolyline(
-            points: _joinWalkToBus([origin, walkTo], option.legs, -1),
-            width: 4,
-            color: walkColor,
-            dashed: true,
-          ),
-        );
-      }
-      final walkFrom = option.walkFromStop?.position;
-      if (walkFrom != null) {
-        polylines.add(
-          MapPolyline(
-            points: _joinWalkToBus(
-              [walkFrom, destination],
-              option.legs,
-              option.legs.length,
-            ),
-            width: 4,
-            color: walkColor,
-            dashed: true,
-          ),
-        );
-      }
-    } else {
-      final legs = option.legs;
-      for (var i = 0; i < legs.length; i++) {
-        final leg = legs[i];
-        if (!leg.isWalk) continue;
-        final geometry = leg.geometry;
-        final base = (geometry != null && geometry.length >= 2)
-            ? geometry
-            : _straightWalkSegment(option, legs, i, origin, destination);
-        if (base == null || base.length < 2) continue;
-        polylines.add(
-          MapPolyline(
-            points: _joinWalkToBus(base, legs, i),
-            width: 4,
-            color: walkColor,
-            dashed: true,
-          ),
-        );
-      }
-    }
-
-    // Transbordo sin tramo a pie entre dos micros: el trazado del primero
-    // acaba en SU calzada y el del segundo empieza en la suya (cada `shape` se
-    // recorta proyectando la parada sobre su propia línea), así que entre
-    // ambos quedaba un hueco sin dibujar. Se pinta como caminata: es lo que
-    // hace el pasajero para cambiar de micro.
-    for (final connector in transferConnectors(option.legs)) {
-      polylines.add(
-        MapPolyline(
-          points: connector,
-          width: 4,
-          color: walkColor,
-          dashed: true,
-        ),
-      );
-    }
-
-    // Tramos de micro: `mapPoints` ya los entrega en el sentido del propio
-    // tramo (fromStop → toStop). No se comparan con el origen/destino del
-    // usuario: el segundo micro de un transbordo está más cerca del destino y
-    // aun así debe dibujarse hacia delante.
-    for (final leg in option.busLegs) {
-      final path = leg.mapPoints;
-      if (path == null || path.isEmpty) continue;
-      final legIndex = option.legs.indexOf(leg);
-      polylines.add(
-        MapPolyline(
-          points: path,
-          width: 6,
-          color: busLegStrokeColor(legAltColors[legIndex] ?? leg.routeColor),
-          outline: true,
-        ),
-      );
-    }
-    return polylines;
-  }
-
-  /// Distancia (m) por debajo de la cual el fin de un micro y el inicio del
-  /// siguiente se consideran el mismo punto (no hay hueco que dibujar).
-  static const double _transferGapMinMeters = 1;
-
-  /// Caminatas implícitas de los transbordos: para cada par de micros
-  /// CONSECUTIVOS sin un tramo a pie explícito entre ellos, la línea
-  /// fin-del-primero → parada de transbordo → inicio-del-segundo. Si ya hay
-  /// una caminata entre ambos, la dibuja ella y aquí no se añade nada.
-  @visibleForTesting
-  static List<List<LatLng>> transferConnectors(List<JourneyLeg> legs) {
-    const distance = Distance();
-    final connectors = <List<LatLng>>[];
-    JourneyLeg? prevBus;
-    for (final leg in legs) {
-      if (leg.isWalk) {
-        prevBus = null;
-        continue;
-      }
-      if (!leg.isBus) continue;
-      final previous = prevBus;
-      prevBus = leg;
-      if (previous == null) continue;
-
-      final end = previous.mapPoints?.last ?? previous.toStop?.position;
-      final start = leg.mapPoints?.first ?? leg.fromStop?.position;
-      if (end == null || start == null) continue;
-      final stop = previous.toStop?.position ?? leg.fromStop?.position;
-      final points = <LatLng>[end];
-      if (stop != null &&
-          distance(stop, end) >= _transferGapMinMeters &&
-          distance(stop, start) >= _transferGapMinMeters) {
-        points.add(stop);
-      }
-      points.add(start);
-      if (points.length == 2 && distance(end, start) < _transferGapMinMeters) {
-        continue;
-      }
-      connectors.add(points);
-    }
-    return connectors;
-  }
-
-  /// Separación máxima (m) entre el extremo de una caminata y el trazado del
-  /// micro para coserlos. Más allá, el hueco es real y no se inventa un salto.
-  static const double _walkJoinMaxMeters = 60;
-
-  /// Estira la caminata hasta el trazado del micro vecino.
-  ///
-  /// El `shape` de GTFS circula por el eje de la calzada y la parada está en
-  /// la acera: en una avenida de doble calzada quedan 10-20 m entre el final
-  /// de la caminata y el dibujo del micro, y se lee como "me hace cruzar la
-  /// avenida" o "la caminata no llega hasta donde pasa el micro". El trazado
-  /// del micro **no se mueve** (es la verdad de por dónde pasa); lo que se
-  /// estira es la caminata: su último punto pasa a ser el primero del micro
-  /// siguiente y el primero, el último del micro anterior.
-  ///
-  /// [index] es la posición de la caminata en [legs]; `-1` y `legs.length`
-  /// sirven para las caminatas de compatibilidad (sin tramo explícito).
-  static List<LatLng> _joinWalkToBus(
-    List<LatLng> points,
-    List<JourneyLeg> legs,
-    int index,
-  ) {
-    if (points.length < 2) return points;
-    final joined = List<LatLng>.of(points);
-    const distance = Distance();
-
-    for (var j = index + 1; j < legs.length; j++) {
-      if (!legs[j].isBus) continue;
-      final start = legs[j].mapPoints?.first;
-      if (start != null && distance(joined.last, start) <= _walkJoinMaxMeters) {
-        joined[joined.length - 1] = start;
-      }
-      break;
-    }
-    for (var j = index - 1; j >= 0; j--) {
-      if (!legs[j].isBus) continue;
-      final end = legs[j].mapPoints?.last;
-      if (end != null && distance(joined.first, end) <= _walkJoinMaxMeters) {
-        joined[0] = end;
-      }
-      break;
-    }
-    return joined;
-  }
-
-  /// Extremos de una caminata sin geometría:
-  /// - acceso (antes del primer micro): pin origen → parada de subida.
-  /// - egreso (después del último micro): parada de bajada → pin destino.
-  /// - transferencia a pie: parada de bajada del micro anterior → subida del
-  ///   siguiente (si ambos la reportan).
-  static List<LatLng>? _straightWalkSegment(
-    JourneyOption option,
-    List<JourneyLeg> legs,
-    int index,
-    LatLng origin,
-    LatLng destination,
-  ) {
-    final leg = legs[index];
-    JourneyLeg? prevBus;
-    for (var j = index - 1; j >= 0; j--) {
-      if (legs[j].isBus) {
-        prevBus = legs[j];
-        break;
-      }
-    }
-    JourneyLeg? nextBus;
-    for (var j = index + 1; j < legs.length; j++) {
-      if (legs[j].isBus) {
-        nextBus = legs[j];
-        break;
-      }
-    }
-
-    final LatLng? start;
-    final LatLng? end;
-    if (prevBus == null) {
-      // Access: pin de origen → parada de embarque.
-      start = origin;
-      end =
-          nextBus?.fromStop?.position ??
-          option.walkToStop?.position ??
-          leg.toStop?.position;
-    } else if (nextBus == null) {
-      // Egreso: parada de bajada → pin de destino.
-      start =
-          prevBus.toStop?.position ??
-          option.walkFromStop?.position ??
-          leg.fromStop?.position;
-      end = destination;
-    } else {
-      // Transferencia a pie entre paradas de micro. Sin coordenadas de las
-      // paradas se usan los extremos de los trazados: el transbordo nunca se
-      // queda como un hueco vacío entre los dos micros.
-      start =
-          prevBus.toStop?.position ??
-          leg.fromStop?.position ??
-          prevBus.mapPoints?.last;
-      end =
-          nextBus.fromStop?.position ??
-          leg.toStop?.position ??
-          nextBus.mapPoints?.first;
-    }
-    if (start == null || end == null) return null;
-    return [start, end];
-  }
-
-  /// Pines de origen/destino (fijos y tocables). Se pintan aunque no
-  /// haya resultados de viaje: si el usuario ya fijó un extremo, debe verse
-  /// reflejado en el mapa.
-  List<MapMarker> _endpointMarkers(LatLng origin, LatLng destination) => [
-    if (widget.showOrigin)
-      MapMarker(
-        id: 'journey-map-origin',
-        point: origin,
-        width: EndpointMarker.widthFor(_endpointPinSize),
-        height: EndpointMarker.heightFor(_endpointPinSize),
-        anchor: MapMarkerAnchor.bottom,
-        onTap: widget.onOriginTap,
-        child: EndpointMarker(
-          key: const ValueKey('journey-map-origin'),
-          color: AppColors.success,
-          onTap: widget.onOriginTap,
-        ),
-      ),
-    if (widget.showDestination)
-      MapMarker(
-        id: 'journey-map-destination',
-        point: destination,
-        width: EndpointMarker.widthFor(_endpointPinSize),
-        height: EndpointMarker.heightFor(_endpointPinSize),
-        anchor: MapMarkerAnchor.bottom,
-        onTap: widget.onDestinationTap,
-        child: EndpointMarker(
-          key: const ValueKey('journey-map-destination'),
-          color: AppColors.danger,
-          onTap: widget.onDestinationTap,
-        ),
-      ),
-  ];
-
-  /// Insignias de ruta del viaje (una por micro sobre el punto medio de su
-  /// tramo): solo cuando hay resultados que mostrar.
-  List<MapMarker> _journeyMarkers(JourneyOption option) {
-    final busLegs = option.busLegs;
-    final markers = <MapMarker>[];
-
-    // Colores alternativos para distinguir líneas con el mismo color GTFS
-    // cuando hay transbordo entre ellas (insignias en el mapa).
-    final legAltColors = JourneyOptionCard.alternativeRouteColorsForLegs(
-      option.legs,
-    );
-
-    // Insignia de cada micro sobre el punto medio de su tramo: dice qué
-    // ruta es con el color de su propia línea (identidad = shortName).
-    for (var i = 0; i < busLegs.length; i++) {
-      final leg = busLegs[i];
-      final path = leg.mapPoints;
-      final name = leg.routeShortName;
-      if (path == null || path.isEmpty || name == null || name.isEmpty) {
-        continue;
-      }
-      final legIndex = option.legs.indexOf(leg);
-      final colorHex = legAltColors[legIndex] ?? leg.routeColor;
-      final color = AppColors.fromHex(colorHex);
-      final label = name.trim();
-      markers.add(
-        MapMarker(
-          id: 'journey-map-route-$i',
-          point: routePathMidpoint(path),
-          // La insignia debe medir distinto por ruta para no compartir
-          // caché con un badge de otro color/texto.
-          width: routeBadgeWidth(label),
-          height: routeBadgeHeight,
-          iconKey: 'route-badge-${leg.routeId ?? label}-$label-$colorHex',
-          child: MapRouteBadge(
-            key: ValueKey('journey-map-route-$i'),
-            label: label,
-            color: color,
-          ),
-        ),
-      );
-    }
-    return markers;
-  }
-
-  /// Flechas de sentido a lo largo de cada tramo de micro (una cada 200 m,
-  /// el espaciado por defecto de [routeArrowMarkers]). La geometría (reparto y rumbo) es pura y vive en
-  /// `domain/route_arrows.dart`; aquí solo se pinta, en el color de la línea
-  /// (o el alternativo del transbordo) para que se lea sobre ella.
-  static List<MapMarker> _buildRouteArrows(
-    JourneyOption option,
-    Map<int, String> legAltColors,
-  ) {
-    final markers = <MapMarker>[];
-    for (final leg in option.busLegs) {
-      final path = leg.mapPoints;
-      if (path == null || path.length < 2) continue;
-      final legIndex = option.legs.indexOf(leg);
-      // MISMO color que el trazo del tramo: la flecha es parte de la línea.
-      final color = busLegStrokeColor(legAltColors[legIndex] ?? leg.routeColor);
-      markers.addAll(
-        routeArrowMarkers(
-          idPrefix: 'journey-map-arrow-$legIndex',
-          path: path,
-          color: color,
-        ),
-      );
-    }
-    return markers;
-  }
-
-  /// Color del trazo de un tramo de micro (GTFS o alternativo). Lo usan la
-  /// polilínea y sus flechas de sentido: una sola fuente para que nunca
-  /// diverjan.
-  ///
-  /// OPACO a propósito: el motor nativo descarta el alfa del color de una
-  /// línea (`_hex`), así que un trazo «al 92 %» se pintaba opaco mientras la
-  /// flecha rasterizada sí quedaba translúcida, y su punta se veía de otro
-  /// tono donde sobresale del trazo.
-  @visibleForTesting
-  static Color busLegStrokeColor(String? hex) => AppColors.fromHex(hex);
-
-  /// Clave de la imagen de una flecha: depende SOLO de su color (todas las
-  /// flechas del mismo trazo comparten una imagen nativa).
-  @visibleForTesting
-  static String arrowIconKey(Color color) => routeArrowIconKey(color);
 }

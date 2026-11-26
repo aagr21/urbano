@@ -19,14 +19,6 @@ abstract class RouteRepository {
 
   /// Paradas EN ORDEN del recorrido (`directionId` 0 = ida, 1 = vuelta).
   Future<List<RouteStop>> stops(String id, {int directionId = 0});
-
-  Future<List<Departure>> departures(
-    String id, {
-    String? stopId,
-    int? directionId,
-    String? time,
-    String? date,
-  });
 }
 
 class RemoteRouteRepository implements RouteRepository {
@@ -99,24 +91,6 @@ class RemoteRouteRepository implements RouteRepository {
           return stops;
         });
   }
-
-  @override
-  Future<List<Departure>> departures(
-    String id, {
-    String? stopId,
-    int? directionId,
-    String? time,
-    String? date,
-  }) => _api.fetchList<Departure>(
-    Endpoints.routeDepartures(id),
-    query: compactQuery({
-      'stopId': stopId,
-      'directionId': directionId,
-      'time': time,
-      'date': date,
-    }),
-    fromJson: Departure.fromJson,
-  );
 }
 
 final routeRepositoryProvider = Provider<RouteRepository>(

@@ -1,6 +1,4 @@
-import 'package:latlong2/latlong.dart';
-
-import '../../../core/map/map.dart';
+import 'endpoint_distance.dart' as endpoint_rules;
 import 'journey_place.dart';
 
 /// Sentinel para "no toques este campo" en [JourneyPlannerState.copyWith]:
@@ -26,11 +24,6 @@ class JourneyPlannerState {
     this.replanPending = false,
     this.selectedOptionIndex = 0,
     this.expandedIndex,
-    this.routeLines = const {},
-    this.routeMarkers = const {},
-    this.visibleRouteKeys = const {},
-    this.placeMarkers = const [],
-    this.loadingRoutes = false,
   });
 
   /// Lugares que muestran los campos.
@@ -58,52 +51,21 @@ class JourneyPlannerState {
   /// Índice de opción expandida en la hoja de resultados, `null` = ninguna.
   final int? expandedIndex;
 
-  /// Polilíneas de exploración (micros del panel), por clave
-  /// `routeId#directionId`.
-  final Map<String, MapPolyline> routeLines;
-
-  /// Insignia (número/nombre del micro) colocada sobre el punto medio de cada
-  /// recorrido activado, igual que en la planificación del viaje.
-  final Map<String, MapMarker> routeMarkers;
-
-  /// Recorridos dibujados, por clave igual que arriba (ida y vuelta son capas
-  /// independientes).
-  final Set<String> visibleRouteKeys;
-
-  /// Marcadores del **modo lugares** del panel: el pin del punto consultado y
-  /// un punto por cada parada devuelta. Viven aquí (no en el `State` del panel,
-  /// que es una ruta encima) para que el mapa SIEMPRE montado del planeador los
-  /// dibuje mientras el cajón está abierto.
-  final List<MapMarker> placeMarkers;
-
-  /// `true` mientras una polilínea de micro se descarga.
-  final bool loadingRoutes;
-
   /// `true` cuando el panel de origen/destino tiene los dos extremos listos.
   bool get ready => origin != null && destination != null;
 
   /// Distancia en línea recta entre los dos puntos elegidos, o `null` si
-  /// aún falta alguno.
-  double? get endpointsDistanceM {
-    final src = origin.pointOrNull;
-    final dst = destination.pointOrNull;
-    if (src == null || dst == null) return null;
-    return const Distance().as(
-      LengthUnit.Meter,
-      LatLng(src.lat, src.lon),
-      LatLng(dst.lat, dst.lon),
-    );
-  }
+  /// aún falta alguno (regla compartida: `endpoint_distance.dart`).
+  double? get endpointsDistanceM =>
+      endpoint_rules.endpointsDistanceMeters(origin, destination);
 
   /// Origen y destino están (casi) en el mismo sitio: no hay viaje que
   /// planificar.
   bool get endpointsTooClose =>
-      (endpointsDistanceM ?? double.infinity) < minTransitDistanceM;
+      endpoint_rules.endpointsTooClose(origin, destination);
 
-  /// Distancia mínima (línea recta) entre origen y destino para planificar
-  /// en transporte: por debajo, caminar es más rápido. Coincide con el guard
-  /// del backend (`MIN_TRANSIT_DISTANCE_M` en journey.service.ts).
-  static const double minTransitDistanceM = 150.0;
+  /// Ver [endpoint_rules.minTransitDistanceM].
+  static const double minTransitDistanceM = endpoint_rules.minTransitDistanceM;
 
   /// Copia con cambios: cada mutación produce un objeto nuevo (el [Notifier]
   /// avisa por identidad, no por igualdad profunda).
@@ -121,11 +83,6 @@ class JourneyPlannerState {
     bool? replanPending,
     int? selectedOptionIndex,
     Object? expandedIndex = keepJourneyField,
-    Map<String, MapPolyline>? routeLines,
-    Map<String, MapMarker>? routeMarkers,
-    Set<String>? visibleRouteKeys,
-    List<MapMarker>? placeMarkers,
-    bool? loadingRoutes,
   }) {
     T? take<T>(Object? v, T? old) =>
         identical(v, keepJourneyField) ? old : v as T?;
@@ -139,11 +96,6 @@ class JourneyPlannerState {
       replanPending: replanPending ?? this.replanPending,
       selectedOptionIndex: selectedOptionIndex ?? this.selectedOptionIndex,
       expandedIndex: take(expandedIndex, this.expandedIndex),
-      routeLines: routeLines ?? this.routeLines,
-      routeMarkers: routeMarkers ?? this.routeMarkers,
-      visibleRouteKeys: visibleRouteKeys ?? this.visibleRouteKeys,
-      placeMarkers: placeMarkers ?? this.placeMarkers,
-      loadingRoutes: loadingRoutes ?? this.loadingRoutes,
     );
   }
 }

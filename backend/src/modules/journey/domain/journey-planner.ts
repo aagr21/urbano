@@ -6,6 +6,12 @@ import {
   TripSchedule,
   WalkLeg,
 } from './journey.model';
+import { straightLineMeters } from './geo';
+import {
+  compareJourneyOptions,
+  rankAndCut,
+  totalWalkMeters,
+} from './journey-ranking';
 import {
   JOURNEY_LIMITS,
   MIN_BOARDING_PAIR_DISTANCE_M,
@@ -25,6 +31,25 @@ export {
   WALK_SPEED_M_PER_MIN,
   TRANSFER_PENALTY_MINUTES,
 };
+
+/**
+ * Re-export: geodesia, geometría y ranking viven en sus propios módulos; se
+ * siguen ofreciendo desde aquí para no romper a quien los importaba.
+ */
+export { isLonLat, straightLineMeters } from './geo';
+export {
+  STOP_SNAP_MAX_METERS,
+  connectWalkAndBusGeometry,
+  orientBusLegGeometry,
+} from './journey-geometry';
+export {
+  busLegRideMeters,
+  compareJourneyOptions,
+  dropShortFirstRideTransfers,
+  journeyCost,
+  rankAndCut,
+  totalWalkMeters,
+} from './journey-ranking';
 
 /**
  * Planeador de viaje — lógica PURA (sin I/O, testeable con Jest).
@@ -50,22 +75,6 @@ export {
  * La búsqueda usa índices parada→trips para que el costo sea lineal en
  * viajes candidatos, no en el producto de ambos conjuntos.
  */
-
-/** Distancia en línea recta entre dos puntos (haversine), en metros. */
-export function straightLineMeters(
-  a: { lat: number; lon: number },
-  b: { lat: number; lon: number }
-): number {
-  const toRad = (deg: number) => (deg * Math.PI) / 180;
-  const dLat = toRad(b.lat - a.lat);
-  const dLon = toRad(b.lon - a.lon);
-  const lat1 = toRad(a.lat);
-  const lat2 = toRad(b.lat);
-  const h =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) ** 2;
-  return 2 * 6371000 * Math.asin(Math.min(1, Math.sqrt(h)));
-}
 
 export function walkDurationMinutes(distanceMeters: number): number {
   if (distanceMeters <= 0) return 0;
@@ -170,149 +179,6 @@ function minutesBetween(fromSec: number, toSec: number): number {
   return Math.round((toSec - fromSec) / 60);
 }
 
-/**
- * Margen (m) para no invertir geometrías simétricas (rutas circulares o
- * paradas de subida/bajada muy próximas).
- */
-const GEOMETRY_ORIENTATION_MARGIN_M = 1;
-
-/**
- * Garantiza que la geometría de cada tramo de micro siga el sentido REAL del
- * viaje: de `fromStop` (subida) a `toStop` (bajada).
- *
- * La comprobación es LOCAL al tramo (nunca contra el origen/destino del
- * usuario): un recorrido puede girar 90° o ir en contra del rumbo general y
- * seguir siendo correcto. Solo se invierte la lista de coordenadas si el
- * primer punto está claramente más cerca de la bajada que de la subida; las
- * paradas, los horarios y los ids NO se tocan.
- */
-export function orientBusLegGeometry(
-  options: JourneyOption[]
-): JourneyOption[] {
-  for (const option of options) {
-    for (const leg of option.legs) {
-      if (leg.kind !== 'bus') continue;
-      const coordinates = leg.geometry?.coordinates;
-      if (!coordinates || coordinates.length < 2) continue;
-      const from = leg.fromStop;
-      const to = leg.toStop;
-      if (!from || !to) continue;
-
-      const first = coordinates[0];
-      const last = coordinates[coordinates.length - 1];
-      if (!isLonLat(first) || !isLonLat(last)) continue;
-
-      const forward =
-        straightLineMeters({ lat: first[1], lon: first[0] }, from) +
-        straightLineMeters({ lat: last[1], lon: last[0] }, to);
-      const backward =
-        straightLineMeters({ lat: first[1], lon: first[0] }, to) +
-        straightLineMeters({ lat: last[1], lon: last[0] }, from);
-
-      if (backward + GEOMETRY_ORIENTATION_MARGIN_M < forward) {
-        leg.geometry = {
-          type: 'LineString',
-          coordinates: [...coordinates].reverse(),
-        };
-      }
-    }
-  }
-  return options;
-}
-
-function isLonLat(value: number[] | undefined): value is [number, number] {
-  return (
-    !!value &&
-    value.length >= 2 &&
-    Number.isFinite(value[0]) &&
-    Number.isFinite(value[1])
-  );
-}
-
-/**
- * Distancia máxima (m) entre una parada y el trazado del micro para coserlos.
- * En una avenida de doble calzada el `shape` corre por el eje del carril y la
- * parada está en la acera, así que el desfase real ronda 10-25 m.
- */
-export const STOP_SNAP_MAX_METERS = 60;
-
-/**
- * Cierra el hueco entre la caminata y el micro en el mapa.
- *
- * El `shape` de GTFS circula por el eje de la calzada y la parada está en la
- * acera: en avenidas de doble calzada el `shape` pasa 10-20 m al otro lado de
- * la parada, así que la caminata terminaba en la acera y el micro se dibujaba
- * en la calzada de enfrente. En pantalla se lee como "me hace cruzar para
- * tomar el micro" o "la caminata no llega hasta donde pasa el micro".
- *
- * El `shape` es la verdad de por dónde pasa el micro (ya viene reparado por
- * calzada en el feed), así que **no se mueve**: lo que se estira es la
- * caminata, que termina (o empieza) exactamente en el primer/último punto del
- * trazado del micro vecino. Las paradas, horarios e ids no se tocan.
- *
- * Solo se cose cuando el extremo de la caminata está a menos de
- * [STOP_SNAP_MAX_METERS] del trazado: si el micro pasa lejos, el hueco es real
- * y no se inventa un salto.
- */
-export function connectWalkAndBusGeometry(
-  options: JourneyOption[]
-): JourneyOption[] {
-  for (const option of options) {
-    for (let i = 0; i < option.legs.length; i++) {
-      const leg = option.legs[i];
-      if (leg.kind !== 'walk') continue;
-      const coordinates = leg.geometry?.coordinates;
-      if (!coordinates || coordinates.length === 0) continue;
-
-      const after = option.legs[i + 1];
-      const before = option.legs[i - 1];
-      const afterStart =
-        after?.kind === 'bus' ? after.geometry?.coordinates[0] : undefined;
-      const beforeCoords =
-        before?.kind === 'bus' ? before.geometry?.coordinates : undefined;
-      const beforeEnd =
-        beforeCoords && beforeCoords.length > 0
-          ? beforeCoords[beforeCoords.length - 1]
-          : undefined;
-      if (!isLonLat(afterStart) && !isLonLat(beforeEnd)) continue;
-
-      const next = coordinates.map((point) => [point[0], point[1]]);
-      const lastIndex = next.length - 1;
-      const end = next[lastIndex];
-      const start = next[0];
-
-      if (
-        isLonLat(afterStart) &&
-        isLonLat(end) &&
-        straightLineMeters(
-          { lat: end[1], lon: end[0] },
-          {
-            lat: afterStart[1],
-            lon: afterStart[0],
-          }
-        ) <= STOP_SNAP_MAX_METERS
-      ) {
-        next[lastIndex] = [afterStart[0], afterStart[1]];
-      }
-      if (
-        isLonLat(beforeEnd) &&
-        isLonLat(start) &&
-        straightLineMeters(
-          { lat: start[1], lon: start[0] },
-          {
-            lat: beforeEnd[1],
-            lon: beforeEnd[0],
-          }
-        ) <= STOP_SNAP_MAX_METERS
-      ) {
-        next[0] = [beforeEnd[0], beforeEnd[1]];
-      }
-      leg.geometry = { type: 'LineString', coordinates: next };
-    }
-  }
-  return options;
-}
-
 function walkLeg(distanceMeters: number): WalkLeg {
   return {
     kind: 'walk',
@@ -350,57 +216,6 @@ function stopRef(stop: CandidateStop): JourneyOption['walkToStop'] {
     name: stop.name,
     distanceMeters: Math.round(stop.distanceMeters),
   };
-}
-
-/**
- * Penalización por transbordo (en minutos de costo generalizado).
- * El VALOR vive en journey-limits (contrato de `GET /meta`); el razonamiento
- * de negocio: en Santa Cruz el transbordo duplica el costo del pasaje
- * (Bs 2.00-2.50 extra) y añade tiempo de espera incierto en la calle, por
- * tanto los directos se prefieren salvo que el transbordo ahorre sustancial.
- */
-
-/**
- * Costo generalizado de una opción, en minutos: duración + penalización de
- * transbordo. La POLÍTICA de orden de resultados vive aquí, en domain — la
- * usan el planner interno y el servicio que recibe opciones de OTP, de modo
- * que ambos motores rankean con la MISMA regla (antes la copiaba el adapter
- * OTP y cualquier cambio de scoring tocaba dos lugares).
- */
-export function journeyCost(option: JourneyOption): number {
-  return (
-    option.durationMinutes +
-    (option.type === 'transfer' ? TRANSFER_PENALTY_MINUTES : 0)
-  );
-}
-
-/** Ordena por costo generalizado; empates y desempates determinísticos. */
-export function compareJourneyOptions(
-  a: JourneyOption,
-  b: JourneyOption
-): number {
-  const costA = journeyCost(a);
-  const costB = journeyCost(b);
-  if (costA !== costB) return costA - costB;
-  if (a.durationMinutes !== b.durationMinutes) {
-    return a.durationMinutes - b.durationMinutes;
-  }
-  if (a.departAt !== b.departAt) return a.departAt < b.departAt ? -1 : 1;
-  // Preferir directo en empate
-  if (a.type !== b.type) return a.type === 'direct' ? -1 : 1;
-  return 0;
-}
-
-/**
- * Ordena por la política común ([compareJourneyOptions]) y recorta a
- * [maxResults]: la llamada de top de resultados también es política, no un
- * detalle del adapter.
- */
-export function rankAndCut(
-  options: JourneyOption[],
-  maxResults: number
-): JourneyOption[] {
-  return [...options].sort(compareJourneyOptions).slice(0, maxResults);
 }
 
 /** Planea viajes directos y con 1 transbordo, ordenados por duración y costo generalizado. */
@@ -625,14 +440,6 @@ function keepBest(
   }
 }
 
-/** Metros totales a pie de una opción (acceso + transbordos + egreso). */
-export function totalWalkMeters(option: JourneyOption): number {
-  return option.legs.reduce(
-    (acc, leg) => acc + (leg.kind === 'walk' ? leg.distanceMeters : 0),
-    0
-  );
-}
-
 /**
  * Entre dos variantes del MISMO micro (o par de micros): menor duración
  * puerta a puerta; a igualdad, menos caminata; después, la que llega antes.
@@ -645,50 +452,4 @@ function isBetterVariant(a: JourneyOption, b: JourneyOption): boolean {
   const walkB = totalWalkMeters(b);
   if (walkA !== walkB) return walkA < walkB;
   return a.arriveAt < b.arriveAt;
-}
-
-/**
- * Metros que recorre un tramo de micro YA enriquecido: largo de su
- * `geometry` (shape recortado / polyline de OTP) o, sin ella, la recta entre
- * sus paradas. `null` si no hay con qué medir.
- */
-export function busLegRideMeters(leg: BusLeg): number | null {
-  const coords = leg.geometry?.coordinates;
-  if (coords && coords.length >= 2) {
-    let total = 0;
-    for (let i = 1; i < coords.length; i++) {
-      const p = coords[i - 1];
-      const q = coords[i];
-      if (!isLonLat(p) || !isLonLat(q)) continue;
-      total += straightLineMeters(
-        { lat: p[1], lon: p[0] },
-        { lat: q[1], lon: q[0] }
-      );
-    }
-    return total;
-  }
-  if (leg.fromStop && leg.toStop) {
-    return straightLineMeters(leg.fromStop, leg.toStop);
-  }
-  return null;
-}
-
-/**
- * Descarta las opciones con transbordo cuyo PRIMER micro recorre menos de
- * [MIN_FIRST_RIDE_TRANSFER_M]. Es la regla para cualquier motor (OTP y el
- * planner interno, que además ya la aplica durante la búsqueda para no gastar
- * cupos de resultado en ellas). Si el tramo no se puede medir, se conserva.
- */
-export function dropShortFirstRideTransfers(
-  options: JourneyOption[]
-): JourneyOption[] {
-  return options.filter((option) => {
-    if (option.type !== 'transfer') return true;
-    const firstBus = option.legs.find(
-      (leg): leg is BusLeg => leg.kind === 'bus'
-    );
-    if (!firstBus) return true;
-    const ride = busLegRideMeters(firstBus);
-    return ride === null || ride >= MIN_FIRST_RIDE_TRANSFER_M;
-  });
 }

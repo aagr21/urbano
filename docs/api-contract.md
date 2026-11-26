@@ -146,9 +146,10 @@ Colores hex **sin** `#` (ej: `D35400`), tal como vienen en GTFS.
 ### Stops
 
 > **Nota (app móvil):** la app Flutter no consume `/stops/:id`; SÍ consume
-> `/routes/:id/stops` («Pasa por», detalle) y ahora `/stops/search` y
-> `/stops/nearby`: el modo **Lugares** del panel de micros
-> («¿qué línea pasa por aquí?» + cercanía por GPS).
+> `/routes/:id/stops` («Pasa por», detalle), `/stops/search` (buscar un lugar
+> en la hoja de Lugares) y `/stops/nearby` (la vista «Micros cerca», `/nearby`).
+> Tampoco consume `/routes/:id/departures`, `/trips/:id`, `/meta` ni `/stats`:
+> existen para herramientas y para el smoke de producción.
 
 - `GET /stops/nearby?lat=&lon=&radius=400&limit=10`
     - `radius` en metros, máx 2000. Orden por distancia. Incluye rutas que sirven la parada:
@@ -266,7 +267,7 @@ Colores hex **sin** `#` (ej: `D35400`), tal como vienen en GTFS.
 - **INVARIANTE — sentido de la geometría (fuente única de verdad)**: para
   todo tramo de micro, `geometry` empieza en `fromStop` (subida) y termina en
   `toStop` (bajada), es decir, en el sentido de marcha REAL del viaje. El
-  backend lo garantiza con `orientBusLegGeometry` (`domain/journey-planner.ts`)
+  backend lo garantiza con `orientBusLegGeometry` (`domain/journey-geometry.ts`)
   para **ambos** motores (OTP2 y planner PostGIS), invirtiendo solo las
   coordenadas cuando hace falta (margen 1 m); paradas, horarios e ids no se
   tocan. **El cliente NO reorienta: confía en este contrato y solo dibuja.**

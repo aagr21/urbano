@@ -6,17 +6,15 @@ import 'package:material_ui/material_ui.dart';
 import '../../../core/animation/motion.dart';
 import '../../../core/map/map.dart';
 import '../../../core/router/app_router.dart';
-import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/extensions.dart';
 import '../../../core/widgets/urbano_map.dart';
-import '../../journey/presentation/journey_markers.dart';
 import '../../routes/data/route_models.dart';
 import '../../routes/presentation/route_providers.dart';
 import '../../routes/presentation/widgets/route_map_chrome.dart';
-import '../../stops/data/stop_search_models.dart';
 import '../application/nearby_providers.dart';
 import '../domain/nearby_micros.dart';
+import 'nearby_map_layers.dart';
 import 'nearby_map_overlays.dart';
 import 'nearby_results_sheet.dart';
 
@@ -166,7 +164,7 @@ class _NearbyMicrosScreenState extends ConsumerState<NearbyMicrosScreen> {
       });
     }
 
-    final layers = _MapLayers.build(
+    final layers = NearbyMapLayers.build(
       query: query,
       stops: data?.stops ?? const [],
       micro: drawRoute ? selectedMicro : null,
@@ -246,7 +244,12 @@ class _NearbyMicrosScreenState extends ConsumerState<NearbyMicrosScreen> {
               result: result,
               radius: _radius,
               selection: selection,
-              headsign: _headsign(detail?.valueOrNull, selection),
+              headsign: selection == null
+                  ? null
+                  : meaningfulHeadsign(
+                      detail?.valueOrNull,
+                      selection.directionId,
+                    ),
               onRadius: _setRadius,
               onRetry: () => ref.invalidate(nearbyMicrosProvider(query)),
               onFocusMicro: (micro) =>
@@ -260,117 +263,5 @@ class _NearbyMicrosScreenState extends ConsumerState<NearbyMicrosScreen> {
         ],
       ),
     );
-  }
-
-  /// Destino del sentido elegido. «Ida»/«Vuelta» a secas no dicen nada (el
-  /// botón ya lo dice), así que solo se usa un headsign con nombre real.
-  static String? _headsign(RouteDetail? detail, NearbySelection? selection) {
-    if (detail == null || selection == null) return null;
-    for (final direction in detail.directions) {
-      if (direction.directionId != selection.directionId) continue;
-      final headsign = direction.headsign.trim();
-      final generic = {'ida', 'vuelta', ''};
-      return generic.contains(headsign.toLowerCase()) ? null : headsign;
-    }
-    return null;
-  }
-}
-
-/// Capas del mapa de «Micros cerca», armadas en un solo sitio y en orden de
-/// lectura (lo de abajo se pinta primero).
-class _MapLayers {
-  const _MapLayers(this.polylines, this.markers);
-
-  final List<MapPolyline> polylines;
-  final List<MapMarker> markers;
-
-  static _MapLayers build({
-    required NearbyQuery query,
-    required List<StopHit> stops,
-    required NearbyMicro? micro,
-    required NearbyBoarding? boarding,
-    required List<LatLng> shape,
-    required Color zoneColor,
-    required Color walkColor,
-    required Color stopColor,
-  }) {
-    final routeColor = micro == null
-        ? null
-        : AppColors.fromHex(micro.route.color);
-    final polylines = <MapPolyline>[
-      // Zona buscada: un aro punteado, fino, que no compite con la ruta.
-      MapPolyline(
-        points: circlePath(query.point, query.radiusMeters.toDouble()),
-        color: zoneColor,
-        width: 2,
-        opacity: 0.75,
-        dashed: true,
-      ),
-      if (routeColor != null)
-        MapPolyline(points: shape, color: routeColor, width: 6, outline: true),
-      // Tramo a pie del lugar a la parada de subida.
-      if (boarding != null)
-        MapPolyline(
-          points: [query.point, boarding.point],
-          color: walkColor,
-          width: 3,
-          dashed: true,
-        ),
-    ];
-
-    final markers = <MapMarker>[
-      // Paradas de la zona: puntos discretos (la elegida se pinta aparte).
-      for (final stop in stops)
-        if (stop.id != boarding?.stopId)
-          MapMarker(
-            id: 'nearby-stop-${stop.id}',
-            point: LatLng(stop.lat, stop.lon),
-            width: 10 + kMarkerShadowMargin * 2,
-            height: 10 + kMarkerShadowMargin * 2,
-            iconKey: 'nearby-stop-dot-${stopColor.toARGB32()}',
-            child: MapStopDot(color: stopColor, size: 10),
-          ),
-      if (routeColor != null) ...[
-        ...routeArrowMarkers(
-          idPrefix: 'nearby-arrow-${micro!.route.id}',
-          path: shape,
-          color: routeColor,
-          spacingMeters: arrowSpacingFor(pathLengthMeters(shape)),
-        ),
-        if (micro.route.shortName.trim().isNotEmpty)
-          MapMarker(
-            id: 'nearby-route-badge',
-            point: routePathMidpoint(shape),
-            width: routeBadgeWidth(micro.route.shortName.trim()),
-            height: routeBadgeHeight,
-            iconKey:
-                'route-badge-${micro.route.id}-${micro.route.shortName}-'
-                '${micro.route.color}',
-            child: MapRouteBadge(
-              label: micro.route.shortName.trim(),
-              color: routeColor,
-            ),
-          ),
-      ],
-      if (boarding != null && routeColor != null)
-        MapMarker(
-          id: 'nearby-boarding',
-          point: boarding.point,
-          width: stopDotBox + 6,
-          height: stopDotBox + 6,
-          iconKey: 'nearby-boarding-${micro!.route.color}',
-          child: MapStopDot(color: routeColor, size: 22),
-        ),
-      MapMarker(
-        id: 'nearby-place',
-        point: query.point,
-        width: MapPlacePin.widthFor(34),
-        height: MapPlacePin.heightFor(34),
-        anchor: MapMarkerAnchor.bottom,
-        iconKey: 'nearby-place-pin',
-        child: const MapPlacePin(color: AppColors.accent, size: 34),
-      ),
-    ];
-    return _MapLayers(polylines, markers);
   }
 }

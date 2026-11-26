@@ -1,7 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:urbano/src/core/network/api_client.dart';
-import 'package:urbano/src/features/home/data/stats.dart';
 import 'package:urbano/src/features/journey/data/journey_models.dart';
 import 'package:urbano/src/features/routes/data/route_models.dart';
 
@@ -423,55 +422,6 @@ void main() {
       expect(leg.mapPoints, leg.geometry);
       expect(leg.mapPoints!.first, const LatLng(-17.78, -63.15));
       expect(leg.mapPoints!.last, const LatLng(-17.79, -63.16));
-    });
-  });
-
-  group('Departure / Stats / Health', () {
-    test('Departure.fromJson', () {
-      final departure = Departure.fromJson(const {
-        'tripId': 'T97',
-        'directionId': 0,
-        'headsign': 'Ida',
-        'time': '06:07:18',
-        'realTime': false,
-        'headwaySeconds': 300,
-      });
-      expect(departure.tripId, 'T97');
-      expect(departure.time, '06:07:18');
-      expect(departure.realTime, isFalse);
-      expect(departure.headwaySeconds, 300);
-    });
-
-    test('Stats.fromJson', () {
-      final stats = Stats.fromJson(const {
-        'routes': 154,
-        'stops': 31461,
-        'trips': 308,
-        'shapes': 130105,
-        'service': {
-          'start': '2026-10-06',
-          'end': '2027-10-06',
-          'days': 'diario',
-        },
-        'firstDeparture': '06:00:00',
-        'lastDeparture': '22:00:00',
-        'headwaySeconds': 300,
-      });
-      expect(stats.routes, 154);
-      expect(stats.stops, 31461);
-      expect(stats.service.days, 'diario');
-      expect(stats.headwaySeconds, 300);
-    });
-
-    test('HealthInfo.fromJson', () {
-      final health = HealthInfo.fromJson(const {
-        'status': 'ok',
-        'db': 'up',
-        'uptime': 123.4,
-        'version': '1.0.0',
-      });
-      expect(health.isOk, isTrue);
-      expect(health.version, '1.0.0');
     });
   });
 

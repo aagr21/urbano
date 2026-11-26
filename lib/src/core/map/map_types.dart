@@ -96,9 +96,6 @@ class MapBounds {
     (southwest.longitude + northeast.longitude) / 2,
   );
 
-  /// Todos los puntos extremos (para encuadre).
-  List<LatLng> get corners => [southwest, northeast];
-
   @override
   bool operator ==(Object other) =>
       other is MapBounds &&

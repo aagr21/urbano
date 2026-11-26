@@ -1,17 +1,10 @@
-import 'package:flutter/widgets.dart' show ValueKey;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:latlong2/latlong.dart';
 
-import '../../../core/map/map.dart';
-import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/debouncer.dart';
-import '../../routes/data/route_models.dart';
-import '../../routes/data/route_repository.dart';
-import '../../stops/data/stop_search_models.dart';
 import '../domain/endpoint_drag.dart';
 import '../domain/journey_place.dart';
 import '../domain/journey_planner_state.dart';
-import '../presentation/journey_markers.dart';
 
 export '../domain/journey_planner_state.dart';
 
@@ -25,22 +18,6 @@ final journeyPlannerControllerProvider =
     NotifierProvider<JourneyPlannerController, JourneyPlannerState>(
       JourneyPlannerController.new,
     );
-
-/// Resultado de [JourneyPlannerController.toggleRouteDirection]: la pantalla
-/// mapea los dos casos con problema a snacks de UI.
-enum MicroRouteToggleOutcome {
-  /// El recorrido se dibujó (encender).
-  toggledOn,
-
-  /// El recorrido se borró (apagar).
-  toggledOff,
-
-  /// La ruta no tiene `shape` en el feed: nada que dibujar.
-  missingShape,
-
-  /// Falló la descarga del detalle (red/backend).
-  failed,
-}
 
 /// Controlador del **planeador de viajes**: traduce gestos y acciones de UI
 /// a [JourneyPlannerState]. La política de drop (debounce / barrera anti-zoom)
@@ -283,137 +260,5 @@ class JourneyPlannerController extends Notifier<JourneyPlannerState> {
       selectedOptionIndex: itemIndex,
       expandedIndex: collapsing ? null : itemIndex,
     );
-  }
-
-  // ------------------------------------------------------------------
-  // Micros: capas del modo exploración (panel de líneas)
-  // ------------------------------------------------------------------
-
-  /// Dibuja/borra la polilínea de UNA dirección (0 = ida, 1 = vuelta) de un
-  /// micro; la forma la sirve `/routes/:id?directionId=`. Devuelve el
-  /// resultado para que la pantalla mapee los snacks.
-  Future<MicroRouteToggleOutcome> toggleRouteDirection(
-    RouteSummary route,
-    int directionId,
-  ) async {
-    final key = microDirectionKey(route.id, directionId);
-    if (state.visibleRouteKeys.contains(key)) {
-      state = state.copyWith(
-        visibleRouteKeys: {...state.visibleRouteKeys}..remove(key),
-        routeLines: {...state.routeLines}..remove(key),
-        routeMarkers: {...state.routeMarkers}..remove(key),
-      );
-      return MicroRouteToggleOutcome.toggledOff;
-    }
-
-    state = state.copyWith(loadingRoutes: true);
-    try {
-      final detail = await ref
-          .read(routeRepositoryProvider)
-          .detail(route.id, directionId: directionId);
-      final shape = detail.shape;
-      if (shape == null || shape.points.length < 2) {
-        return MicroRouteToggleOutcome.missingShape;
-      }
-      final points = shape.points;
-      final label = route.shortName.trim();
-      final color = AppColors.fromHex(detail.color);
-      final marker = MapMarker(
-        id: 'micro-route-$key',
-        point: routePathMidpoint(points),
-        width: routeBadgeWidth(label),
-        height: routeBadgeHeight,
-        iconKey: 'route-badge-${route.id}-$label-${detail.color}',
-        child: MapRouteBadge(
-          key: ValueKey('micro-route-$key'),
-          label: label,
-          color: color,
-        ),
-      );
-      state = state.copyWith(
-        visibleRouteKeys: {...state.visibleRouteKeys}..add(key),
-        routeLines: {
-          ...state.routeLines,
-          key: MapPolyline(points: points, color: color, outline: true),
-        },
-        // Insignia del micro ENCIMA de su línea (número o nombre), con el
-        // mismo estilo que la planificación del viaje.
-        routeMarkers: {
-          ...state.routeMarkers,
-          if (label.isNotEmpty) key: marker,
-        },
-      );
-      return MicroRouteToggleOutcome.toggledOn;
-    } catch (_) {
-      return MicroRouteToggleOutcome.failed;
-    } finally {
-      if (!_disposed) {
-        state = state.copyWith(loadingRoutes: false);
-      }
-    }
-  }
-
-  /// Apaga TODAS las capas de micros («Limpiar» del panel).
-  void clearMicros() {
-    if (state.visibleRouteKeys.isEmpty) return;
-    state = state.copyWith(
-      visibleRouteKeys: const {},
-      routeLines: const {},
-      routeMarkers: const {},
-    );
-  }
-
-  // ------------------------------------------------------------------
-  // Micros: marcadores del modo EXPLORACIÓN «LUGARES»
-  // ------------------------------------------------------------------
-
-  /// Tope de paradas que se clavan en el mapa: más allá solo saturan (el
-  /// listado del panel muestra todas).
-  static const int _maxPlaceStopMarkers = 24;
-
-  /// Dibuja en el mapa el resultado del modo lugares: el pin del [point]
-  /// consultado (si viene de «cerca de mí» o de marcar en el mapa) y un punto
-  /// por cada parada de [stops]. Se llama desde el panel al resolverse la
-  /// búsqueda; reemplaza por completo los marcadores anteriores.
-  void showPlaceResults({
-    ({double lat, double lon})? point,
-    List<StopHit> stops = const [],
-  }) {
-    final markers = <MapMarker>[];
-    if (point != null) {
-      markers.add(
-        MapMarker(
-          id: 'place-search-point',
-          point: LatLng(point.lat, point.lon),
-          width: MapPlacePin.widthFor(30),
-          height: MapPlacePin.heightFor(30),
-          anchor: MapMarkerAnchor.bottom,
-          child: const MapPlacePin(color: AppColors.accent),
-        ),
-      );
-    }
-    final count = stops.length < _maxPlaceStopMarkers
-        ? stops.length
-        : _maxPlaceStopMarkers;
-    for (var i = 0; i < count; i++) {
-      final stop = stops[i];
-      markers.add(
-        MapMarker(
-          id: 'place-stop-${stop.id}',
-          point: LatLng(stop.lat, stop.lon),
-          width: stopDotBox,
-          height: stopDotBox,
-          child: const MapStopDot(color: AppColors.primary),
-        ),
-      );
-    }
-    state = state.copyWith(placeMarkers: markers);
-  }
-
-  /// Borra los marcadores del modo lugares (al salir del modo, limpiar la
-  /// búsqueda o cerrar el panel): los recorridos dibujados NO se tocan.
-  void clearPlaceMarkers() {
-    if (state.placeMarkers.isEmpty) return;
-    state = state.copyWith(placeMarkers: const []);
   }
 }
