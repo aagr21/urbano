@@ -50,18 +50,14 @@ class ComplaintsCoverHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // El campo es la laguna profunda, no el `urbanoGradient` completo: aquí va
-    // texto pequeño encima, así que la tinta clara se mide contra el extremo
-    // MÁS CLARO del degradado ([AppColors.fieldMid]) y no contra `primaryDark`,
-    // que es el extremo oscuro. El verde agua de la marca entra como riel al
-    // pie. Es el mismo campo que abre Inicio: una sola marca, no dos verdes.
-    const deep = AppColors.primaryDark;
-    const field = AppColors.fieldMid;
-    final ink = AppColors.onColor(field);
-    final softInk = ink.withValues(alpha: 0.86);
-    // Vidrio de las cifras: la misma tinta al 10 %, con filo del 18 %.
-    final veil = ink.withValues(alpha: 0.10);
-    final edge = ink.withValues(alpha: 0.18);
+    // El campo es el degradado de verdes de la marca (el mismo de la tarjeta
+    // «Planifica tu viaje»), con la tinta blanca de la marca encima, siempre
+    // en negrita. El CTA «Crear» es la píldora blanca con el naranja, como en
+    // el diseño «Pantalla Quejas».
+    const ink = AppColors.onBrand;
+    // Vidrio de las cifras: blanco al 12 %, con filo blanco del 55 %.
+    final veil = ink.withValues(alpha: 0.12);
+    final edge = ink.withValues(alpha: 0.55);
 
     return ClipRRect(
       // Esquinas inferiores: la portada es una hoja de marca, no una banda que
@@ -70,26 +66,14 @@ class ComplaintsCoverHeader extends StatelessWidget {
         bottom: Radius.circular(AppRadius.xl),
       ),
       child: DecoratedBox(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              AppColors.primaryDark,
-              AppColors.fieldMid,
-              AppColors.primary,
-            ],
-            stops: [0, 0.55, 1],
-          ),
-        ),
+        decoration: const BoxDecoration(gradient: urbanoGradient),
         child: Stack(
           children: [
             // Los anillos de la ciudad que ya pinta el home: la misma textura de
             // marca, con la unidad circulando. No ocupa layout (va de fondo) y es
             // `IgnorePointer`, así que no roba toques al CTA.
             const Positioned.fill(child: HomeRouteLattice()),
-            // Orilla de la laguna: el riel verde agua → laguna de las secciones,
-            // ahora al pie de la portada.
+            // Riel de marca al pie de la portada.
             Positioned(
               left: 0,
               right: 0,
@@ -99,7 +83,7 @@ class ComplaintsCoverHeader extends StatelessWidget {
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
                     colors: [
-                      AppColors.aqua,
+                      AppColors.lime,
                       AppColors.primary,
                       AppColors.primary.withValues(alpha: 0),
                     ],
@@ -145,13 +129,13 @@ class ComplaintsCoverHeader extends StatelessWidget {
                               const SizedBox(height: 2),
                               Row(
                                 children: [
-                                  // Punto de la orilla: la marca en el lugar más
-                                  // pequeño de la portada.
+                                  // Punto naranja: el acento de la marca en el
+                                  // lugar más pequeño de la portada.
                                   Container(
                                     width: 6,
                                     height: 6,
                                     decoration: const BoxDecoration(
-                                      color: AppColors.aqua,
+                                      color: AppColors.accent,
                                       shape: BoxShape.circle,
                                     ),
                                   ),
@@ -172,7 +156,7 @@ class ComplaintsCoverHeader extends StatelessWidget {
                                             .textTheme
                                             .titleSmall
                                             ?.copyWith(
-                                              color: softInk,
+                                              color: ink,
                                               fontWeight: FontWeight.w700,
                                             ),
                                       ),
@@ -198,15 +182,15 @@ class ComplaintsCoverHeader extends StatelessWidget {
                             ),
                             label: const Text('Crear'),
                             style: FilledButton.styleFrom(
-                              foregroundColor: deep,
-                              backgroundColor: ink,
+                              foregroundColor: AppColors.accentDeep,
+                              backgroundColor: Colors.white,
                               visualDensity: VisualDensity.compact,
                               padding: const EdgeInsets.symmetric(
                                 horizontal: AppSpace.md,
                                 vertical: AppSpace.sm,
                               ),
                               // Se parte de un estilo del tema (titleSmall ya
-                              // trae Inter) en vez de un `TextStyle` desnudo:
+                              // trae Montserrat) en vez de un `TextStyle` desnudo:
                               // sin familia el botón cae en la fuente por
                               // defecto y gasta ancho de más, que es justo el
                               // que necesita el título para no cortarse.
@@ -230,7 +214,7 @@ class ComplaintsCoverHeader extends StatelessWidget {
                           onPressed: onIdentity,
                           visualDensity: VisualDensity.compact,
                           icon: identity == null
-                              ? Icon(
+                              ? const Icon(
                                   Icons.account_circle_outlined,
                                   color: ink,
                                   size: 26,

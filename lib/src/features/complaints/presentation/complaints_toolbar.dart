@@ -100,8 +100,11 @@ class ComplaintsSortButton extends ConsumerWidget {
     final colors = context.colors;
     final sort = ref.watch(complaintSortProvider);
     final surface = colors.surfaceContainerLowest;
-    final fill = AppColors.tint(colors.primary, surface, 0.1);
-    final ink = AppColors.legible(colors.primary, fill);
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    // El orden va en el naranja de la sección (diseño «Pantalla Quejas»).
+    final accent = dark ? colors.tertiary : AppColors.accent;
+    final fill = AppColors.tint(accent, surface, 0.12);
+    final ink = AppColors.legible(accent, fill);
     return PopupMenuButton<ComplaintSort>(
       key: const ValueKey('complaints-sort'),
       tooltip: 'Ordenar',

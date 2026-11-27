@@ -1,7 +1,5 @@
 import 'package:flutter/foundation.dart';
 
-import '../../../core/utils/time_formatters.dart';
-
 /// Destino de un viaje ya planificado, guardado para el home.
 ///
 /// Es dato puro: no guarda el origen ni la hora de salida (el viaje se vuelve a
@@ -91,14 +89,18 @@ List<TripHistoryEntry> filterTripHistory(
       .toList(growable: false);
 }
 
-/// Lo que dice la píldora de una fila del historial: lo que tardó el viaje la
-/// última vez o, si el plan nunca llegó a calcularse, cuándo se intentó
-/// («hoy», «ayer», «hace N d»). [now] es parámetro para poder probarlo.
-String tripHistoryPillLabel(TripHistoryEntry entry, {required DateTime now}) {
-  final minutes = entry.durationMinutes;
-  if (minutes != null && minutes > 0) return Fmt.duration(minutes);
-  final days = now.difference(entry.lastUsed).inDays;
-  if (days <= 0) return 'hoy';
-  if (days == 1) return 'ayer';
-  return 'hace $days d';
+/// Cuándo fue [at] respecto de [now], en días de calendario: «Hoy», «Ayer»
+/// o «Hace N d». Es la regla ÚNICA de las píldoras de recencia (portada, hoja
+/// «Ver todos» y destinos recientes de la hoja «¿A dónde vas?»).
+String recencyLabel(DateTime at, {required DateTime now}) {
+  DateTime day(DateTime value) => DateTime(value.year, value.month, value.day);
+  final days = day(now).difference(day(at)).inDays;
+  if (days <= 0) return 'Hoy';
+  if (days == 1) return 'Ayer';
+  return 'Hace $days d';
 }
+
+/// Lo que dice la píldora de una fila del historial: **cuándo** se usó ese
+/// destino por última vez ([recencyLabel]), como en el diseño de la portada.
+String tripHistoryPillLabel(TripHistoryEntry entry, {required DateTime now}) =>
+    recencyLabel(entry.lastUsed, now: now);

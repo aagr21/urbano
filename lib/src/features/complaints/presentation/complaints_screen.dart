@@ -59,9 +59,9 @@ class ComplaintsScreen extends ConsumerWidget {
     final filter = ref.watch(complaintCategoryFilterProvider);
     final total = visible.valueOrNull?.length ?? 0;
     final dark = Theme.of(context).brightness == Brightness.dark;
-    // El riel de marca usa el aqua vivo en claro y el secundario apagado del
-    // tema en oscuro (el neón sobre grafito era lo que se veía feo).
-    final railAccent = dark ? context.colors.secondary : AppColors.aqua;
+    // Denuncias es la sección naranja de la marca (diseño «Pantalla Quejas»):
+    // riel, contador y orden van en el naranja; en oscuro, su versión apagada.
+    final railAccent = dark ? context.colors.tertiary : AppColors.accent;
 
     return Scaffold(
       // Sin AppBar: la sección abre con su propia portada de marca a sangre. La
@@ -117,7 +117,7 @@ class ComplaintsScreen extends ConsumerWidget {
                     gradient: LinearGradient(
                       begin: Alignment.topCenter,
                       end: Alignment.bottomCenter,
-                      colors: [context.colors.primary, railAccent],
+                      colors: [railAccent, railAccent],
                     ),
                   ),
                 ),
@@ -147,7 +147,7 @@ class ComplaintsScreen extends ConsumerWidget {
                     ),
                     decoration: BoxDecoration(
                       color: AppColors.tint(
-                        context.colors.primary,
+                        railAccent,
                         context.colors.surfaceContainerLowest,
                         0.14,
                       ),
@@ -157,9 +157,9 @@ class ComplaintsScreen extends ConsumerWidget {
                       '$total',
                       style: context.text.labelLarge?.copyWith(
                         color: AppColors.legible(
-                          context.colors.primary,
+                          railAccent,
                           AppColors.tint(
-                            context.colors.primary,
+                            railAccent,
                             context.colors.surfaceContainerLowest,
                             0.14,
                           ),

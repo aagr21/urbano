@@ -1,28 +1,18 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
   <defs>
     <filter id="shadow" x="-30%" y="-30%" width="160%" height="160%">
-      <feDropShadow dx="0" dy="18" stdDeviation="22" flood-color="#004A42" flood-opacity=".45"/>
+      <feDropShadow dx="0" dy="14" stdDeviation="18" flood-color="#014D23" flood-opacity=".35"/>
     </filter>
-    <linearGradient id="route" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#fff"/>
-      <stop offset="1" stop-color="#E3FFFA"/>
-    </linearGradient>
-    <linearGradient id="pin" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#FF7A55"/>
-      <stop offset="1" stop-color="#FF5B35"/>
-    </linearGradient>
   </defs>
-  <g transform="translate(512 512) scale(0.72) translate(-538.5 -501.3)">
-    <path d="M330 330 L330 560 A182.0 182.0 0 0 0 694 560 L694 520" fill="none" stroke="url(#route)" stroke-width="124"
-          stroke-linecap="round" stroke-linejoin="round" filter="url(#shadow)"/>
-    <!-- Eje del recorrido: paradas punteadas, como en los mapas de la app. -->
-    <path d="M330 330 L330 560 A182.0 182.0 0 0 0 694 560 L694 520" fill="none" stroke="#008C7B" stroke-opacity=".5"
-          stroke-width="18" stroke-linecap="round" stroke-dasharray="0 52"/>
-    <!-- Donde se sube: la parada, un anillo hueco como en un diagrama de metro. -->
-    <circle cx="330" cy="330" r="30" fill="none" stroke="#008C7B" stroke-width="20"/>
-    <!-- A dónde vas: el pin coral, con borde blanco para despegarlo del fondo. -->
-    <path d="M694 480 C662.8 433.20000000000005 590 376.0 590 313.6 A104 104 0 1 1 798 313.6 C798 376.0 725.2 433.20000000000005 694 480 Z" fill="url(#pin)" stroke="#fff" stroke-width="22"
-          stroke-linejoin="round" filter="url(#shadow)"/>
-    <circle cx="694" cy="313.6" r="41.6" fill="#fff"/>
+  <g transform="translate(512 512) scale(0.72) translate(-516.0 -501.0)">
+    <!-- El recorrido: la U blanca, de la parada al destino. -->
+    <path d="M342 330 L342 560 A170.0 170.0 0 0 0 682 560 L682 470" fill="none" stroke="#fff" stroke-width="104" filter="url(#shadow)"/>
+    <!-- La parada de salida: aro blanco, centro verde y punto blanco. -->
+    <circle cx="342" cy="330" r="92" fill="#fff" filter="url(#shadow)"/>
+    <circle cx="342" cy="330" r="62" fill="#06BD4A"/>
+    <circle cx="342" cy="330" r="34" fill="#fff"/>
+    <!-- A dónde vas: el pin naranja, con la punta sobre la pata derecha. -->
+    <path d="M682 480 C652.0 435.0 582 380.0 582 320.0 A100 100 0 1 1 782 320.0 C782 380.0 712.0 435.0 682 480 Z" fill="#FD7502" filter="url(#shadow)"/>
+    <circle cx="682" cy="320.0" r="42.0" fill="#fff"/>
   </g>
 </svg>

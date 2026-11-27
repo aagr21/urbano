@@ -67,7 +67,7 @@ class _LoadingShimmerState extends State<LoadingShimmer>
     final colors = context.colors;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final base = colors.surfaceContainerHighest;
-    final tint = isDark ? AppColors.aquaSoftDark : AppColors.aqua;
+    final tint = isDark ? AppColors.limeSoftDark : AppColors.lime;
     final highlight = Color.lerp(base, tint, 0.28)!;
 
     return RepaintBoundary(

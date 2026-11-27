@@ -65,7 +65,7 @@ class _BootGate extends ConsumerWidget {
   ///
   /// `SplashGate` vive POR ENCIMA de `MaterialApp` —es el primer widget de Flutter
   /// y tapar el montaje del árbol es su trabajo—, así que sin este `Theme` sus
-  /// letras caerían en el `ThemeData.fallback()` de Material: `Inter` viene en
+  /// letras caerían en el `ThemeData.fallback()` de Material: `Montserrat` viene en
   /// `AppTypography.apply` y un `TextStyle` sin familia de fuente lo descarta en
   /// silencio. La portada es siempre el degradado oscuro de la marca, así que el
   /// tema oscuro es el que le corresponde.

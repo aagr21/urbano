@@ -16,26 +16,17 @@
   el PRIMER FOTOGRAMA de la portada de carga que pinta Flutter. Así el cambio
   launch screen → `SplashGate` no se lee como un corte, porque no cambia nada:
 
-   * El fondo es `#008C7B` (`urbano_primary`), el promedio del degradado de marca
-     que pinta `SplashGate` y el mismo color del campo nativo de Android. Medido
-     con `screenrecord`: si aquí quedara el `#00584F` del template, el primer
-     frame de Flutter se vería como un parpadeo de verde oscuro a verde claro.
+   * El fondo es `#12C94B` (`urbano_primary`), el promedio del degradado de
+     verdes que pinta `SplashGate` y el mismo color del campo nativo de Android.
    * La imagen es `LaunchImage` (en `Assets.xcassets`), render de
-     `assets/brand/splash-frame0.svg`: el mismo frame 0 que pinta la portada de
-     Dart y que la splash nativa de Android dibuja con Canvas. Se regenera con
-     `tools/make-ios-splash-frame0.sh`.
-   * Tamaño y posición copy-pasteados de `_SplashCover` (lib/src/core/widgets/
-     splash_gate.dart), que es quien dibuja el dial, «Cargando» y la barra:
-        ancho  = 0,40 × ancho de pantalla   (`_dialSize` del lienzo)
-        centerY ≈ 0,35 × alto de pantalla. De dónde sale el 0,35, sobre un
-        iPhone de 393x852 con insets 59/34:
-          alto de la Column ≈ 157 (lienzo) + 24 + ~60 (textos) + 24 + 4 (barra)
-                                                  = 269 pt
-          centro de la Column = 59 + 0,39 × (852 - 59 - 34) = 355 pt
-          centro del lienzo   = 355 - 269/2 + 157/2 = 299 pt → 299/852 = 0,351
-        Es una APROXIMACIÓN (la altura de los textos no es constante): se AJUSTA EN
-        EL SIMULADOR mirando si el aro se queda quieto en el momento del handoff,
-        y se recalcula si cambia la columna.
+     `assets/brand/splash-frame0.svg`: escudo, logo blanco con su lema, el
+     girófono naranja, «Cargando» y la barra, el mismo frame 0 que pinta la
+     portada de Dart y que la splash nativa de Android dibuja con Canvas. Se
+     regenera con `tools/make-ios-splash-frame0.sh`.
+   * Tamaño y posición aproximan los de `_SplashCover`: ancho = 0,82 × ancho
+     de pantalla, centerY ≈ 0,42 × alto (la columna marca + carga está en
+     `Alignment(0, -0.3)` del área segura). Es una APROXIMACIÓN: se ajusta en
+     el simulador mirando que la marca no salte en el relevo.
    * `contentMode="scaleAspectFit"` + constraints cuadradas: el lienzo del SVG es
      360x360 y no debe deformarse en elíptico, igual que `CENTER_INSIDE` en
      `SplashActivity`.
@@ -72,11 +63,11 @@
                                 </constraints>
                             </imageView>
                         </subviews>
-                        <color key="backgroundColor" red="0" green="0.5490196078431373" blue="0.4823529411764706" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
+                        <color key="backgroundColor" red="0.070588235294117646" green="0.78823529411764703" blue="0.29411764705882354" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
                         <constraints>
                             <constraint firstItem="L0t-00-fr0" firstAttribute="centerX" secondItem="Ze5-6b-2t3" secondAttribute="centerX" id="L0t-00-cx1"/>
-                            <constraint firstItem="L0t-00-fr0" firstAttribute="width" secondItem="Ze5-6b-2t3" secondAttribute="width" multiplier="0.4" id="L0t-00-wd1"/>
-                            <constraint firstItem="L0t-00-fr0" firstAttribute="centerY" secondItem="Ze5-6b-2t3" secondAttribute="bottom" multiplier="0.35" id="L0t-00-cy1"/>
+                            <constraint firstItem="L0t-00-fr0" firstAttribute="width" secondItem="Ze5-6b-2t3" secondAttribute="width" multiplier="0.82" id="L0t-00-wd1"/>
+                            <constraint firstItem="L0t-00-fr0" firstAttribute="centerY" secondItem="Ze5-6b-2t3" secondAttribute="bottom" multiplier="0.42" id="L0t-00-cy1"/>
                         </constraints>
                     </view>
                 </viewController>

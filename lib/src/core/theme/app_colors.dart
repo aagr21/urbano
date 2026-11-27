@@ -2,70 +2,92 @@ import 'package:material_ui/material_ui.dart';
 
 /// Tokens de color de Urbano.
 ///
-/// Identidad "laguna": verde agua sólido como color principal (de la orilla
-/// brillante a la laguna profunda), coral como contracolor cálido del
-/// atardecer cruceño y neutros grises de Apple: en claro
-/// `systemGroupedBackground` (`#F2F2F7`) y en oscuro grafito sobre negro.
+/// Paleta oficial de la marca (manual «Paleta de colores Urbano»): una escalera
+/// de verdes —luminoso `#35F04F`, brillante `#1BD64C`, principal `#06BD4A`,
+/// oscuro `#029E46`— que forma el degradado de marca, el **naranja** `#FD7502`
+/// como contracolor (el pin de destino del logo) y blanco `#FEFEFE`. Los
+/// neutros siguen siendo los grises de Apple: en claro `systemGroupedBackground`
+/// (`#F2F2F7`) y en oscuro grafito.
+///
 /// Regla del equipo sobre fondos oscuros/degradados: solo texto, íconos y
-/// bordes claros (blancos o acentos luminosos) encima — nada de oscuros
-/// sobre oscuros.
+/// bordes claros (blancos o acentos luminosos) encima — nada de oscuros sobre
+/// oscuros. Los verdes de marca son claros (el principal da 2,5:1 contra
+/// blanco), así que la **tinta** verde sobre superficies claras es
+/// [greenDeep], y el blanco encima del degradado se reserva para texto grande
+/// y en negrita, como en las piezas de la marca.
 class AppColors {
   AppColors._();
 
-  // ── Modo claro ──────────────────────────────────────────────────────────
+  // ── Marca ───────────────────────────────────────────────────────────────
 
-  /// Semilla del [ColorScheme] (verde agua profundo).
-  static const Color seed = Color(0xFF008C7B);
+  /// Semilla del [ColorScheme] (verde principal).
+  static const Color seed = Color(0xFF06BD4A);
 
-  /// Verde agua brillante: arranque de los gradientes de marca ("la orilla").
-  static const Color aqua = Color(0xFF2AD8C3);
+  /// Verde luminoso: arranque de los degradados de marca.
+  static const Color lime = Color(0xFF35F04F);
 
-  /// Primario (verde agua sólido, laguna).
-  static const Color primary = Color(0xFF008C7B);
+  /// Verde brillante: segundo paso del degradado.
+  static const Color brightGreen = Color(0xFF1BD64C);
 
-  /// Primario profundo para gradientes (fondo de laguna).
-  static const Color primaryDark = Color(0xFF00584F);
+  /// Verde principal de la marca (rellenos, íconos grandes, el wordmark).
+  static const Color brand = Color(0xFF06BD4A);
+
+  /// Primario del tema claro: el **verde oscuro** de la paleta. Es el verde
+  /// más profundo que sigue siendo de la marca; aguanta texto en negrita
+  /// blanco encima (3,5:1) y se lee como acento sobre el lienzo.
+  static const Color primary = Color(0xFF029E46);
+
+  /// Fin del degradado de marca (un paso más hondo que [primary], para que el
+  /// degradado tenga fondo sin salirse del verde de la paleta).
+  static const Color primaryDark = Color(0xFF018A3C);
 
   /// Punto medio del **campo de marca** con el que abren las secciones
-  /// (la portada de Inicio y la de Quejas): la laguna aclarada hacia la
-  /// orilla. Vale `tint(primary, primaryDark, 0.55)` y existe como token
-  /// porque es el extremo MÁS CLARO del degradado, o sea el peor caso contra
-  /// el que se mide la tinta que va encima ([onColor] devuelve blanco, ≥5.6:1).
-  /// Si las dos portadas no comparten este punto, dejan de ser la misma marca.
-  static const Color fieldMid = Color(0xFF007567);
+  /// (la portada de Inicio, la splash y la de Quejas). Es el extremo contra
+  /// el que se mide la tinta blanca que va encima.
+  static const Color fieldMid = Color(0xFF06BD4A);
 
-  /// Acento cálido (coral, atardecer cruceño).
-  static const Color accent = Color(0xFFFF5B35);
+  /// Naranja de la marca (el pin de destino del logo).
+  static const Color accent = Color(0xFFFD7502);
 
-  /// Acento profundo (para texto/chips sobre claros).
-  static const Color accentDeep = Color(0xFFDC4514);
+  /// Naranja profundo para texto/íconos sobre claros (≥4,5:1 contra blanco).
+  static const Color accentDeep = Color(0xFFC25200);
 
-  /// Verde agua legible sobre superficies claras (texto/íconos).
-  static const Color aquaDeep = Color(0xFF077A6D);
+  /// Verde legible sobre superficies claras (texto/íconos, ≥4,5:1).
+  static const Color greenDeep = Color(0xFF027F38);
+
+  /// Blanco de la marca.
+  static const Color brandWhite = Color(0xFFFEFEFE);
+
+  /// Tinta SOBRE el campo de marca (degradado de verdes): siempre blanca, como
+  /// en todas las piezas de la marca. No se decide con [onColor]: contra el
+  /// verde principal el negro mide más, y eso pintaba letra oscura sobre la
+  /// portada verde. Va en negrita y a tamaño de título o etiqueta, nunca en
+  /// cuerpo fino.
+  static const Color onBrand = Colors.white;
 
   /// Tinta / texto principal (casi negro, como el label de iOS).
-  static const Color ink = Color(0xFF0F0F12);
+  static const Color ink = Color(0xFF111413);
 
-  /// Texto secundario claro (gris Apple).
-  static const Color inkSoft = Color(0xFF86868B);
+  /// Texto secundario claro (gris de la marca, el del lema del logo).
+  static const Color inkSoft = Color(0xFF6B6F6C);
 
   /// Fondo claro de app: el "systemGroupedBackground" de iOS.
-  static const Color canvasLight = Color(0xFFF2F2F7);
+  static const Color canvasLight = Color(0xFFF4F6F4);
 
   /// Superficies de tarjetas en claro (blanco puro).
   static const Color surfaceLight = Color(0xFFFFFFFF);
 
-  /// Contenedor primario en claro (verde agua).
-  static const Color primaryContainerLight = Color(0xFFC4F2E9);
-  static const Color onPrimaryContainerLight = Color(0xFF004A42);
+  /// Contenedor primario en claro (verde muy diluido).
+  static const Color primaryContainerLight = Color(0xFFD3F8DC);
+  static const Color onPrimaryContainerLight = Color(0xFF00522A);
 
-  /// Segundo acento (verde agua más claro, para datos vivos) y su contenedor.
-  static const Color secondaryContainerLight = Color(0xFFB9F1E5);
-  static const Color onSecondaryContainerLight = Color(0xFF00584F);
+  /// Segundo acento (verde vivo, para datos vivos) y su contenedor.
+  static const Color secondaryContainerLight = Color(0xFFC8F5D2);
+  static const Color onSecondaryContainerLight = Color(0xFF015E2C);
 
-  /// Contenedor coral en claro.
-  static const Color tertiaryContainerLight = Color(0xFFFFE2D2);
-  static const Color onTertiaryContainerLight = Color(0xFF8B2B0A);
+  /// Contenedor naranja en claro.
+  static const Color tertiaryContainerLight = Color(0xFFFFE6D3);
+  static const Color onTertiaryContainerLight = Color(0xFF8A3600);
 
   /// Contornos en claro: separador de iOS (`#C7C7CC`/`#E5E5EA`).
   static const Color outlineLight = Color(0xFFC7C7CC);
@@ -111,17 +133,17 @@ class AppColors {
   /// separar la tarjeta del lienzo sin dibujar un borde duro.
   static const Color lineStrongDark = Color(0x47FFFFFF);
 
-  /// Primario en oscuro: verde agua **apagado**, no neón. Sigue siendo el
-  /// acento vivo de la app sobre el grafito (≥6.5:1 contra `surfaceDark`),
+  /// Primario en oscuro: el verde de marca **apagado**, no neón. Sigue siendo
+  /// el acento vivo de la app sobre el grafito (≥6:1 contra `surfaceDark`),
   /// pero con la saturación baja para que no deslumbre en una pantalla OLED.
-  static const Color primarySoftDark = Color(0xFF55BFAE);
-  static const Color onPrimaryDark = Color(0xFF00352F);
-  static const Color primaryContainerDark = Color(0xFF00635A);
-  static const Color onPrimaryContainerDark = Color(0xFFC2F5EC);
+  static const Color primarySoftDark = Color(0xFF63C985);
+  static const Color onPrimaryDark = Color(0xFF00381B);
+  static const Color primaryContainerDark = Color(0xFF0A6B33);
+  static const Color onPrimaryContainerDark = Color(0xFFCBF7D6);
 
   /// Acentos vivos en oscuro (mismo apagado que el primario).
-  static const Color accentSoftDark = Color(0xFFFF9166);
-  static const Color aquaSoftDark = Color(0xFF6FCBBE);
+  static const Color accentSoftDark = Color(0xFFFF9A4D);
+  static const Color limeSoftDark = Color(0xFF7FD69A);
 
   /// Error.
   static const Color danger = Color(0xFFE5484D);
@@ -138,14 +160,14 @@ class AppColors {
   // acento funciona en claro y en oscuro sin dejar letra oscura sobre fondo
   // oscuro (la regla de arriba de este archivo).
 
-  /// Estado del micro (celeste).
-  static const Color categoryVehicle = Color(0xFF0EA5E9);
+  /// Estado del micro (el naranja de la marca, como en el diseño de Quejas).
+  static const Color categoryVehicle = Color(0xFFFD7502);
 
   /// Trato del conductor (violeta).
   static const Color categoryDriver = Color(0xFF8B5CF6);
 
-  /// Desvío de ruta (ámbar).
-  static const Color categoryDeviation = Color(0xFFF59E0B);
+  /// Desvío de ruta (amarillo: se separa del naranja de «estado del micro»).
+  static const Color categoryDeviation = Color(0xFFEAB308);
 
   /// Frecuencia u horario (índigo).
   static const Color categorySchedule = Color(0xFF6366F1);

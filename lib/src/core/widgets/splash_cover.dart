@@ -86,12 +86,13 @@ class _SplashCover extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final screen = MediaQuery.sizeOf(context);
-    // Girófono: la mitad del logo que había antes. Es la pieza que dice
-    // «cargando», pero no es el protagonista de la pantalla ni de la marca.
-    final dial = (math.min(screen.width, screen.height) * 0.15).clamp(
+    // Girófono: la pieza que dice «cargando», bajo la marca.
+    final dial = (math.min(screen.width, screen.height) * 0.17).clamp(
       58.0,
-      84.0,
+      80.0,
     );
+    // Marca: el logo ocupa ~70 % del ancho, sin pasarse en tablets.
+    final logo = (screen.width * 0.7 / UrbanoLogo.aspect).clamp(48.0, 96.0);
 
     return TweenAnimationBuilder<double>(
       // Dos patas sobre el mismo ticker: cambiar `end` (de la meseta a 1) rearma
@@ -148,14 +149,26 @@ class _SplashCover extends StatelessWidget {
                         // Un poco más arriba del centro: el tercio inferior es de
                         // los anillos y de la micro que los recorre.
                         child: Align(
-                          alignment: const Alignment(0, -0.22),
-                          child: _LoadingBlock(
-                            stage: stage,
-                            rise: block,
-                            spin: spin,
-                            fill: fill,
-                            exit: exit,
-                            leader: _Dial(size: dial, turn: spin),
+                          alignment: const Alignment(0, -0.3),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: AppSpace.xl,
+                            ),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                _SplashBrand(logoHeight: logo),
+                                const SizedBox(height: AppSpace.xxl),
+                                _LoadingBlock(
+                                  stage: stage,
+                                  rise: block,
+                                  spin: spin,
+                                  fill: fill,
+                                  exit: exit,
+                                  leader: _Dial(size: dial, turn: spin),
+                                ),
+                              ],
+                            ),
                           ),
                         ),
                       ),
@@ -167,12 +180,11 @@ class _SplashCover extends StatelessWidget {
                         child: Opacity(
                           opacity: foot,
                           child: Text(
-                            'Santa Cruz de la Sierra · datos GTFS',
+                            'Santa Cruz de la Sierra',
                             textAlign: TextAlign.center,
-                            style: context.text.labelSmall?.copyWith(
-                              color: Colors.white.withValues(alpha: 0.62),
-                              fontWeight: AppTypography.semiBold,
-                              letterSpacing: 0.6,
+                            style: context.text.titleMedium?.copyWith(
+                              color: Colors.white,
+                              fontWeight: AppTypography.bold,
                             ),
                           ),
                         ),
@@ -187,6 +199,38 @@ class _SplashCover extends StatelessWidget {
       },
     );
   }
+}
+
+/// Marca de la pantalla de carga (diseño «Pantalla de carga»): el escudo del
+/// municipio con su texto en blanco y, debajo, el logotipo blanco de Urbano
+/// con su lema. Las dos imágenes salen de `tools/make-brand-logo.sh` y son las
+/// mismas que pinta la splash nativa de Android, así el relevo no salta.
+class _SplashBrand extends StatelessWidget {
+  const _SplashBrand({required this.logoHeight});
+
+  final double logoHeight;
+
+  static const String sealAsset =
+      'assets/images/gobierno-santa-cruz-blanco.png';
+
+  @override
+  Widget build(BuildContext context) => Column(
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      Semantics(
+        label: 'Gobierno Autónomo Municipal de Santa Cruz de la Sierra',
+        image: true,
+        child: Image.asset(
+          sealAsset,
+          height: logoHeight * 0.95,
+          width: logoHeight * 0.95 * 900 / 370,
+          fit: BoxFit.contain,
+        ),
+      ),
+      const SizedBox(height: AppSpace.xxl),
+      UrbanoLogo(height: logoHeight, onBrand: true),
+    ],
+  );
 }
 
 /// Bloque de carga: girófono, «Cargando», la etapa real y la barra.
@@ -227,7 +271,7 @@ class _LoadingBlock extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         leader,
-        const SizedBox(height: AppSpace.xxl),
+        const SizedBox(height: AppSpace.lg),
         Transform.translate(
           offset: Offset(0, (1 - rise) * AppSpace.md),
           child: Opacity(
@@ -237,34 +281,35 @@ class _LoadingBlock extends StatelessWidget {
               children: [
                 Text(
                   'Cargando',
-                  style: text.titleMedium?.copyWith(
+                  style: text.headlineSmall?.copyWith(
                     color: Colors.white,
-                    fontWeight: AppTypography.semiBold,
-                    letterSpacing: 1.2,
+                    fontWeight: AppTypography.display,
                   ),
                 ),
-                const SizedBox(height: AppSpace.sm),
+                const SizedBox(height: AppSpace.xs),
                 Text(
                   stage.label,
                   // La etapa es la que cambia con el arranque real: su key fija
                   // permite medirla en los tests sin adivinar por el estilo.
                   key: const ValueKey('splash-stage'),
-                  style: text.titleSmall?.copyWith(
-                    color: Colors.white.withValues(alpha: 0.78),
+                  style: text.titleMedium?.copyWith(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w500,
                   ),
                 ),
               ],
             ),
           ),
         ),
-        const SizedBox(height: AppSpace.xxl),
+        const SizedBox(height: AppSpace.xl),
         _Loader(fill: fill, sweep: spin, sweepFade: 1 - exit),
       ],
     );
   }
 }
 
-/// Girófono de carga: un arco de coral dando vueltas sobre una pista tenue.
+/// Girófono de carga: un arco naranja dando vueltas sobre una pista verde
+/// clara (la pantalla de carga del diseño).
 ///
 /// A propósito NO es un `CircularProgressIndicator`: ese trae su propio ticker
 /// eterno y `pumpAndSettle` no converge con él montado (y un spinner clavado en
@@ -289,13 +334,14 @@ class _Dial extends StatelessWidget {
 class _DialPainter extends CustomPainter {
   const _DialPainter();
 
-  /// Barrido del arco principal (coral): un poco menos de media vuelta, para que
-  /// la punta y la cola se distingan.
-  static const double _headSweep = math.pi * 1.15;
+  /// Barrido del arco naranja: algo más de media vuelta, como en el diseño
+  /// (bajo «reducir animaciones» el girófono no gira, pero sigue diciendo
+  /// «carga»).
+  static const double _headSweep = math.pi * 1.2;
 
   @override
   void paint(Canvas canvas, Size size) {
-    final stroke = size.shortestSide * 0.085;
+    final stroke = size.shortestSide * 0.11;
     final ring = Rect.fromLTWH(
       stroke,
       stroke,
@@ -310,7 +356,7 @@ class _DialPainter extends CustomPainter {
       2 * math.pi,
       false,
       Paint()
-        ..color = Colors.white.withValues(alpha: 0.18)
+        ..color = const Color(0xFFB9EFC9).withValues(alpha: 0.75)
         ..style = PaintingStyle.stroke
         ..strokeWidth = stroke,
     );
@@ -320,23 +366,15 @@ class _DialPainter extends CustomPainter {
       ..strokeWidth = stroke
       ..strokeCap = StrokeCap.round;
     canvas.drawArc(ring, 0, _headSweep, false, arc..color = AppColors.accent);
-    // Rastro aqua, más corto y tenue: el giro se lee incluso congelado (bajo
-    // «reducir animaciones» el girófono no gira, pero sigue diciendo «carga»).
-    canvas.drawArc(
-      ring,
-      _headSweep,
-      math.pi * 0.32,
-      false,
-      arc..color = AppColors.aqua.withValues(alpha: 0.6),
-    );
   }
 
   @override
   bool shouldRepaint(_DialPainter oldDelegate) => false;
 }
 
-/// Barra de arranque: una cápsula que se llena al levantarse la cortina, con un
-/// tramo claro barriendo de izquierda a derecha mientras la espera dura.
+/// Barra de arranque: una cápsula blanca que se llena de naranja al levantarse
+/// la cortina, con un brillo barriendo de izquierda a derecha mientras la
+/// espera dura.
 class _Loader extends StatelessWidget {
   const _Loader({
     required this.fill,
@@ -358,11 +396,11 @@ class _Loader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => SizedBox(
-    width: 132,
-    height: 4,
+    width: 220,
+    height: 10,
     child: DecoratedBox(
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.2),
+        color: Colors.white.withValues(alpha: 0.88),
         borderRadius: BorderRadius.circular(AppRadius.pill),
       ),
       child: Stack(
@@ -397,7 +435,7 @@ class _Loader extends StatelessWidget {
                       gradient: const LinearGradient(
                         colors: [
                           Colors.transparent,
-                          Colors.white70,
+                          Color(0x66FD7502),
                           Colors.transparent,
                         ],
                       ),

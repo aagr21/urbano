@@ -1,6 +1,8 @@
 package com.example.urbano
 
 import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.LinearGradient
@@ -31,18 +33,20 @@ import kotlin.math.sin
  * Vista nativa que pinta la splash de arranque con Canvas puro.
  *
  * Es la MISMA portada que `SplashGate` (`lib/src/core/widgets/splash_gate.dart`)
- * pintada antes de que exista Flutter: degradado de marca, anillos de Santa Cruz
- * con su micro, girófono coral, «Cargando» + etapa, barra y pie. El arte existe
- * dos veces y se sincroniza a mano, así que esta vista copia las medidas de Dart
- * (`_RingsPainter`, `_DialPainter`, `_LoadingBlock`, `_Loader`) en vez de
- * inventar las suyas.
+ * pintada antes de que exista Flutter: degradado de verdes, anillos de Santa
+ * Cruz con su micro, escudo y logo blancos (los mismos PNG de
+ * `assets/images/`, leídos de `flutter_assets`), girófono naranja, «Cargando» +
+ * etapa, barra y pie. El arte existe dos veces y se sincroniza a mano, así que
+ * esta vista copia las medidas de Dart (`_RingsPainter`, `_SplashBrand`,
+ * `_DialPainter`, `_LoadingBlock`, `_Loader`) en vez de inventar las suyas.
  *
  * Lo que la hace verse bien y no «otra pantalla antes de la app»:
- *  * **Antialias en todo** y la fuente real (Inter, leída de los assets de
+ *  * **Antialias en todo** y la fuente real (Montserrat, leída de los assets de
  *    Flutter que ya viajan en el APK; si falla, `sans-serif-medium`).
  *  * **Mismo layout que Dart**: bloque centrado en el área segura con
- *    `Alignment(0, -0.22)`, girófono de `min(lado) * 0.15` (58–84 dp), 32 dp
- *    entre piezas, barra de 132 × 4 dp y pie a 16 dp del borde inferior seguro.
+ *    `Alignment(0, -0.3)`: escudo, logo (70 % del ancho, 48–96 dp de alto) con
+ *    su lema, girófono de `min(lado) * 0.17` (58–80 dp), barra de 220 × 10 dp
+ *    y pie a 16 dp del borde inferior seguro.
  *    La vista ocupa toda la pantalla (edge-to-edge, ver [SplashActivity]) y lee
  *    los insets, igual que el `SafeArea` de Flutter.
  *  * **Termina donde empieza `SplashGate`**: la portada de Dart arranca en
@@ -79,13 +83,22 @@ class SplashCanvasView(context: Context) : SurfaceView(context), SurfaceHolder.C
 
         /** Primera etapa de `BootStage` (la que muestra Dart al montarse). */
         private const val STAGE = "Preparando la app"
-        private const val FOOTER = "Santa Cruz de la Sierra · datos GTFS"
+        private const val FOOTER = "Santa Cruz de la Sierra"
+        private const val TAGLINE = "Muévete por Santa Cruz"
 
-        // Colores de marca (AppColors).
-        private const val AQUA = 0xFF2AD8C3.toInt()
-        private const val PRIMARY = 0xFF008C7B.toInt()
-        private const val PRIMARY_DARK = 0xFF00584F.toInt()
-        private const val ACCENT = 0xFFFF5B35.toInt()
+        // Colores de marca (AppColors): la escalera de verdes y el naranja.
+        private const val LIME = 0xFF35F04F.toInt()
+        private const val BRIGHT = 0xFF1BD64C.toInt()
+        private const val BRAND = 0xFF06BD4A.toInt()
+        private const val PRIMARY_DARK = 0xFF018A3C.toInt()
+        private const val ACCENT = 0xFFFD7502.toInt()
+
+        /** Pista del girófono (`_DialPainter`): verde claro al 75 %. */
+        private const val DIAL_TRACK = 0xBFB9EFC9.toInt()
+
+        /** Relación de aspecto del logo (`UrbanoLogo.aspect`) y del escudo. */
+        private const val LOGO_ASPECT = 900f / 224f
+        private const val SEAL_ASPECT = 900f / 370f
 
         // Geometría de `_RingsPainter`.
         private val RING_RADII = floatArrayOf(0.3f, 0.44f, 0.6f, 0.78f, 0.98f)
@@ -94,9 +107,8 @@ class SplashCanvasView(context: Context) : SurfaceView(context), SurfaceHolder.C
         private const val SWEEP_ANGLE = (PI / 2).toFloat()
         private const val DEG = (180.0 / PI).toFloat()
 
-        // Girófono (`_DialPainter`): arco coral de 1,15π y cola aqua de 0,32π.
-        private const val HEAD_SWEEP = 207f
-        private const val TAIL_SWEEP = 57.6f
+        // Girófono (`_DialPainter`): arco naranja de 1,2π.
+        private const val HEAD_SWEEP = 216f
 
         /** Blanco con alfa (0..1). */
         private fun white(alpha: Float): Int =
@@ -148,12 +160,25 @@ class SplashCanvasView(context: Context) : SurfaceView(context), SurfaceHolder.C
     private val background = Paint().apply { style = Paint.Style.FILL }
     private val glider = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.FILL }
 
-    private val titlePaint = textPaint("Inter-SemiBold.ttf", Typeface.BOLD)
-    private val stagePaint = textPaint("Inter-Bold.ttf", Typeface.BOLD)
-    private val footerPaint = textPaint("Inter-SemiBold.ttf", Typeface.BOLD)
+    private val titlePaint = textPaint("Montserrat-ExtraBold.ttf", Typeface.BOLD)
+    private val stagePaint = textPaint("Montserrat-Medium.ttf", Typeface.NORMAL)
+    private val footerPaint = textPaint("Montserrat-Bold.ttf", Typeface.BOLD)
+    private val taglinePaint = textPaint("Montserrat-Bold.ttf", Typeface.BOLD)
+    private val bitmapPaint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
+
+    /** Escudo con texto blanco y logo blanco: los MISMOS PNG que pinta Dart. */
+    private val seal = bitmap("gobierno-santa-cruz-blanco.png")
+    private val logo = bitmap("urbano-logo-blanco.png")
+
+    private fun bitmap(file: String): Bitmap? = try {
+        context.assets.open("flutter_assets/assets/images/$file").use(BitmapFactory::decodeStream)
+    } catch (error: java.io.IOException) {
+        Log.w(TAG, "sin $file en los assets; la splash sigue sin la marca", error)
+        null
+    }
 
     /**
-     * Inter viaja en el APK como asset de Flutter (`flutter_assets/assets/fonts`).
+     * Montserrat viaja en el APK como asset de Flutter (`flutter_assets/assets/fonts`).
      * Leerla de ahí evita duplicar la fuente en `res/font`; si no está (un build
      * raro, un rename) la splash sigue con la del sistema, nunca se cae.
      */
@@ -186,6 +211,10 @@ class SplashCanvasView(context: Context) : SurfaceView(context), SurfaceHolder.C
     private var dialCx = 0f
     private var dialCy = 0f
     private val dialRect = RectF()
+
+    private val sealRect = RectF()
+    private val logoRect = RectF()
+    private var taglineBaseline = 0f
 
     private var titleBaseline = 0f
     private var stageBaseline = 0f
@@ -265,8 +294,8 @@ class SplashCanvasView(context: Context) : SurfaceView(context), SurfaceHolder.C
         // Degradado de marca (`urbanoGradient`): arriba-izquierda → abajo-derecha.
         background.shader = LinearGradient(
             0f, 0f, widthPx, heightPx,
-            intArrayOf(AQUA, PRIMARY, PRIMARY_DARK),
-            floatArrayOf(0f, 0.58f, 1f),
+            intArrayOf(LIME, BRIGHT, BRAND, PRIMARY_DARK),
+            floatArrayOf(0f, 0.3f, 0.62f, 1f),
             Shader.TileMode.CLAMP,
         )
 
@@ -278,53 +307,75 @@ class SplashCanvasView(context: Context) : SurfaceView(context), SurfaceHolder.C
             ringRects[i].set(ringsCx - radius, ringsCy - radius, ringsCx + radius, ringsCy + radius)
         }
 
-        // Tipografía: titleMedium (16, alto 1.5), titleSmall (14, alto 20/14) y
-        // labelSmall (11, alto 1.3), con el espaciado de Dart pasado a em.
-        titlePaint.textSize = sp(16f)
-        titlePaint.letterSpacing = 1.2f / 16f
-        stagePaint.textSize = sp(14f)
-        stagePaint.letterSpacing = 0.1f / 14f
-        footerPaint.textSize = sp(11f)
-        footerPaint.letterSpacing = 0.6f / 11f
-        val titleBox = titlePaint.textSize * 1.5f
-        val stageBox = stagePaint.textSize * (20f / 14f)
+        // Tipografía: headlineSmall (24, alto 1.2, ExtraBold), titleMedium (16,
+        // alto 1.5) para la etapa y el pie, como en `_LoadingBlock`.
+        titlePaint.textSize = sp(24f)
+        titlePaint.letterSpacing = -0.2f / 24f
+        stagePaint.textSize = sp(16f)
+        stagePaint.letterSpacing = -0.1f / 16f
+        footerPaint.textSize = sp(16f)
+        footerPaint.letterSpacing = -0.1f / 16f
+        val titleBox = titlePaint.textSize * 1.2f
+        val stageBox = stagePaint.textSize * 1.5f
 
-        // Bloque de carga: girófono · 32 · Cargando · 8 · etapa · 32 · barra.
-        dialSize = (min(widthPx, heightPx) * 0.15f).coerceIn(58f * dp, 84f * dp)
+        // Marca (`_SplashBrand`): escudo (0,95 × logo) · 32 · logo · lema.
+        val logoHeight = (widthPx * 0.7f / LOGO_ASPECT).coerceIn(48f * dp, 96f * dp)
+        val sealHeight = logoHeight * 0.95f
+        val taglineSize = logoHeight * 0.36f
+        taglinePaint.textSize = taglineSize
+        // `FittedBox(scaleDown)` en el 86 % del ancho del logo.
+        val taglineMax = logoHeight * LOGO_ASPECT * 0.86f
+        val taglineWidth = taglinePaint.measureText(TAGLINE)
+        if (taglineWidth > taglineMax) taglinePaint.textSize = taglineSize * taglineMax / taglineWidth
+        val taglineBox = taglineSize * 1.2f
         val gap = 32f * dp
-        val barHeight = 4f * dp
-        val blockHeight = dialSize + gap + titleBox + 8f * dp + stageBox + gap + barHeight
+
+        // Bloque de carga: girófono · 16 · Cargando · 4 · etapa · 24 · barra.
+        dialSize = (min(widthPx, heightPx) * 0.17f).coerceIn(58f * dp, 80f * dp)
+        val barHeight = 10f * dp
+        val brandHeight = sealHeight + gap + logoHeight + taglineBox
+        val blockHeight = brandHeight + gap + dialSize + 16f * dp + titleBox + 4f * dp + stageBox +
+            24f * dp + barHeight
         val safeHeight = heightPx - insetTop - insetBottom
-        // `Alignment(0, -0.22)`: (libre / 2) * (1 + y).
-        var y = insetTop + (safeHeight - blockHeight) / 2f * (1f - 0.22f)
+        // `Alignment(0, -0.3)`: (libre / 2) * (1 + y).
+        var y = insetTop + (safeHeight - blockHeight) / 2f * (1f - 0.3f)
+
+        val sealWidth = sealHeight * SEAL_ASPECT
+        sealRect.set(widthPx / 2f - sealWidth / 2f, y, widthPx / 2f + sealWidth / 2f, y + sealHeight)
+        y += sealHeight + gap
+        val logoWidth = logoHeight * LOGO_ASPECT
+        logoRect.set(widthPx / 2f - logoWidth / 2f, y, widthPx / 2f + logoWidth / 2f, y + logoHeight)
+        y += logoHeight
+        taglineBaseline = baselineIn(taglinePaint, y, 1.2f * taglineSize / taglinePaint.textSize)
+        y += taglineBox + gap
 
         dialCx = widthPx / 2f
         dialCy = y + dialSize / 2f
-        val dialStroke = dialSize * 0.085f
+        val dialStroke = dialSize * 0.11f
         val half = dialSize / 2f - dialStroke
         dialRect.set(-half, -half, half, half)
-        y += dialSize + gap
+        y += dialSize + 16f * dp
 
-        titleBaseline = baselineIn(titlePaint, y, 1.5f)
-        y += titleBox + 8f * dp
-        stageBaseline = baselineIn(stagePaint, y, 20f / 14f)
-        y += stageBox + gap
+        titleBaseline = baselineIn(titlePaint, y, 1.2f)
+        y += titleBox + 4f * dp
+        stageBaseline = baselineIn(stagePaint, y, 1.5f)
+        y += stageBox + 24f * dp
 
-        val barWidth = 132f * dp
+        val barWidth = 220f * dp
         barRect.set(widthPx / 2f - barWidth / 2f, y, widthPx / 2f + barWidth / 2f, y + barHeight)
 
-        // Barrido: un tramo del 34 % que se aclara al centro, como en `_Loader`.
+        // Barrido: un tramo del 34 % que se tiñe de naranja al centro (`_Loader`).
         val gliderWidth = barWidth * 0.34f
         glider.shader = LinearGradient(
             0f, 0f, gliderWidth, 0f,
-            intArrayOf(Color.TRANSPARENT, 0xB3FFFFFF.toInt(), Color.TRANSPARENT),
+            intArrayOf(Color.TRANSPARENT, 0x66FD7502, Color.TRANSPARENT),
             null,
             Shader.TileMode.CLAMP,
         )
 
         // Pie: a 16 dp del borde inferior seguro.
-        val footerBox = footerPaint.textSize * 1.3f
-        footerBaseline = baselineIn(footerPaint, heightPx - insetBottom - 16f * dp - footerBox, 1.3f)
+        val footerBox = footerPaint.textSize * 1.5f
+        footerBaseline = baselineIn(footerPaint, heightPx - insetBottom - 16f * dp - footerBox, 1.5f)
     }
 
     // ── Control de animación ──
@@ -413,6 +464,7 @@ class SplashCanvasView(context: Context) : SurfaceView(context), SurfaceHolder.C
 
         val draw = easeOutCubic(RINGS_HANDOFF * progress)
         drawCity(canvas, draw, lap)
+        drawBrand(canvas)
         drawDial(canvas, ms, lap)
         drawLoadingText(canvas, ms)
         drawBar(canvas, ms, progress, lap)
@@ -498,7 +550,15 @@ class SplashCanvasView(context: Context) : SurfaceView(context), SurfaceHolder.C
         canvas.restore()
     }
 
-    /** Girófono: pista tenue, arco coral y cola aqua, girando sobre su centro. */
+    /** Escudo y logo blancos con el lema: quietos, como en `_SplashBrand`. */
+    private fun drawBrand(canvas: Canvas) {
+        seal?.let { canvas.drawBitmap(it, null, sealRect, bitmapPaint) }
+        logo?.let { canvas.drawBitmap(it, null, logoRect, bitmapPaint) }
+        taglinePaint.color = Color.WHITE
+        canvas.drawText(TAGLINE, widthPx / 2f, taglineBaseline, taglinePaint)
+    }
+
+    /** Girófono: pista verde clara y arco naranja, girando sobre su centro. */
     private fun drawDial(canvas: Canvas, ms: Float, turn: Float) {
         val t = clamp01(ms / 420f)
         val alpha = easeOutCubic(t)
@@ -509,15 +569,13 @@ class SplashCanvasView(context: Context) : SurfaceView(context), SurfaceHolder.C
         canvas.scale(scale, scale)
         canvas.rotate(turn * 360f)
 
-        stroke.strokeWidth = dialSize * 0.085f
-        stroke.color = white(0.18f * alpha)
+        stroke.strokeWidth = dialSize * 0.11f
+        stroke.color = DIAL_TRACK
+        stroke.alpha = (0xBF * alpha).toInt()
         canvas.drawOval(dialRect, stroke)
         stroke.color = ACCENT
         stroke.alpha = (255 * alpha).toInt()
         canvas.drawArc(dialRect, 0f, HEAD_SWEEP, false, stroke)
-        stroke.color = AQUA
-        stroke.alpha = (255 * 0.6f * alpha).toInt()
-        canvas.drawArc(dialRect, HEAD_SWEEP, TAIL_SWEEP, false, stroke)
         canvas.restore()
     }
 
@@ -529,17 +587,17 @@ class SplashCanvasView(context: Context) : SurfaceView(context), SurfaceHolder.C
 
         titlePaint.color = white(rise)
         canvas.drawText("Cargando", widthPx / 2f, titleBaseline + dy, titlePaint)
-        stagePaint.color = white(0.78f * rise)
+        stagePaint.color = white(rise)
         canvas.drawText(STAGE, widthPx / 2f, stageBaseline + dy, stagePaint)
     }
 
-    /** Barra: pista, relleno coral hasta el 10 % del relevo y el barrido. */
+    /** Barra: pista blanca, relleno naranja hasta el 10 % del relevo y el barrido. */
     private fun drawBar(canvas: Canvas, ms: Float, progress: Float, sweep: Float) {
         val appear = easeOutCubic(clamp01((ms - 30f) / 360f))
         if (appear <= 0f) return
         val r = barRect.height() / 2f
 
-        fill.color = white(0.2f * appear)
+        fill.color = white(0.88f * appear)
         canvas.drawRoundRect(barRect, r, r, fill)
 
         val fillWidth = barRect.width() * BAR_HANDOFF * progress
@@ -560,7 +618,7 @@ class SplashCanvasView(context: Context) : SurfaceView(context), SurfaceHolder.C
     private fun drawFooter(canvas: Canvas, ms: Float) {
         val appear = easeOutCubic(clamp01((ms - 30f) / 240f))
         if (appear <= 0f) return
-        footerPaint.color = white(0.62f * appear)
+        footerPaint.color = white(appear)
         canvas.drawText(FOOTER, widthPx / 2f, footerBaseline, footerPaint)
     }
 }

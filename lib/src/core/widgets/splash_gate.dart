@@ -8,6 +8,7 @@ import '../theme/app_colors.dart';
 import '../theme/app_theme.dart';
 import '../theme/typography.dart';
 import '../utils/extensions.dart';
+import 'urbano_logo.dart';
 
 part 'splash_cover.dart';
 
