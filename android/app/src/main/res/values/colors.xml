@@ -4,16 +4,16 @@
 <resources>
     <!-- Verde luminoso: arranque del degradado de marca. -->
     <color name="urbano_aqua">#FF35F04F</color>
-    <!-- Promedio del degradado de verdes: fondo de la portada nativa de 12+
-         (el campo que se ve antes de SplashCanvasView, del mismo color que
-         el degradado para que el relevo no se lea como otra pantalla). -->
-    <color name="urbano_primary">#FF12C94B</color>
-    <!-- Verde profundo: final del degradado. -->
-    <color name="urbano_primary_dark">#FF018A3C</color>
+    <!-- Verde principal de la paleta: fondo de la portada nativa de 12+
+         (el campo que se ve antes de SplashCanvasView; es el tono central
+         del degradado, así el relevo no se lee como otra pantalla). -->
+    <color name="urbano_primary">#FF06BD4A</color>
+    <!-- Verde oscuro de la paleta: final del degradado. -->
+    <color name="urbano_primary_dark">#FF029E46</color>
     <!-- Canvas del tema (claro): el MISMO `AppColors.canvasLight`, fondo de la
          ventana de `NormalTheme`, para que el handoff splash-app nunca asome en
          blanco puro de la plataforma. `values-night/` redefine este nombre a
          canvasDark, así que un solo `@color/urbano_canvas` sigue al modo del
          sistema sin duplicar el style. -->
-    <color name="urbano_canvas">#FFF4F6F4</color>
+    <color name="urbano_canvas">#FFFEFEFE</color>
 </resources>

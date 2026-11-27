@@ -66,14 +66,6 @@ const LinearGradient urbanoGradient = LinearGradient(
   stops: [0.0, 0.3, 0.62, 1.0],
 );
 
-/// Degradado del botón naranja (la flecha de «¿A dónde vas?» y los CTA de
-/// Quejas): naranja de marca con un brillo arriba.
-const LinearGradient urbanoAccentGradient = LinearGradient(
-  begin: Alignment.topCenter,
-  end: Alignment.bottomCenter,
-  colors: [Color(0xFFFF9133), AppColors.accent],
-);
-
 /// Tema claro/oscuro de Urbano (Material 3, semillas propias).
 class AppTheme {
   AppTheme._();

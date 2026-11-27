@@ -155,12 +155,17 @@ Vercel URL**. Always pass it explicitly for targeted local runs
 
 Visual values come from tokens in `lib/src/core/theme/`, never from literals:
 
-- Brand: the official palette (`AppColors.lime/brightGreen/brand/primary` greens, `accent`
-  orange `#FD7502`) and `urbanoGradient`. On the green gradient the ink is **always**
-  `AppColors.onBrand` (white, bold, title/label sizes) — never `AppColors.onColor`, which
-  picks black against the bright brand green. Green or orange used as small text on light
-  surfaces goes through `greenDeep` / `accentDeep` (≥4.5:1). Denuncias uses the orange as its
-  section accent. Type is Montserrat everywhere (`ThemeData.fontFamily`).
+- Brand: **exactly** the six official colors, no invented shades (the user asked for it):
+  greens `#35F04F` `#1BD64C` `#06BD4A` `#029E46`, orange `#FD7502`, white `#FEFEFE`
+  (`AppColors.lime/brightGreen/brand/primary/accent/brandWhite`; `primaryDark`, `greenDeep`,
+  `accentDeep`, the dark-mode variants and the green/orange `HtmlDesignTokens` all alias one of
+  them). Lighter fills are those colors through `AppColors.tint` (transparency), never a new hex;
+  only neutrals (ink, grey text, the dark-mode graphite) live outside the palette.
+  `test/theme_palette_test.dart` («todo color de marca es EXACTAMENTE uno de la paleta») locks
+  it. On the green gradient the ink is **always** `AppColors.onBrand` (`#FEFEFE`, bold,
+  title/label sizes) — never `AppColors.onColor`, which picks black against the bright brand
+  green. Denuncias uses the orange as its section accent. Type is Montserrat everywhere
+  (`ThemeData.fontFamily`).
 
 - Corners: `AppRadius` (`sm 10 · tile 12 · input 14 · md 16 · lg 24 · xl 32 · pill 999`).
   No `BorderRadius.circular(<número>)` anywhere in `lib/`. `pill` is also correct for thin 4 px
@@ -411,7 +416,7 @@ platform view; the merged map/result-sheet design is deliberate (see README).
   `core/widgets/splash_gate.dart` (cover in `splash_cover.dart`) paints, over the brand gradient
   and the Santa Cruz rings: the municipal seal with white text (`_SplashBrand`,
   `assets/images/gobierno-santa-cruz-blanco.png`), the white Urbano logo with its tagline
-  (`UrbanoLogo(onBrand: true)`), then the loading block — orange dial on a pale-green track,
+  (`UrbanoLogo(onBrand: true)`), then the loading block — orange dial on a translucent white track,
   `Cargando`, the real boot stage and a white bar filling with orange — and the
   `Santa Cruz de la Sierra` footer. (An earlier iteration hid the logo on request; the new brand
   design puts it back, so don't remove it again without asking.) Before `SplashGate` there are
@@ -433,9 +438,9 @@ platform view; the merged map/result-sheet design is deliberate (see README).
   launcher icon shows as a second splash.
   `test/splash_gate_test.dart` covers the cover and native resources are
   checked with `:app:processDebugResources`.
-  `windowSplashScreenBackground` is **`urbano_primary` (`#12C94B`, the average of the green
-  gradient), not `primary_dark`**: with the dark end the handoff read as a separate green screen
-  (measured with `screenrecord` on the Honor). Keep it the gradient's average if the palette moves.
+  `windowSplashScreenBackground` is **`urbano_primary` (`#06BD4A`, the palette's verde principal,
+  the gradient's middle tone), not `primary_dark`**: with the dark end the handoff read as a
+  separate green screen (measured with `screenrecord` on the Honor).
 - **The cover enters already painted.** (the cover and its painters live in `splash_cover.dart`, a `part` of `splash_gate.dart`) `_SplashCover._startT` is `0.14` and the loading windows
   (`_blockEnd 0.26`, `_barBegin .02`, `_footEnd .14`) are already open by then, so frame 1 shows the
   dial + `Cargando` + the stage line + footer + a bar that has already started. With `begin: 0` the

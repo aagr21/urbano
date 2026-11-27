@@ -22,9 +22,9 @@ from pathlib import Path
 LIME = '#35F04F'
 BRAND = '#06BD4A'
 PRIMARY = '#029E46'
-PRIMARY_DARK = '#018A3C'
+PRIMARY_DARK = '#029E46'
 ACCENT = '#FD7502'
-INK = '#014D23'
+INK = '#029E46'
 
 # Geometría del glifo en un lienzo de 1024 (centro 512).
 LEFT, RIGHT = 342, 682          # ejes de las patas de la U
@@ -56,8 +56,8 @@ GLYPH_CY = ((min(PIN_CY - PIN_R, TOP_L - 92)) + (BEND + RADIUS + STROKE / 2)) / 
 
 
 def background(dark: bool = False) -> str:
-    stops = ('#0F5A2C', '#0A4423', '#052A15') if dark else (LIME, BRAND, PRIMARY_DARK)
-    glow = '.08' if dark else '.18'
+    # Mismo degradado de la paleta en las dos variantes (iOS oscuro incluido).
+    stops = (LIME, BRAND, PRIMARY_DARK)
     return f'''
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
@@ -65,13 +65,9 @@ def background(dark: bool = False) -> str:
       <stop offset=".55" stop-color="{stops[1]}"/>
       <stop offset="1" stop-color="{stops[2]}"/>
     </linearGradient>
-    <radialGradient id="glow" cx=".2" cy=".15" r=".6">
-      <stop offset="0" stop-color="#fff" stop-opacity="{glow}"/>
-      <stop offset="1" stop-color="#fff" stop-opacity="0"/>
-    </radialGradient>
   </defs>
   <rect width="1024" height="1024" fill="url(#bg)"/>
-  <rect width="1024" height="1024" fill="url(#glow)"/>'''
+'''
 
 
 def glyph(scale: float, mono: bool = False) -> str:
@@ -105,14 +101,14 @@ def glyph(scale: float, mono: bool = False) -> str:
   </defs>
   <g transform="{t}">
     <!-- El recorrido: la U blanca, de la parada al destino. -->
-    <path d="{U_PATH}" fill="none" stroke="#fff" stroke-width="{STROKE}" filter="url(#shadow)"/>
+    <path d="{U_PATH}" fill="none" stroke="#FEFEFE" stroke-width="{STROKE}" filter="url(#shadow)"/>
     <!-- La parada de salida: aro blanco, centro verde y punto blanco. -->
-    <circle cx="{LEFT}" cy="{TOP_L}" r="92" fill="#fff" filter="url(#shadow)"/>
+    <circle cx="{LEFT}" cy="{TOP_L}" r="92" fill="#FEFEFE" filter="url(#shadow)"/>
     <circle cx="{LEFT}" cy="{TOP_L}" r="62" fill="{BRAND}"/>
-    <circle cx="{LEFT}" cy="{TOP_L}" r="34" fill="#fff"/>
+    <circle cx="{LEFT}" cy="{TOP_L}" r="34" fill="#FEFEFE"/>
     <!-- A dónde vas: el pin naranja, con la punta sobre la pata derecha. -->
     <path d="{PIN_PATH}" fill="{ACCENT}" filter="url(#shadow)"/>
-    <circle cx="{RIGHT}" cy="{PIN_CY}" r="{PIN_R * 0.42}" fill="#fff"/>
+    <circle cx="{RIGHT}" cy="{PIN_CY}" r="{PIN_R * 0.42}" fill="#FEFEFE"/>
   </g>'''
 
 

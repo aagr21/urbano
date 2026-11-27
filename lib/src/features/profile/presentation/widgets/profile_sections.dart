@@ -160,21 +160,9 @@ class ProfileAppearanceSection extends ConsumerWidget {
         key: const ValueKey('profile-theme'),
         showSelectedIcon: false,
         segments: const [
-          ButtonSegment(
-            value: ThemeMode.system,
-            label: Text('Sistema'),
-            icon: Icon(Icons.brightness_auto_rounded, size: 18),
-          ),
-          ButtonSegment(
-            value: ThemeMode.light,
-            label: Text('Claro'),
-            icon: Icon(Icons.light_mode_rounded, size: 18),
-          ),
-          ButtonSegment(
-            value: ThemeMode.dark,
-            label: Text('Oscuro'),
-            icon: Icon(Icons.dark_mode_rounded, size: 18),
-          ),
+          ButtonSegment(value: ThemeMode.system, label: Text('Sistema')),
+          ButtonSegment(value: ThemeMode.light, label: Text('Claro')),
+          ButtonSegment(value: ThemeMode.dark, label: Text('Oscuro')),
         ],
         selected: {mode},
         onSelectionChanged: (selection) => ref

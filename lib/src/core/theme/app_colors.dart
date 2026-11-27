@@ -2,19 +2,18 @@ import 'package:material_ui/material_ui.dart';
 
 /// Tokens de color de Urbano.
 ///
-/// Paleta oficial de la marca (manual «Paleta de colores Urbano»): una escalera
-/// de verdes —luminoso `#35F04F`, brillante `#1BD64C`, principal `#06BD4A`,
-/// oscuro `#029E46`— que forma el degradado de marca, el **naranja** `#FD7502`
-/// como contracolor (el pin de destino del logo) y blanco `#FEFEFE`. Los
-/// neutros siguen siendo los grises de Apple: en claro `systemGroupedBackground`
-/// (`#F2F2F7`) y en oscuro grafito.
+/// Paleta oficial de la marca (manual «Paleta de colores Urbano»), **sin tonos
+/// inventados**: verde luminoso `#35F04F`, brillante `#1BD64C`, principal
+/// `#06BD4A`, oscuro `#029E46`, naranja `#FD7502` y blanco `#FEFEFE`. Todo
+/// verde, naranja o blanco de la app es uno de esos seis (o uno de ellos con
+/// transparencia sobre la superficie, vía [tint]). Fuera de la paleta solo
+/// quedan los neutros: tinta y grises de texto, y el grafito del modo oscuro.
 ///
 /// Regla del equipo sobre fondos oscuros/degradados: solo texto, íconos y
 /// bordes claros (blancos o acentos luminosos) encima — nada de oscuros sobre
-/// oscuros. Los verdes de marca son claros (el principal da 2,5:1 contra
-/// blanco), así que la **tinta** verde sobre superficies claras es
-/// [greenDeep], y el blanco encima del degradado se reserva para texto grande
-/// y en negrita, como en las piezas de la marca.
+/// oscuros. Los verdes y el naranja de la marca son claros (el principal da
+/// 2,5:1 contra blanco): como texto van en negrita y a tamaño de título o
+/// etiqueta, igual que en las piezas de la marca.
 class AppColors {
   AppColors._();
 
@@ -37,9 +36,8 @@ class AppColors {
   /// blanco encima (3,5:1) y se lee como acento sobre el lienzo.
   static const Color primary = Color(0xFF029E46);
 
-  /// Fin del degradado de marca (un paso más hondo que [primary], para que el
-  /// degradado tenga fondo sin salirse del verde de la paleta).
-  static const Color primaryDark = Color(0xFF018A3C);
+  /// Fin del degradado de marca: el verde oscuro de la paleta (= [primary]).
+  static const Color primaryDark = Color(0xFF029E46);
 
   /// Punto medio del **campo de marca** con el que abren las secciones
   /// (la portada de Inicio, la splash y la de Quejas). Es el extremo contra
@@ -49,11 +47,11 @@ class AppColors {
   /// Naranja de la marca (el pin de destino del logo).
   static const Color accent = Color(0xFFFD7502);
 
-  /// Naranja profundo para texto/íconos sobre claros (≥4,5:1 contra blanco).
-  static const Color accentDeep = Color(0xFFC25200);
+  /// Naranja como tinta (texto/íconos): el mismo naranja de la paleta.
+  static const Color accentDeep = Color(0xFFFD7502);
 
-  /// Verde legible sobre superficies claras (texto/íconos, ≥4,5:1).
-  static const Color greenDeep = Color(0xFF027F38);
+  /// Verde como tinta (texto/íconos): el verde oscuro de la paleta.
+  static const Color greenDeep = Color(0xFF029E46);
 
   /// Blanco de la marca.
   static const Color brandWhite = Color(0xFFFEFEFE);
@@ -63,7 +61,7 @@ class AppColors {
   /// verde principal el negro mide más, y eso pintaba letra oscura sobre la
   /// portada verde. Va en negrita y a tamaño de título o etiqueta, nunca en
   /// cuerpo fino.
-  static const Color onBrand = Colors.white;
+  static const Color onBrand = brandWhite;
 
   /// Tinta / texto principal (casi negro, como el label de iOS).
   static const Color ink = Color(0xFF111413);
@@ -71,23 +69,24 @@ class AppColors {
   /// Texto secundario claro (gris de la marca, el del lema del logo).
   static const Color inkSoft = Color(0xFF6B6F6C);
 
-  /// Fondo claro de app: el "systemGroupedBackground" de iOS.
-  static const Color canvasLight = Color(0xFFF4F6F4);
+  /// Fondo claro de app: el blanco de la marca.
+  static const Color canvasLight = Color(0xFFFEFEFE);
 
-  /// Superficies de tarjetas en claro (blanco puro).
-  static const Color surfaceLight = Color(0xFFFFFFFF);
+  /// Superficies de tarjetas en claro: el blanco de la marca (se separan del
+  /// lienzo por filete y sombra).
+  static const Color surfaceLight = Color(0xFFFEFEFE);
 
   /// Contenedor primario en claro (verde muy diluido).
   static const Color primaryContainerLight = Color(0xFFD3F8DC);
-  static const Color onPrimaryContainerLight = Color(0xFF00522A);
+  static const Color onPrimaryContainerLight = Color(0xFF029E46);
 
   /// Segundo acento (verde vivo, para datos vivos) y su contenedor.
   static const Color secondaryContainerLight = Color(0xFFC8F5D2);
-  static const Color onSecondaryContainerLight = Color(0xFF015E2C);
+  static const Color onSecondaryContainerLight = Color(0xFF029E46);
 
   /// Contenedor naranja en claro.
   static const Color tertiaryContainerLight = Color(0xFFFFE6D3);
-  static const Color onTertiaryContainerLight = Color(0xFF8A3600);
+  static const Color onTertiaryContainerLight = Color(0xFFFD7502);
 
   /// Contornos en claro: separador de iOS (`#C7C7CC`/`#E5E5EA`).
   static const Color outlineLight = Color(0xFFC7C7CC);
@@ -133,17 +132,16 @@ class AppColors {
   /// separar la tarjeta del lienzo sin dibujar un borde duro.
   static const Color lineStrongDark = Color(0x47FFFFFF);
 
-  /// Primario en oscuro: el verde de marca **apagado**, no neón. Sigue siendo
-  /// el acento vivo de la app sobre el grafito (≥6:1 contra `surfaceDark`),
-  /// pero con la saturación baja para que no deslumbre en una pantalla OLED.
-  static const Color primarySoftDark = Color(0xFF63C985);
-  static const Color onPrimaryDark = Color(0xFF00381B);
-  static const Color primaryContainerDark = Color(0xFF0A6B33);
-  static const Color onPrimaryContainerDark = Color(0xFFCBF7D6);
+  /// Primario en oscuro: el verde principal de la paleta (5,9:1 contra
+  /// `surfaceDark`).
+  static const Color primarySoftDark = Color(0xFF06BD4A);
+  static const Color onPrimaryDark = Color(0xFFFEFEFE);
+  static const Color primaryContainerDark = Color(0xFF029E46);
+  static const Color onPrimaryContainerDark = Color(0xFFFEFEFE);
 
-  /// Acentos vivos en oscuro (mismo apagado que el primario).
-  static const Color accentSoftDark = Color(0xFFFF9A4D);
-  static const Color limeSoftDark = Color(0xFF7FD69A);
+  /// Acentos en oscuro: los mismos de la paleta.
+  static const Color accentSoftDark = Color(0xFFFD7502);
+  static const Color limeSoftDark = Color(0xFF35F04F);
 
   /// Error.
   static const Color danger = Color(0xFFE5484D);

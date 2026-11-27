@@ -90,11 +90,11 @@ class SplashCanvasView(context: Context) : SurfaceView(context), SurfaceHolder.C
         private const val LIME = 0xFF35F04F.toInt()
         private const val BRIGHT = 0xFF1BD64C.toInt()
         private const val BRAND = 0xFF06BD4A.toInt()
-        private const val PRIMARY_DARK = 0xFF018A3C.toInt()
+        private const val PRIMARY_DARK = 0xFF029E46.toInt()
         private const val ACCENT = 0xFFFD7502.toInt()
 
-        /** Pista del girófono (`_DialPainter`): verde claro al 75 %. */
-        private const val DIAL_TRACK = 0xBFB9EFC9.toInt()
+        /** Pista del girófono (`_DialPainter`): blanco de marca al 60 %. */
+        private const val DIAL_TRACK = 0x99FEFEFE.toInt()
 
         /** Relación de aspecto del logo (`UrbanoLogo.aspect`) y del escudo. */
         private const val LOGO_ASPECT = 900f / 224f
@@ -110,9 +110,9 @@ class SplashCanvasView(context: Context) : SurfaceView(context), SurfaceHolder.C
         // Girófono (`_DialPainter`): arco naranja de 1,2π.
         private const val HEAD_SWEEP = 216f
 
-        /** Blanco con alfa (0..1). */
+        /** Blanco de la marca (#FEFEFE) con alfa (0..1). */
         private fun white(alpha: Float): Int =
-            Color.argb((alpha.coerceIn(0f, 1f) * 255).toInt(), 255, 255, 255)
+            Color.argb((alpha.coerceIn(0f, 1f) * 255).toInt(), 254, 254, 254)
 
         private fun clamp01(v: Float) = v.coerceIn(0f, 1f)
 
@@ -554,7 +554,7 @@ class SplashCanvasView(context: Context) : SurfaceView(context), SurfaceHolder.C
     private fun drawBrand(canvas: Canvas) {
         seal?.let { canvas.drawBitmap(it, null, sealRect, bitmapPaint) }
         logo?.let { canvas.drawBitmap(it, null, logoRect, bitmapPaint) }
-        taglinePaint.color = Color.WHITE
+        taglinePaint.color = white(1f)
         canvas.drawText(TAGLINE, widthPx / 2f, taglineBaseline, taglinePaint)
     }
 
@@ -571,7 +571,7 @@ class SplashCanvasView(context: Context) : SurfaceView(context), SurfaceHolder.C
 
         stroke.strokeWidth = dialSize * 0.11f
         stroke.color = DIAL_TRACK
-        stroke.alpha = (0xBF * alpha).toInt()
+        stroke.alpha = (0x99 * alpha).toInt()
         canvas.drawOval(dialRect, stroke)
         stroke.color = ACCENT
         stroke.alpha = (255 * alpha).toInt()
@@ -597,7 +597,7 @@ class SplashCanvasView(context: Context) : SurfaceView(context), SurfaceHolder.C
         if (appear <= 0f) return
         val r = barRect.height() / 2f
 
-        fill.color = white(0.88f * appear)
+        fill.color = white(appear)
         canvas.drawRoundRect(barRect, r, r, fill)
 
         val fillWidth = barRect.width() * BAR_HANDOFF * progress
