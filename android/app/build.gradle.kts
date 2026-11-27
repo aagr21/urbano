@@ -29,24 +29,36 @@ android {
         versionName = flutter.versionName
     }
 
+    // Librerías nativas COMPRIMIDAS dentro del APK (Flutter, MapLibre y el
+    // código Dart son ~95 % del peso). Sin esto van sin comprimir y alineadas
+    // para cargarse en el lugar: el APK universal pesaba ~90 MB y así queda
+    // en ~1/3. La app no cambia; al instalarse Android las descomprime (ocupa
+    // algo más en el teléfono y la primera instalación tarda un poco más).
+    packaging {
+        jniLibs {
+            useLegacyPackaging = true
+        }
+    }
+
     buildTypes {
         release {
             // TODO: Add your own signing config for the release build.
             // Signing with the debug keys for now, so `flutter run --release` works.
             signingConfig = signingConfigs.getByName("debug")
-
-            // Solo ABI de teléfonos reales. `--target-platform android-arm64`
-            // recorta el motor de Flutter pero NO los `.so` que traen los AAR de
-            // los plugins (MapLibre): el APK arm64 seguía llevando
-            // `lib/x86_64/libmaplibre.so` (~11 MB, solo emuladores) y
-            // `lib/armeabi-v7a/…` (~8 MB) aunque el teléfono sea arm64. Esto no
-            // toca la app instalada en un teléfono; para emuladores queda el
-            // build de debug, que conserva todas las ABI.
-            ndk {
-                abiFilters.clear()
-                abiFilters += listOf("arm64-v8a", "armeabi-v7a")
-            }
         }
+    }
+}
+
+// Release = solo ABI de teléfonos (ARM). `--target-platform android-arm,…`
+// recorta el motor de Flutter, pero NO los `.so` que traen los AAR de los
+// plugins: sin esto el APK seguía llevando `lib/x86_64/libmaplibre.so` (~11 MB,
+// solo emuladores). Un `ndk.abiFilters` en `buildTypes.release` no sirve: el
+// plugin de Flutter suma sus propias ABI (y además choca con
+// `--split-per-abi`). Se excluye al empaquetar, y solo en release: el build de
+// debug conserva x86/x86_64 para los emuladores.
+androidComponents {
+    onVariants(selector().withBuildType("release")) { variant ->
+        variant.packaging.jniLibs.excludes.addAll(listOf("lib/x86/**", "lib/x86_64/**"))
     }
 }
 

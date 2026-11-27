@@ -25,6 +25,13 @@ Flutter app (repo root):
   `gobierno-santa-cruz-blanco.png` (`tools/brand_seal.py`: solo el texto del escudo pasa a
   blanco, el blasón no se toca). La app (`UrbanoLogo`) y la splash nativa de Android usan esos
   MISMOS PNG; nunca los edites a mano.
+- APK para repartir a mano: `tools/build-apk.sh` → UN APK universal (arm64 + armv7, ~26 MB en
+  vez de ~90): `--target-platform android-arm,android-arm64`, `--obfuscate` (símbolos en
+  `build/symbols/<versión>/`, guárdalos por versión), librerías nativas comprimidas
+  (`packaging.jniLibs.useLegacyPackaging`) y x86/x86_64 excluidos SOLO en release por
+  `androidComponents` en `android/app/build.gradle.kts` (un `ndk.abiFilters` no sirve: el
+  plugin de Flutter suma sus ABI y choca con `--split-per-abi`). Debug conserva x86 para
+  emuladores. Para Google Play se sube `flutter build appbundle`, no el APK.
 - Ícono de la app: `tools/make-app-icon.sh` lo regenera en todas las plataformas. El diseño vive
   en `tools/app_icon.py` (SVG en `assets/brand/app-icon/`, PNG intermedios ignorados) y la
   config en `icons_launcher.yaml`; nunca edites los PNG de `android/`/`ios/` a mano.
