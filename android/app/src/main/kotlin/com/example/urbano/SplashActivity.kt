@@ -37,7 +37,7 @@ import io.flutter.plugins.GeneratedPluginRegistrant
  * pidió borrar.
  *
  * Ya no usa Lottie: `SplashCanvasView` pinta todo con Canvas puro (degradado,
- * anillos de Santa Cruz, micro recorriéndolos, spinner coral, texto y barra de
+ * anillos de Santa Cruz, micro recorriéndolos, spinner naranja, texto y barra de
  * progreso). Sin dependencia externa, sin parseo JSON, sin prewarm, sin riesgo
  * de crash por fuente faltante.
  *

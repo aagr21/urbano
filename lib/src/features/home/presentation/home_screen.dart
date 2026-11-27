@@ -9,20 +9,17 @@ import 'widgets/home_action_tiles.dart';
 import 'widgets/home_header.dart';
 import 'widgets/recent_trips.dart';
 
-/// Pantalla principal, ordenada como la portada de una app de viajes:
+/// Pantalla principal (diseño «Pantalla de inicio»):
 ///
-/// 1. Banda oficial (escudo del municipio + «Transporte Oficial») y cabecera
-///    de marca sobre el lienzo (wordmark, lema, botón de tema y ubicación).
-/// 2. Los cuatro accesos en retícula 2 × 2: Micros · Viajes · Lugares ·
+/// 1. Cabecera: escudo del municipio, logotipo de Urbano con su lema y el
+///    botón de tema claro/oscuro.
+/// 2. La tarjeta «Planifica tu viaje» con la píldora «¿A dónde vas?», que
+///    abre el planificador (el CTA primario).
+/// 3. Los cuatro accesos en retícula 2 × 2: Micros · Viajes · Lugares ·
 ///    Denuncias.
-/// 3. La tarjeta «¿A dónde vas?», que abre el planificador.
 /// 4. Tus viajes recientes, con el último destino a un toque.
 ///
-/// La portada termina aquí a propósito: el catálogo completo de líneas vive en
-/// el panel de Viaje (acceso **Micros**) y el mapa, en la rama Viaje.
-///
-/// No hay barra inferior ni menú: a Viaje y Denuncias se llega por los
-/// accesos, y se vuelve con la flecha de Viaje o con «atrás».
+/// La barra inferior la pone el shell (`UrbanoShell`), no esta pantalla.
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
 
@@ -37,17 +34,16 @@ class HomeScreen extends StatelessWidget {
       backgroundColor: canvas,
       body: Stack(
         children: [
-          // Lienzo de marca: degradado suave desde la orilla y los anillos de
-          // Santa Cruz, ahora presentes también bajo los accesos para que la
-          // portada no se lea como una lista de tarjetas sobre blanco.
+          // Lienzo de marca: un verde muy diluido arriba que se funde en el
+          // lienzo, con los anillos de Santa Cruz apenas visibles.
           Positioned.fill(child: _HomeBackdrop(dark: dark)),
           // Contenido principal.
           ListView(
             padding: EdgeInsets.zero,
             children: const [
               Reveal(slide: 8, child: HomeHeader()),
-              Reveal(index: 1, slide: 10, child: HomeActionTiles()),
-              Reveal(index: 2, slide: 12, child: DestinationBar()),
+              Reveal(index: 1, slide: 12, child: DestinationBar()),
+              Reveal(index: 2, slide: 10, child: HomeActionTiles()),
               // El historial se oculta solo cuando todavía no hay viajes: el
               // hueco que deja es el respiro entre las acciones y el borde.
               Reveal(index: 3, slide: 10, child: RecentTrips()),
@@ -62,9 +58,8 @@ class HomeScreen extends StatelessWidget {
 
 /// Lienzo de la portada: degradado de marca + anillos de la ciudad.
 ///
-/// El degradado baja desde un verde agua muy diluido (la «orilla») hasta el
-/// fondo agrupado de la app, así la banda oficial y la marca quedan dentro de
-/// una misma atmósfera. Los anillos se anclan abajo a la derecha —como se leen
+/// El degradado baja desde un verde de marca muy diluido hasta el fondo
+/// agrupado de la app, así la cabecera queda dentro de una misma atmósfera. Los anillos se anclan abajo a la derecha —como se leen
 /// los anillos cruceños desde el norte— y quedan visibles también bajo los
 /// accesos y el historial, que es la zona que antes se veía vacía.
 class _HomeBackdrop extends StatelessWidget {
@@ -79,11 +74,11 @@ class _HomeBackdrop extends StatelessWidget {
     // En oscuro el verde se apaga: sobre grafito un tinte alto se lee como una
     // losa de color, no como atmósfera.
     final shore = AppColors.tint(
-      dark ? colors.primary : AppColors.aqua,
+      dark ? colors.primary : AppColors.lime,
       canvas,
-      dark ? 0.10 : 0.16,
+      dark ? 0.10 : 0.12,
     );
-    final middle = AppColors.tint(colors.primary, canvas, dark ? 0.04 : 0.05);
+    final middle = AppColors.tint(colors.primary, canvas, dark ? 0.03 : 0.03);
 
     return DecoratedBox(
       decoration: BoxDecoration(
@@ -96,8 +91,8 @@ class _HomeBackdrop extends StatelessWidget {
       ),
       child: CustomPaint(
         painter: _HomeRingsPainter(
-          ink: dark ? AppColors.aqua : AppColors.primary,
-          glow: dark ? colors.secondary : AppColors.aqua,
+          ink: dark ? AppColors.lime : AppColors.primary,
+          glow: dark ? colors.secondary : AppColors.lime,
           dark: dark,
         ),
       ),

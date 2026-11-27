@@ -4,15 +4,18 @@ import 'package:material_ui/material_ui.dart';
 
 import '../../features/complaints/presentation/complaints_screen.dart';
 import '../../features/home/presentation/home_screen.dart';
+import '../../features/home/presentation/widgets/home_navigation.dart';
 import '../../features/journey/presentation/journey_planner_screen.dart';
 import '../../features/journey/presentation/map_picker_screen.dart';
 import '../../features/nearby/domain/nearby_micros.dart';
 import '../../features/nearby/presentation/nearby_micros_screen.dart';
+import '../../features/profile/presentation/profile_screen.dart';
 import '../../features/routes/presentation/micros_screen.dart';
 import '../../features/routes/presentation/route_detail_screen.dart';
 import '../../features/routes/presentation/route_direction_map_screen.dart';
 import '../animation/motion.dart';
 import '../widgets/empty_state.dart';
+import 'urbano_bottom_bar.dart';
 
 /// Router central de Urbano.
 final appRouterProvider = Provider<GoRouter>((_) => _router);
@@ -20,9 +23,9 @@ final appRouterProvider = Provider<GoRouter>((_) => _router);
 GoRouter get _router => GoRouter(
   initialLocation: '/',
   // La pestaña "Mapa" se fusionó con "Viaje": `/map` redirige por
-  // seguridad a la pantalla-mapa única. El catálogo completo de líneas vive
-  // ahora en `/micros` (pantalla propia, no en el panel de Viaje) y el detalle
-  // en `/routes/:id`; el mapa de un sentido se abre en `/routes/:id/map`.
+  // seguridad a la pantalla-mapa única. El catálogo completo de líneas es la
+  // rama `/micros` del shell y el detalle se empuja en `/routes/:id`; el mapa
+  // de un sentido se abre en `/routes/:id/map`.
   redirect: (context, state) =>
       state.matchedLocation == '/map' ? '/journey' : null,
   routes: [
@@ -35,6 +38,15 @@ GoRouter get _router => GoRouter(
               path: '/',
               name: 'home',
               builder: (context, state) => const HomeScreen(),
+            ),
+          ],
+        ),
+        StatefulShellBranch(
+          routes: [
+            GoRoute(
+              path: '/micros',
+              name: 'micros',
+              builder: (context, state) => const MicrosScreen(),
             ),
           ],
         ),
@@ -56,12 +68,16 @@ GoRouter get _router => GoRouter(
             ),
           ],
         ),
+        StatefulShellBranch(
+          routes: [
+            GoRoute(
+              path: '/profile',
+              name: 'profile',
+              builder: (context, state) => const ProfileScreen(),
+            ),
+          ],
+        ),
       ],
-    ),
-    GoRoute(
-      path: '/micros',
-      name: 'micros',
-      builder: (context, state) => const MicrosScreen(),
     ),
     // Antes que `/routes/:id`: el mapa de un sentido es una pantalla propia
     // (ida/vuelta) que se empuja desde el detalle.
@@ -132,24 +148,28 @@ GoRouter get _router => GoRouter(
   ),
 );
 
-/// Navegador del shell (Inicio · Viaje · Denuncias) **sin barra inferior**.
+/// Navegador del shell con la **barra inferior** del diseño: Inicio · Micros ·
+/// Viajes · Lugares · Denuncias · Perfil.
 ///
-/// El rediseño de la portada se parece al de una app de viajes: logo, ubicación
-/// y accesos arriba. Se llega a Viaje y Denuncias por los accesos de Inicio y se
-/// vuelve con la flecha de Viaje o con «atrás». Las tres ramas siguen montadas
-/// como antes
-/// (`StatefulShellRoute.indexedStack`), así el mapa del planner nunca se
-/// reconstruye al cambiar de sección.
+/// Cinco pestañas son ramas de `StatefulShellRoute.indexedStack` (Inicio,
+/// Micros, Viaje, Denuncias y Perfil), así el mapa del planner nunca se
+/// reconstruye al cambiar de sección. **Lugares no es una rama**: es la
+/// acción «¿Qué micro pasa cerca?» (abre su hoja y empuja `/nearby`), igual
+/// que el acceso de Inicio. Tocar la pestaña activa vuelve a su raíz.
 class UrbanoShell extends ConsumerWidget {
   const UrbanoShell({super.key, required this.shell});
 
   final StatefulNavigationShell shell;
 
+  /// Rama del shell de cada pestaña de [urbanoTabs] (`null` = acción).
+  static const List<int?> tabBranches = [0, 1, 2, null, 3, 4];
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // Atrás del sistema en las ramas de Viaje/Denuncias: vuelve a Inicio en
-    // vez de cerrar la app. Inicio conserva el comportamiento nativo (salir),
-    // porque es la raíz y no tiene a dónde retroceder.
+    final selectedTab = tabBranches.indexOf(shell.currentIndex);
+    // Atrás del sistema fuera de Inicio: vuelve a Inicio en vez de cerrar la
+    // app. Inicio conserva el comportamiento nativo (salir), porque es la raíz
+    // y no tiene a dónde retroceder.
     return PopScope(
       canPop: shell.currentIndex == 0,
       onPopInvokedWithResult: (didPop, _) {
@@ -158,6 +178,20 @@ class UrbanoShell extends ConsumerWidget {
       },
       child: Scaffold(
         body: _TabSwitch(index: shell.currentIndex, child: shell),
+        bottomNavigationBar: UrbanoBottomBar(
+          selectedIndex: selectedTab < 0 ? null : selectedTab,
+          onSelect: (tab) {
+            final branch = tabBranches[tab];
+            if (branch == null) {
+              openPlacesSearch(context);
+              return;
+            }
+            shell.goBranch(
+              branch,
+              initialLocation: branch == shell.currentIndex,
+            );
+          },
+        ),
       ),
     );
   }
@@ -226,9 +260,9 @@ class _TabSwitchState extends State<_TabSwitch>
 class UrbanoRoutes {
   UrbanoRoutes._();
 
-  /// Abre el **catálogo completo de micros** en su propia pantalla.
+  /// Abre el **catálogo completo de micros** (la rama Micros del shell).
   static void openMicrosCatalog(BuildContext context) {
-    context.push('/micros');
+    context.go('/micros');
   }
 
   static String routeDetail(String routeId, {String? from}) {

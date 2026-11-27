@@ -158,7 +158,7 @@ class _ComplaintDetailScreenState extends ConsumerState<ComplaintDetailScreen> {
                         gradient: const LinearGradient(
                           begin: Alignment.topCenter,
                           end: Alignment.bottomCenter,
-                          colors: [AppColors.primary, AppColors.aqua],
+                          colors: [AppColors.primary, AppColors.lime],
                         ),
                       ),
                     ),

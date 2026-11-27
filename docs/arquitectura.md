@@ -54,12 +54,15 @@ test/           # models, formatters, api_client, widget_test (Home mockeado),
 
 ### 🎨 Identidad
 
-Azul/turquesa `#0EA5E9`/`#0284C7` + acento ámbar `#F59E0B`,
-neutros slate; semillas del `ColorScheme` en `app_theme.dart`.
+Paleta oficial de la marca: verdes `#35F04F` → `#1BD64C` → `#06BD4A` →
+`#029E46` (el degradado de marca), naranja `#FD7502` y blanco `#FEFEFE`;
+tokens en `core/theme/app_colors.dart`, degradados en `app_theme.dart`.
+Logo e ícono salen de `tools/brand_logo.py` y `tools/app_icon.py`.
 
 ### ✍️ Tipografía
 
-Plus Jakarta Sans (títulos) + Inter (cuerpo), vía `google_fonts`.
+Montserrat (Bold en títulos, Regular en el cuerpo), empaquetada en
+`assets/fonts/` (OFL), sin `google_fonts`.
 Radios 16–24, sombras suaves, escala de espaciado 4/8, M3.
 
 ### 🆓 Sin Google Maps

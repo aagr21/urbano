@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:urbano/src/core/animation/motion.dart';
+import 'package:urbano/src/core/router/urbano_bottom_bar.dart';
 import 'package:urbano/src/core/theme/app_colors.dart';
 import 'package:urbano/src/core/theme/app_theme.dart';
 import 'package:urbano/src/features/complaints/application/complaints_feed_controller.dart';
@@ -195,10 +196,10 @@ Future<void> _openFeed(
   await tester.pumpAndSettle();
 }
 
-/// Abre el feed dentro del shell de 3 pestañas, a alto de teléfono real.
+/// Abre el feed con la barra inferior real de la app, a alto de teléfono real.
 ///
-/// La `NavigationBar` importa: es el borde inferior contra el que se mide si la
-/// primera queja se ve o no, y sin ella la pantalla mediría 300 px más.
+/// La `UrbanoBottomBar` importa: es el borde inferior contra el que se mide si
+/// la primera queja se ve o no, y sin ella la pantalla mediría ~90 px más.
 Future<void> _openFeedInShell(
   WidgetTester tester, {
   Size physical = const Size(1080, 2340),
@@ -212,22 +213,9 @@ Future<void> _openFeedInShell(
       _feed,
       home: Scaffold(
         body: const ComplaintsScreen(),
-        bottomNavigationBar: NavigationBar(
-          selectedIndex: 2,
-          destinations: const [
-            NavigationDestination(
-              icon: Icon(Icons.explore_outlined),
-              label: 'Inicio',
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.swap_horiz_rounded),
-              label: 'Viaje',
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.feedback_rounded),
-              label: 'Quejas',
-            ),
-          ],
+        bottomNavigationBar: UrbanoBottomBar(
+          selectedIndex: 4,
+          onSelect: (_) {},
         ),
       ),
     ),
@@ -412,7 +400,7 @@ void main() {
       (tester) async {
         await _openFeedInShell(tester);
 
-        final barTop = tester.getRect(find.byType(NavigationBar)).top;
+        final barTop = tester.getRect(find.byType(UrbanoBottomBar)).top;
         final card = tester.getRect(find.byType(ComplaintPostCard).first);
         // La cortina (cabecera + filtros + título) no puede comerse la primera
         // tarjeta: si crece, el reporte vuelve a quedar mutilado.

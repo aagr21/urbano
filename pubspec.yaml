@@ -54,38 +54,22 @@ flutter:
     assets:
         - assets/images/
 
-    # Fuentes empaquetadas e inscritas como manifiesto `fonts:` (no como assets
-    # crudos): Inter para cuerpo/labels, Outfit para los títulos destacados y Plus
-    # Jakarta Sans para el wordmark «Urbano». Al declararlas aquí, Flutter las incluye una sola vez como
-    # fuentes y la app arranca offline, sin parpadeo y sin descargas de red.
-    # `AppTypography` apunta a estas familias por `fontFamily`, sin `google_fonts`.
+    # Montserrat (OFL, `assets/fonts/Montserrat-OFL.txt`) es la tipografía de la
+    # marca Urbano: Bold para títulos, Regular para el cuerpo. Se empaqueta en
+    # pesos estáticos 400..800 instanciados de la fuente variable de Google Fonts
+    # e inscritos como manifiesto `fonts:` (no como assets crudos), así la app
+    # arranca offline, sin parpadeo y sin `google_fonts`. La splash nativa de
+    # Android la lee de `flutter_assets/assets/fonts/`.
     fonts:
-        - family: Inter
+        - family: Montserrat
           fonts:
-              - asset: assets/fonts/Inter-Regular.ttf
+              - asset: assets/fonts/Montserrat-Regular.ttf
                 weight: 400
-              - asset: assets/fonts/Inter-Medium.ttf
+              - asset: assets/fonts/Montserrat-Medium.ttf
                 weight: 500
-              - asset: assets/fonts/Inter-SemiBold.ttf
+              - asset: assets/fonts/Montserrat-SemiBold.ttf
                 weight: 600
-              - asset: assets/fonts/Inter-Bold.ttf
+              - asset: assets/fonts/Montserrat-Bold.ttf
                 weight: 700
-              - asset: assets/fonts/Inter-ExtraBold.ttf
-                weight: 800
-        - family: Outfit
-          fonts:
-              - asset: assets/fonts/Outfit-Regular.ttf
-                weight: 400
-              - asset: assets/fonts/Outfit-Medium.ttf
-                weight: 500
-              - asset: assets/fonts/Outfit-SemiBold.ttf
-                weight: 600
-              - asset: assets/fonts/Outfit-Bold.ttf
-                weight: 700
-              - asset: assets/fonts/Outfit-ExtraBold.ttf
-                weight: 800
-        # Plus Jakarta Sans (OFL) SOLO para el wordmark «Urbano».
-        - family: PlusJakartaSans
-          fonts:
-              - asset: assets/fonts/PlusJakartaSans-ExtraBold.ttf
+              - asset: assets/fonts/Montserrat-ExtraBold.ttf
                 weight: 800

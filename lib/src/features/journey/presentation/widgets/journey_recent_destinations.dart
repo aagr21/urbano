@@ -6,6 +6,7 @@ import '../../../../core/theme/app_theme.dart' show AppRadius, AppSpace;
 import '../../../../core/theme/html_design_tokens.dart' show HtmlDesignTokens;
 import '../../../../core/utils/extensions.dart';
 import '../../application/recent_destinations.dart';
+import '../../data/trip_history.dart';
 
 /// Fila de destino reciente.
 ///
@@ -53,7 +54,7 @@ class RecentDestinationTile extends StatelessWidget {
     final plateInk = AppColors.legible(accent, plate);
     final trailing = duration != null && duration > 0
         ? '$duration min'
-        : _timeAgo(lastUsed);
+        : recencyLabel(lastUsed, now: DateTime.now());
 
     return PressScale(
       scale: 0.98,
@@ -159,12 +160,5 @@ class RecentDestinationTile extends StatelessWidget {
         ),
       ),
     );
-  }
-
-  static String _timeAgo(DateTime dt) {
-    final days = DateTime.now().difference(dt).inDays;
-    if (days <= 0) return 'hoy';
-    if (days == 1) return 'ayer';
-    return 'hace $days d';
   }
 }

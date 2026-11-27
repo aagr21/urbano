@@ -6,6 +6,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:urbano/src/core/location/location_service.dart';
 import 'package:urbano/src/core/network/api_client.dart';
 import 'package:urbano/src/core/router/app_router.dart';
+import 'package:urbano/src/core/router/urbano_bottom_bar.dart';
 import 'package:urbano/src/core/theme/app_theme.dart';
 import 'package:urbano/src/core/theme/theme_mode_controller.dart';
 import 'package:urbano/src/core/utils/location.dart';
@@ -83,23 +84,22 @@ void main() {
     await tester.pump(const Duration(milliseconds: 500));
     await tester.pump(const Duration(milliseconds: 300));
 
-    // Identidad.
-    expect(find.text('Urbano'), findsOneWidget);
-    // La marca va de UN solo color: un `Text` plano, nunca partido en spans
-    // (resaltar una sílaba de «Urbano» se lee como otra palabra).
-    final wordmark = tester.widget<Text>(find.text('Urbano'));
-    expect(wordmark.textSpan, isNull, reason: 'la marca no se parte en spans');
-    expect(wordmark.style?.fontFamily, 'PlusJakartaSans');
-    expect(find.text('Muévete por Santa Cruz'), findsOneWidget);
-
-    // La cabecera abre con la banda oficial: escudo del municipio + la
-    // píldora que firma la app como transporte del Gobierno Autónomo.
+    // Identidad: la cabecera del diseño lleva el escudo del municipio y el
+    // logotipo oficial de Urbano (imagen generada por
+    // `tools/make-brand-logo.sh`) con su lema como texto, en Montserrat.
     expect(find.byKey(const ValueKey('home-official-band')), findsOneWidget);
-    expect(find.text('Transporte Oficial'), findsOneWidget);
     expect(
       find.image(const AssetImage('assets/images/gobierno-santa-cruz.png')),
       findsOneWidget,
     );
+    expect(
+      find.image(const AssetImage('assets/images/urbano-logo.png')),
+      findsOneWidget,
+    );
+    final tagline = tester.widget<Text>(find.text('Muévete por Santa Cruz'));
+    expect(tagline.style?.fontFamily, 'Montserrat');
+    // La píldora «Transporte Oficial» y la de ubicación se retiraron.
+    expect(find.text('Transporte Oficial'), findsNothing);
 
     // El buscador se retiró con la poda de la portada: ya no hay campo de
     // texto en Inicio (el catálogo se abre desde el acceso Micros).
@@ -116,10 +116,10 @@ void main() {
     expect(find.text('Lugares'), findsOneWidget);
     expect(find.text('Denuncias'), findsOneWidget);
 
-    // Barra de destino: el gesto principal del home. Con la retícula compacta
-    // entra en el viewport de test (600 lógicos) sin bajar la lista.
+    // «Planifica tu viaje»: el CTA principal, justo bajo la cabecera, con su
+    // píldora «¿A dónde vas?».
+    expect(find.text('Planifica tu viaje'), findsOneWidget);
     expect(find.text('¿A dónde vas?'), findsOneWidget);
-    expect(find.text('Marca tu destino y listo'), findsOneWidget);
 
     // Sin historial, «Tus viajes recientes» no ocupa espacio.
     expect(find.text('Tus viajes recientes'), findsNothing);
@@ -136,7 +136,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 400));
   });
 
-  testWidgets('la banda oficial cabe a ancho real de móvil', (tester) async {
+  testWidgets('la cabecera cabe a ancho real de móvil', (tester) async {
     tester.view.physicalSize = const Size(1080, 2340);
     tester.view.devicePixelRatio = 2.75;
     addTearDown(tester.view.reset);
@@ -153,14 +153,22 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
 
-    // Escudo a la izquierda y píldora a la derecha, sin desbordar la franja
-    // en el viewport más ajustado (393 lógicos): es lo primero que se pinta.
+    // Escudo a la izquierda, logo a la derecha y el botón de tema en la
+    // esquina, sin desbordar en el viewport más ajustado (393 lógicos).
     final seal = tester.getRect(
       find.image(const AssetImage('assets/images/gobierno-santa-cruz.png')),
     );
-    final pill = tester.getRect(find.text('Transporte Oficial'));
-    expect(seal.left, lessThan(pill.left), reason: 'escudo · píldora');
-    expect(seal.height, greaterThan(20));
+    final logo = tester.getRect(
+      find.image(const AssetImage('assets/images/urbano-logo.png')),
+    );
+    final toggle = tester.getRect(
+      find.byKey(const ValueKey('home-theme-button')),
+    );
+    expect(seal.right, lessThanOrEqualTo(logo.left), reason: 'escudo · logo');
+    expect(logo.right, lessThanOrEqualTo(toggle.left), reason: 'logo · tema');
+    expect(toggle.right, lessThanOrEqualTo(393));
+    expect(seal.height, greaterThan(30));
+    expect(logo.height, greaterThan(24));
     expect(tester.takeException(), isNull);
 
     await tester.pump(const Duration(milliseconds: 400));
@@ -292,7 +300,9 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 600));
 
-      // Ni barra inferior ni menú: el botón de la cabecera es el del tema.
+      // La barra inferior del diseño (no la `NavigationBar` de Material) y,
+      // en la cabecera, el botón del tema: no hay menú.
+      expect(find.byType(UrbanoBottomBar), findsOneWidget);
       expect(find.byType(NavigationBar), findsNothing);
       expect(find.byKey(const ValueKey('home-menu-button')), findsNothing);
       final toggle = find.byKey(const ValueKey('home-theme-button'));
@@ -418,9 +428,9 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 600));
 
-      await tester.ensureVisible(find.text('Marca tu destino y listo'));
+      await tester.ensureVisible(find.text('¿A dónde vas?'));
       await tester.pump(const Duration(milliseconds: 200));
-      await tester.tap(find.text('Marca tu destino y listo'));
+      await tester.tap(find.text('¿A dónde vas?'));
       await tester.pumpAndSettle();
 
       // Se abre el sheet de origen/destino (modal), no se navega a /journey.
@@ -566,7 +576,7 @@ void main() {
           subtitle: 'Centro histórico',
           lat: -17.7833,
           lon: -63.1821,
-          lastUsed: DateTime.now().subtract(const Duration(hours: 2)),
+          lastUsed: DateTime.now(),
           durationMinutes: 8,
         ),
       ]);
@@ -592,8 +602,8 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 600));
 
-      // La sección aparece con el destino y la duración de la última vez. La
-      // tarjeta queda bajo el pliegue del viewport de test.
+      // La sección aparece con el destino y cuándo se usó («Hoy»). La tarjeta
+      // queda bajo el pliegue del viewport de test.
       await tester.scrollUntilVisible(
         find.text('Tus viajes recientes'),
         200,
@@ -602,7 +612,7 @@ void main() {
       await tester.pump(const Duration(milliseconds: 200));
       expect(find.text('Tus viajes recientes'), findsOneWidget);
       expect(find.text('Plaza 24 de Septiembre'), findsOneWidget);
-      expect(find.text('8 min'), findsOneWidget);
+      expect(find.text('Hoy'), findsOneWidget);
 
       // Tocar la fila abre el sheet de destino modal (no navega a /journey).
       await tester.ensureVisible(find.text('Plaza 24 de Septiembre'));
@@ -616,4 +626,44 @@ void main() {
       expect(find.text('Plaza 24 de Septiembre'), findsWidgets);
     },
   );
+
+  testWidgets('la X de un viaje reciente lo borra del historial', (
+    tester,
+  ) async {
+    final now = DateTime.now();
+    final store = MemoryTripHistoryStore([
+      TripHistoryEntry(
+        label: 'Plaza 24 de Septiembre',
+        lat: -17.7833,
+        lon: -63.1821,
+        lastUsed: now,
+      ),
+      TripHistoryEntry(
+        label: 'Terminal Bimodal',
+        lat: -17.79,
+        lon: -63.16,
+        lastUsed: now.subtract(const Duration(minutes: 1)),
+      ),
+    ]);
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: _overrides(history: store),
+        child: MaterialApp(theme: AppTheme.light(), home: const HomeScreen()),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 600));
+
+    final removed = store.saved.first;
+    final remove = find.byKey(ValueKey('recent-trip-remove-${removed.key}'));
+    await tester.ensureVisible(remove);
+    await tester.pump(const Duration(milliseconds: 200));
+    await tester.tap(remove);
+    await tester.pumpAndSettle();
+
+    // Sale de la portada Y del historial guardado; la otra fila sigue.
+    expect(find.text('Plaza 24 de Septiembre'), findsNothing);
+    expect(find.text('Terminal Bimodal'), findsOneWidget);
+    expect(store.saved.map((entry) => entry.label), ['Terminal Bimodal']);
+  });
 }

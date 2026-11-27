@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="224" viewBox="0 0 900 224">
+  <defs>
+    <linearGradient id="ink" gradientUnits="userSpaceOnUse" x1="0" y1="20" x2="900" y2="224">
+      <stop offset="0" stop-color="#35F04F"/>
+      <stop offset=".35" stop-color="#1BD64C"/>
+      <stop offset=".7" stop-color="#06BD4A"/>
+      <stop offset="1" stop-color="#029E46"/>
+    </linearGradient>
+    <linearGradient id="pin" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FF8C2B"/>
+      <stop offset="1" stop-color="#FD7502"/>
+    </linearGradient>
+  </defs>
+  <text x="34" y="170" font-family="Montserrat" font-weight="800"
+        font-size="200" letter-spacing="-4" fill="url(#ink)">Urbano</text>
+  <path d="M61 197 H802 Q846 197 846 162" fill="none" stroke="url(#ink)" stroke-width="14"
+        stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="44" cy="197" r="17" fill="#FFFFFF" stroke="url(#ink)" stroke-width="11"/>
+  <path d="M846 168 C834.6 150.89999999999998 808 130.0 808 107.19999999999999 A38 38 0 1 1 884 107.19999999999999 C884 130.0 857.4 150.89999999999998 846 168 Z" fill="url(#pin)"/>
+  <circle cx="846" cy="107.19999999999999" r="15.200000000000001" fill="#FFFFFF"/>
+</svg>

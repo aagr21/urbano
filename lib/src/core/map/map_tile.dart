@@ -122,7 +122,7 @@ extension MapTileInfo on MapTile {
       block: Color(0xFFD8E2EC),
       park: Color(0xFFC7E8C8),
       water: Color(0xFFB9DDF2),
-      route: Color(0xFF008C7B),
+      route: Color(0xFF029E46),
     ),
     MapTile.googleRoadmap => const MapLayerPreviewPalette(
       canvas: Color(0xFFF1EFE9),

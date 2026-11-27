@@ -22,8 +22,8 @@ void main() {
         hsl.saturation,
         lessThan(0.55),
         reason:
-            'el aqua saturado (#4FE3D0) deslumbraba en OLED; el primario '
-            'oscuro debe quedarse en un verde agua sereno',
+            'el verde de marca saturado deslumbraba en OLED; el primario '
+            'oscuro debe quedarse en un verde sereno',
       );
       // Sigue siendo el acento vivo: legible como texto/ícono sobre el tema.
       expect(_contrast(scheme.primary, scheme.surface), greaterThan(4.5));
@@ -48,7 +48,8 @@ void main() {
 
     test('el tema claro conserva el verde de marca', () {
       final light = AppTheme.light().colorScheme;
-      expect(light.primary, const Color(0xFF008C7B));
+      expect(light.primary, AppColors.primary);
+      expect(AppColors.primary, const Color(0xFF029E46));
     });
   });
 

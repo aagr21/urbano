@@ -47,7 +47,7 @@ void main() {
       )
       .widthFactor!;
 
-  testWidgets('lo primero que se ve es carga, no la marca', (tester) async {
+  testWidgets('lo primero que se ve es la marca y la carga', (tester) async {
     await pumpCover(tester);
 
     // La portada existe y tapa la app: el primer frame es SOLO portada. Montar
@@ -57,10 +57,20 @@ void main() {
     expect(find.text('Cargando'), findsOneWidget);
     expect(find.text('app debajo'), findsNothing);
 
-    // Y no es el show de la marca: ni el wordmark ni el lema que abrían
-    // la app. La identidad queda en el degradado, los anillos y el pie.
-    expect(find.text('URBANO'), findsNothing);
-    expect(find.text('Muévete por Santa Cruz'), findsNothing);
+    // La portada del diseño «Pantalla de carga»: el escudo del municipio y el
+    // logotipo de Urbano con su lema, ENCIMA de la carga (girófono, «Cargando»
+    // y la barra), en el mismo frame.
+    expect(
+      find.image(
+        const AssetImage('assets/images/gobierno-santa-cruz-blanco.png'),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.image(const AssetImage('assets/images/urbano-logo-blanco.png')),
+      findsOneWidget,
+    );
+    expect(find.text('Muévete por Santa Cruz'), findsOneWidget);
 
     // Nada de `CircularProgressIndicator`: el spinner de Material trae su propio
     // ticker eterno y `pumpAndSettle` no converge con él montado. El giro lo
@@ -80,10 +90,7 @@ void main() {
     // La etapa también: «Preparando la app» es lo que hay que leer mientras ni
     // siquiera la app está en el árbol.
     expect(paintedOpacity(tester, 'Preparando la app'), greaterThan(0.9));
-    expect(
-      paintedOpacity(tester, 'Santa Cruz de la Sierra · datos GTFS'),
-      greaterThan(0.9),
-    );
+    expect(paintedOpacity(tester, 'Santa Cruz de la Sierra'), greaterThan(0.9));
     // Y la barra ya empezó a rellenarse: hay progreso visible en el frame 1.
     expect(barraRellena(tester), greaterThan(0));
   });

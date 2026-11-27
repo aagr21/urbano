@@ -19,8 +19,8 @@ class ComplaintFormHero extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Tinta medida contra el degradado de marca (nunca un blanco a mano).
-    final onGradient = AppColors.onColor(AppColors.primaryDark);
+    // Sobre el degradado de marca la tinta es la blanca de la marca.
+    const onGradient = AppColors.onBrand;
     return Container(
       decoration: BoxDecoration(
         borderRadius: AppRadius.card,
@@ -40,7 +40,11 @@ class ComplaintFormHero extends StatelessWidget {
                 padding: const EdgeInsets.all(AppSpace.lg),
                 child: Row(
                   children: [
-                    Icon(Icons.campaign_rounded, color: onGradient, size: 32),
+                    const Icon(
+                      Icons.campaign_rounded,
+                      color: onGradient,
+                      size: 32,
+                    ),
                     const SizedBox(width: AppSpace.md),
                     Expanded(
                       child: Column(

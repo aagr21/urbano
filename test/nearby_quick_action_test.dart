@@ -11,9 +11,9 @@ import 'package:urbano/src/features/nearby/presentation/nearby_search_widgets.da
 /// si «Marcar en el mapa» entra en un teléfono.
 void main() {
   setUpAll(() async {
-    final loader = FontLoader('Inter');
+    final loader = FontLoader('Montserrat');
     for (final file in Directory('assets/fonts').listSync()) {
-      if (file.path.contains('Inter-')) {
+      if (file.path.contains('Montserrat-') && file.path.endsWith('.ttf')) {
         final bytes = File(file.path).readAsBytesSync();
         loader.addFont(Future.value(ByteData.sublistView(bytes)));
       }

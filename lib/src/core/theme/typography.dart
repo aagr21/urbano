@@ -2,134 +2,111 @@ import 'package:material_ui/material_ui.dart';
 
 /// Tipografía de Urbano.
 ///
-/// Todo corre en **Inter**, la cara más cercana a SF Pro que traemos
-/// empaquetada: se ve "de iPhone" sin cambiar de herramienta. La singularidad
-/// de marca queda en el wordmark (`wordmark`) y en los títulos destacados
-/// (`display`/`headline`) que usan **Outfit** para dar carácter geométrico
-/// moderno a los encabezados. Las dos familias se declaran en `pubspec.yaml`
-/// bajo `flutter.fonts`, así que la app las resuelve por `fontFamily` sin
-/// `google_fonts` ni descargas de red.
+/// Toda la app corre en **Montserrat**, la tipografía de la marca (manual de
+/// identidad: Montserrat Bold para títulos y Montserrat Regular para el
+/// cuerpo). Es una geométrica ancha: los títulos van apenas apretados y el
+/// cuerpo con su espaciado natural para que siga leyéndose cómoda en textos
+/// largos. Se declara en `pubspec.yaml` bajo `flutter.fonts`, así que la app la
+/// resuelve por `fontFamily` sin `google_fonts` ni descargas de red.
 class AppTypography {
   AppTypography._();
 
-  /// Familia Inter, empaquetada en pesos 400..800 (ver `pubspec.yaml`).
-  static const String _inter = 'Inter';
-
-  /// Outfit, para los títulos destacados (400..800 empaquetados).
-  static const String _wordmarkFamily = 'Outfit';
-
-  /// Plus Jakarta Sans (OFL), SOLO para la marca «Urbano». Se empaqueta solo
-  /// en 800: pedir otro peso sintetizaría.
-  static const String _brandFamily = 'PlusJakartaSans';
+  /// Familia de la marca, empaquetada en pesos 400..800 (ver `pubspec.yaml`).
+  static const String family = 'Montserrat';
 
   static const FontWeight display = FontWeight.w800;
   static const FontWeight bold = FontWeight.w700;
   static const FontWeight semiBold = FontWeight.w600;
 
-  /// Aplica Inter (apretado, con jerarquía de pesos) sobre [base].
+  /// Aplica Montserrat (con jerarquía de pesos) sobre [base].
   ///
-  /// Los títulos display/headline usan Outfit para dar carácter geométrico
-  /// moderno; el cuerpo y labels usan Inter para legibilidad.
+  /// El cuerpo y las etiquetas van con tracking 0: Material 3 les suma
+  /// 0,25–0,5 px pensando en Roboto, y Montserrat ya es ancha de por sí.
   static TextTheme apply(TextTheme base) {
-    // `copyWith` con `letterSpacing: null` conserva el del estilo base, igual que
-    // hacía `GoogleFonts.inter`; solo se fuerza cuando el rol lo pide.
+    // `copyWith` con `letterSpacing: null` conserva el del estilo base; solo se
+    // fuerza cuando el rol lo pide.
     TextStyle heading(
       TextStyle? style, {
       FontWeight weight = bold,
       double? letterSpacing,
       double? height,
-      String? fontFamily,
     }) => (style ?? const TextStyle()).copyWith(
-      fontFamily: fontFamily ?? _inter,
+      fontFamily: family,
       fontWeight: weight,
       letterSpacing: letterSpacing,
       height: height,
     );
 
     return base.copyWith(
-      // Display y headline usan Outfit para carácter geométrico moderno.
       displayLarge: heading(
         base.displayLarge,
         weight: display,
-        letterSpacing: -1.4,
+        letterSpacing: -1.2,
         height: 1.05,
-        fontFamily: _wordmarkFamily,
       ),
       displayMedium: heading(
         base.displayMedium,
         weight: display,
-        letterSpacing: -0.9,
+        letterSpacing: -0.8,
         height: 1.08,
-        fontFamily: _wordmarkFamily,
       ),
       displaySmall: heading(
         base.displaySmall,
         weight: display,
-        letterSpacing: -0.6,
+        letterSpacing: -0.5,
         height: 1.1,
-        fontFamily: _wordmarkFamily,
       ),
       headlineLarge: heading(
         base.headlineLarge,
-        weight: display,
-        letterSpacing: -0.5,
+        letterSpacing: -0.4,
         height: 1.15,
-        fontFamily: _wordmarkFamily,
       ),
       headlineMedium: heading(
         base.headlineMedium,
-        weight: display,
-        letterSpacing: -0.4,
+        letterSpacing: -0.3,
         height: 1.15,
-        fontFamily: _wordmarkFamily,
       ),
       headlineSmall: heading(
         base.headlineSmall,
-        weight: display,
-        letterSpacing: -0.3,
+        letterSpacing: -0.2,
         height: 1.2,
-        fontFamily: _wordmarkFamily,
       ),
-      // Title usa Inter con mejor legibilidad.
-      titleLarge: heading(
-        base.titleLarge,
-        weight: display,
-        letterSpacing: -0.1,
-        height: 1.25,
+      titleLarge: heading(base.titleLarge, letterSpacing: -0.1, height: 1.25),
+      titleMedium: heading(base.titleMedium, letterSpacing: -0.1),
+      titleSmall: heading(base.titleSmall, letterSpacing: -0.05),
+      bodyLarge: base.bodyLarge?.copyWith(
+        fontFamily: family,
+        letterSpacing: 0,
+        height: 1.45,
       ),
-      titleMedium: heading(base.titleMedium, letterSpacing: -0.05),
-      titleSmall: heading(base.titleSmall),
-      // Body con mejor line-height para lectura cómoda.
-      bodyLarge: base.bodyLarge?.copyWith(fontFamily: _inter, height: 1.5),
-      bodyMedium: base.bodyMedium?.copyWith(fontFamily: _inter, height: 1.5),
-      bodySmall: base.bodySmall?.copyWith(fontFamily: _inter, height: 1.4),
-      // Labels con mejor jerarquía visual.
+      bodyMedium: base.bodyMedium?.copyWith(
+        fontFamily: family,
+        letterSpacing: 0,
+        height: 1.45,
+      ),
+      bodySmall: base.bodySmall?.copyWith(
+        fontFamily: family,
+        letterSpacing: 0,
+        height: 1.35,
+      ),
       labelLarge: base.labelLarge?.copyWith(
-        fontFamily: _inter,
+        fontFamily: family,
+        fontWeight: semiBold,
+        letterSpacing: 0,
+        height: 1.3,
+      ),
+      labelMedium: base.labelMedium?.copyWith(
+        fontFamily: family,
+        fontWeight: semiBold,
+        letterSpacing: 0,
+        height: 1.3,
+      ),
+      labelSmall: base.labelSmall?.copyWith(
+        fontFamily: family,
         fontWeight: semiBold,
         letterSpacing: 0.1,
         height: 1.3,
       ),
-      labelMedium: base.labelMedium?.copyWith(
-        fontFamily: _inter,
-        fontWeight: semiBold,
-        height: 1.3,
-      ),
-      labelSmall: base.labelSmall?.copyWith(
-        fontFamily: _inter,
-        fontWeight: semiBold,
-        height: 1.3,
-      ),
     );
   }
-
-  /// El logotipo «Urbano»: Plus Jakarta Sans ExtraBold, apretado y de UN solo
-  /// color. Nunca partas la palabra en colores: resaltar una sílaba de
-  /// «Urbano» se lee como otra palabra.
-  static TextStyle wordmark(TextStyle? style) =>
-      (style ?? const TextStyle()).copyWith(
-        fontFamily: _brandFamily,
-        fontWeight: FontWeight.w800,
-        letterSpacing: -0.85,
-      );
 }

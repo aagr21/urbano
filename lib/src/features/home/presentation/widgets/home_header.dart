@@ -2,120 +2,81 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../../../../core/animation/motion.dart';
-import '../../../../core/config/env.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_theme.dart';
-import '../../../../core/theme/html_design_tokens.dart' show HtmlDesignTokens;
 import '../../../../core/theme/theme_mode_controller.dart';
 import '../../../../core/utils/extensions.dart';
-import 'home_location_pill.dart';
-import 'home_official_band.dart';
-import 'home_route_lattice.dart';
-import 'home_wordmark.dart';
+import '../../../../core/widgets/urbano_logo.dart';
+import 'home_official_seal.dart';
 
-/// **Cabecera de Inicio**, sobre el lienzo de la portada.
+/// **Cabecera de Inicio**: una sola franja con las dos firmas de la app.
 ///
-/// La referencia abre con dos franjas: la **banda oficial** —escudo del
-/// Gobierno Autónomo Municipal de Santa Cruz de la Sierra a la izquierda y la
-/// píldora «Transporte Oficial» a la derecha— y, debajo, la marca centrada
-/// (wordmark con su punto, lema, botón de tema claro/oscuro a la derecha y la
-/// píldora de ubicación). La banda es lo que firma la app como servicio municipal; el
-/// escudo es una imagen (no se redibuja) y conserva su relación de aspecto.
+/// A la izquierda, el escudo del Gobierno Autónomo Municipal de Santa Cruz de
+/// la Sierra (imagen oficial, se escala pero no se redibuja); a la derecha, el
+/// logotipo de Urbano con su lema, y en la esquina el botón de tema
+/// claro/oscuro. Es la cabecera del diseño «Pantalla de inicio»: no hay
+/// banda aparte ni píldora de ubicación; el CTA «Planifica tu viaje» va justo
+/// debajo.
 ///
-/// El buscador de rutas se retiró con la poda de la portada: la pantalla debe
-/// caber entera (cabecera, accesos, «¿A dónde vas?» y viajes recientes) y el
-/// catálogo ya se abre desde el acceso **Micros**. La cabecera se queda en
-/// banda oficial + marca + ubicación.
-///
-/// Encima del lienzo todo se mide con los tokens del tema ([ColorScheme]), de
-/// modo que el mismo bloque funciona en claro y en oscuro sin tintas fijas.
-/// La trama de anillos de Santa Cruz sigue de fondo, muy tenue, para que la
-/// portada no pierda el movimiento de la marca.
+/// Escudo y logo se reparten el ancho con `FittedBox(scaleDown)`: en el
+/// teléfono más angosto se achican juntos en vez de desbordar.
 class HomeHeader extends StatelessWidget {
   const HomeHeader({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.colors;
-    final text = context.text;
     final topInset = MediaQuery.paddingOf(context).top;
-    return Stack(
-      children: [
-        // Anillos de la ciudad de fondo.
-        Positioned.fill(
-          child: IgnorePointer(
-            child: Opacity(
-              opacity: 0.55,
-              child: HomeRouteLattice(tint: colors.primary),
-            ),
-          ),
-        ),
-        Column(
-          children: [
-            SizedBox(height: topInset),
-            const HomeOfficialBand(),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(
-                AppSpace.lg + AppSpace.xs,
-                AppSpace.xxl,
-                AppSpace.lg + AppSpace.xs,
-                0,
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
+    return Padding(
+      key: const ValueKey('home-official-band'),
+      padding: EdgeInsets.fromLTRB(
+        AppSpace.lg,
+        topInset + AppSpace.md,
+        AppSpace.lg,
+        AppSpace.xs,
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.only(top: AppSpace.sm),
+              child: Row(
                 children: [
-                  Stack(
-                    alignment: Alignment.topCenter,
-                    clipBehavior: Clip.none,
-                    children: [
-                      Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          // Escalado solo en pintura: el alto de la cabecera
-                          // (y por tanto que la portada quepa sin scroll) no
-                          // cambia por agrandar la marca.
-                          Transform.scale(
-                            scale: 1.5,
-                            alignment: Alignment.bottomCenter,
-                            child: const HomeWordmark(),
-                          ),
-                          // El trazo y la parada asoman bajo la línea base
-                          // (escalados ×1,5): el lema les deja ese aire.
-                          const SizedBox(height: AppSpace.sm),
-                          Text(
-                            Env.tagline,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            textAlign: TextAlign.center,
-                            style: text.bodySmall?.copyWith(
-                              color: colors.onSurfaceVariant,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ],
+                  Expanded(
+                    flex: 10,
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerLeft,
+                      child: Semantics(
+                        label:
+                            'Gobierno Autónomo Municipal de Santa Cruz de la '
+                            'Sierra',
+                        image: true,
+                        child: const HomeOfficialSeal(),
                       ),
-                      const Positioned(
-                        right: 0,
-                        top: -6,
-                        child: _ThemeToggleButton(
-                          key: ValueKey('home-theme-button'),
-                        ),
-                      ),
-                    ],
+                    ),
                   ),
-                  const SizedBox(height: AppSpace.md),
-                  const HomeLocationPill(),
+                  const SizedBox(width: AppSpace.md),
+                  const Expanded(
+                    flex: 11,
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: UrbanoLogo(key: ValueKey('home-logo')),
+                    ),
+                  ),
                 ],
               ),
             ),
-          ],
-        ),
-      ],
+          ),
+          const SizedBox(width: AppSpace.sm),
+          const _ThemeToggleButton(key: ValueKey('home-theme-button')),
+        ],
+      ),
     );
   }
 }
 
-/// Botón de **tema claro/oscuro** de la cabecera (donde antes iba el menú).
+/// Botón de **tema claro/oscuro** de la cabecera.
 ///
 /// Muestra a dónde lleva, no dónde está: una luna en claro y un sol en oscuro.
 /// El primer toque deja de seguir al sistema y fija el brillo contrario al que
@@ -130,30 +91,27 @@ class _ThemeToggleButton extends ConsumerWidget {
     final colors = context.colors;
     final dark = Theme.of(context).brightness == Brightness.dark;
     final radius = BorderRadius.circular(AppRadius.md);
-    final bg = dark ? colors.surface.withValues(alpha: 0.9) : Colors.white;
-    final iconInk = dark ? colors.onSurface : HtmlDesignTokens.slate800;
+    final bg = dark ? colors.surfaceContainerHigh : colors.surface;
+    final iconInk = dark ? colors.onSurface : AppColors.ink;
     final label = dark ? 'Cambiar a tema claro' : 'Cambiar a tema oscuro';
 
     return PressScale(
       scale: 0.95,
       child: Container(
-        width: 44,
-        height: 44,
+        width: 48,
+        height: 48,
         decoration: BoxDecoration(
           color: bg,
           borderRadius: radius,
           border: Border.all(
-            color: dark ? AppColors.lineDark : HtmlDesignTokens.slate100,
+            color: dark ? AppColors.lineDark : colors.outlineVariant,
           ),
-          boxShadow: [
-            BoxShadow(
-              color: dark
-                  ? Colors.black.withValues(alpha: 0.25)
-                  : Colors.black.withValues(alpha: 0.06),
-              blurRadius: 16,
-              offset: const Offset(0, 4),
-            ),
-          ],
+          boxShadow: AppTheme.softShadow(
+            color: Colors.black,
+            opacity: dark ? 0.25 : 0.07,
+            blur: 16,
+            dy: 4,
+          ),
         ),
         child: Material(
           color: Colors.transparent,
@@ -180,7 +138,7 @@ class _ThemeToggleButton extends ConsumerWidget {
                   child: Icon(
                     dark ? Icons.light_mode_rounded : Icons.dark_mode_rounded,
                     key: ValueKey(dark),
-                    size: 22,
+                    size: 24,
                     color: iconInk,
                     semanticLabel: label,
                   ),

@@ -1,5 +1,9 @@
 /// Tokens de diseño extraídos de `inicio.html` y `sheet.html`.
 ///
+/// Las familias esmeralda/teal/naranja y los verdes de ilustración se
+/// reajustaron a la paleta oficial de la marca (verdes `#35F04F` → `#029E46`
+/// y naranja `#FD7502`): conservan su nombre de rol, no su matiz original.
+///
 /// Centraliza los colores hardcoded que vinieron de la migración HTML para que
 /// un cambio de paleta se haga en un solo archivo. Cada token lleva el nombre
 /// del color en inglés (Tailwind-like) para que sea claro sin importar el tema.
@@ -19,64 +23,64 @@ class HtmlDesignTokens {
 
   // ── Esmeralda (Emerald) ──
 
-  /// `#10B981` — Esmeralda principal, usado en puntos vivos, gradientes y acentos.
-  static const emerald500 = Color(0xFF10B981);
+  /// `#06BD4A` — Esmeralda principal, usado en puntos vivos, gradientes y acentos.
+  static const emerald500 = Color(0xFF06BD4A);
 
-  /// `#059669` — Esmeralda oscuro, inicio de gradientes y bordes.
-  static const emerald600 = Color(0xFF059669);
+  /// `#029E46` — Esmeralda oscuro, inicio de gradientes y bordes.
+  static const emerald600 = Color(0xFF029E46);
 
-  /// `#047857` — Esmeralda más oscuro, texto sobre fondos claros.
-  static const emerald700 = Color(0xFF047857);
+  /// `#027F38` — Esmeralda más oscuro, texto sobre fondos claros.
+  static const emerald700 = Color(0xFF027F38);
 
-  /// `#065F46` — Esmeralda muy oscuro, centros de ilustraciones.
-  static const emerald800 = Color(0xFF065F46);
+  /// `#01622C` — Esmeralda muy oscuro, centros de ilustraciones.
+  static const emerald800 = Color(0xFF01622C);
 
-  /// `#064E3B` — Esmeralda fondo oscuro, píldoras semitransparentes.
-  static const emerald900 = Color(0xFF064E3B);
+  /// `#014D23` — Esmeralda fondo oscuro, píldoras semitransparentes.
+  static const emerald900 = Color(0xFF014D23);
 
-  /// `#042F2E` — Esmeralda casi negro, fondos muy oscuros.
-  static const emerald950 = Color(0xFF042F2E);
+  /// `#012E15` — Esmeralda casi negro, fondos muy oscuros.
+  static const emerald950 = Color(0xFF012E15);
 
-  /// `#34D399` — Esmeralda claro, puntos de estado y bordes suaves.
-  static const emerald400 = Color(0xFF34D399);
+  /// `#1BD64C` — Esmeralda claro, puntos de estado y bordes suaves.
+  static const emerald400 = Color(0xFF1BD64C);
 
-  /// `#6EE7B7` — Esmeralda muy claro, texto sobre fondos oscuros.
-  static const emerald300 = Color(0xFF6EE7B7);
+  /// `#7FE79A` — Esmeralda muy claro, texto sobre fondos oscuros.
+  static const emerald300 = Color(0xFF7FE79A);
 
-  /// `#A7F3D0` — Esmeralda pálido, texto secundario sobre oscuro.
-  static const emerald200 = Color(0xFFA7F3D0);
+  /// `#B5F3C4` — Esmeralda pálido, texto secundario sobre oscuro.
+  static const emerald200 = Color(0xFFB5F3C4);
 
-  /// `#D1FAE5` — Esmeralda fondo claro, fondos de íconos.
-  static const emerald100 = Color(0xFFD1FAE5);
+  /// `#D6F9DF` — Esmeralda fondo claro, fondos de íconos.
+  static const emerald100 = Color(0xFFD6F9DF);
 
-  /// `#ECFDF5` — Esmeralda fondo muy claro, tarjetas de íconos.
-  static const emerald50 = Color(0xFFECFDF5);
+  /// `#EDFCF1` — Esmeralda fondo muy claro, tarjetas de íconos.
+  static const emerald50 = Color(0xFFEDFCF1);
 
-  /// `#E6FFFA` — Esmeralda casi blanco, base de radar.
-  static const emerald50Light = Color(0xFFE6FFFA);
+  /// `#E8FFEE` — Esmeralda casi blanco, base de radar.
+  static const emerald50Light = Color(0xFFE8FFEE);
 
-  /// `#CCFBF1` — Esmeralda pálido, píldoras de "Ver todos".
-  static const emerald100mid = Color(0xFFCCFBF1);
+  /// `#CFF8DA` — Esmeralda pálido, píldoras de "Ver todos".
+  static const emerald100mid = Color(0xFFCFF8DA);
 
   // ── Teal ──
 
-  /// `#14B8A6` — Teal, medio de gradientes esmeralda.
-  static const teal500 = Color(0xFF14B8A6);
+  /// `#1BD64C` — Teal, medio de gradientes esmeralda.
+  static const teal500 = Color(0xFF1BD64C);
 
-  /// `#0D9488` — Teal oscuro, conos de denuncias.
-  static const teal600 = Color(0xFF0D9488);
+  /// `#06BD4A` — Teal oscuro, conos de denuncias.
+  static const teal600 = Color(0xFF06BD4A);
 
-  /// `#2DD4BF` — Teal claro, brillo ambiental del hero banner.
-  static const teal300 = Color(0xFF2DD4BF);
+  /// `#35F04F` — Teal claro, brillo ambiental del hero banner.
+  static const teal300 = Color(0xFF35F04F);
 
-  /// `#0F766E` — Teal más oscuro, bordes de parada.
-  static const teal700 = Color(0xFF0F766E);
+  /// `#027F38` — Teal más oscuro, bordes de parada.
+  static const teal700 = Color(0xFF027F38);
 
-  /// `#044E46` — Teal muy oscuro, base de conos.
-  static const teal800 = Color(0xFF044E46);
+  /// `#014D23` — Teal muy oscuro, base de conos.
+  static const teal800 = Color(0xFF014D23);
 
-  /// `#042F2E` — Teal casi negro, fin de gradiente hero banner.
-  static const teal950 = Color(0xFF042F2E);
+  /// `#012E15` — Teal casi negro, fin de gradiente hero banner.
+  static const teal950 = Color(0xFF012E15);
 
   // ── Cyan ──
 
@@ -111,20 +115,20 @@ class HtmlDesignTokens {
 
   // ── Naranja (Orange) ──
 
-  /// `#FF9500` — Naranja vivo, botones de acción.
-  static const orange500 = Color(0xFFFF9500);
+  /// `#FF8A1F` — Naranja vivo, botones de acción.
+  static const orange500 = Color(0xFFFF8A1F);
 
-  /// `#FF4D29` — Naranja rojizo, fin de gradientes de botón.
-  static const orange600 = Color(0xFFFF4D29);
+  /// `#FD7502` — Naranja rojizo, fin de gradientes de botón.
+  static const orange600 = Color(0xFFFD7502);
 
-  /// `#FF5722` — Naranja intenso, campanas y franjas.
-  static const orangeA700 = Color(0xFFFF5722);
+  /// `#FD7502` — Naranja intenso, campanas y franjas.
+  static const orangeA700 = Color(0xFFFD7502);
 
-  /// `#F97316` — Naranja medio, pins flotantes y ondas.
-  static const orange400 = Color(0xFFF97316);
+  /// `#FD7502` — Naranja medio, pins flotantes y ondas.
+  static const orange400 = Color(0xFFFD7502);
 
-  /// `#EA580C` — Naranja oscuro, base de campanas.
-  static const orange700 = Color(0xFFEA580C);
+  /// `#D95F00` — Naranja oscuro, base de campanas.
+  static const orange700 = Color(0xFFD95F00);
 
   // ── Ámbar (Amber) ──
 
@@ -270,34 +274,34 @@ class HtmlDesignTokens {
 
   // ── Fondos oscuros del HTML ──
 
-  /// `#065343` — Fondo oscuro inicio de degradado.
-  static const darkBgStart = Color(0xFF065343);
+  /// `#075A2B` — Fondo oscuro inicio de degradado.
+  static const darkBgStart = Color(0xFF075A2B);
 
-  /// `#054336` — Fondo oscuro medio de degradado.
-  static const darkBgMid = Color(0xFF054336);
+  /// `#054822` — Fondo oscuro medio de degradado.
+  static const darkBgMid = Color(0xFF054822);
 
-  /// `#012A21` — Fondo oscuro fin de degradado.
-  static const darkBgEnd = Color(0xFF012A21);
+  /// `#012A12` — Fondo oscuro fin de degradado.
+  static const darkBgEnd = Color(0xFF012A12);
 
-  /// `#084236` — Verde oscuro, wordmark del header.
-  static const darkWordmark = Color(0xFF084236);
+  /// `#01622C` — Verde oscuro, wordmark del header.
+  static const darkWordmark = Color(0xFF01622C);
 
   // ── Colores de micro (HTML) ──
 
-  /// `#00C49F` — Verde turquesa, cuerpo del micro.
-  static const microBodyStart = Color(0xFF00C49F);
+  /// `#1BD64C` — Verde turquesa, cuerpo del micro.
+  static const microBodyStart = Color(0xFF1BD64C);
 
-  /// `#069670` — Verde medio, cuerpo del micro.
-  static const microBodyMid = Color(0xFF069670);
+  /// `#06BD4A` — Verde medio, cuerpo del micro.
+  static const microBodyMid = Color(0xFF06BD4A);
 
-  /// `#025C44` — Verde oscuro, cuerpo del micro.
-  static const microBodyEnd = Color(0xFF025C44);
+  /// `#027F38` — Verde oscuro, cuerpo del micro.
+  static const microBodyEnd = Color(0xFF027F38);
 
-  /// `#0000897B` — Verde muy oscuro, detalles del micro.
-  static const microDark = Color(0xFF00897B);
+  /// `#029E46` — Verde muy oscuro, detalles del micro.
+  static const microDark = Color(0xFF029E46);
 
-  /// `#0000695C` — Verde casi negro, detalles profundos.
-  static const microDarker = Color(0xFF00695C);
+  /// `#01622C` — Verde casi negro, detalles profundos.
+  static const microDarker = Color(0xFF01622C);
 
   // ── Púrpura (Purple) ──
 

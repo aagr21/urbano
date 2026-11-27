@@ -20,6 +20,11 @@ Flutter app (repo root):
   de iOS desde `assets/brand/splash-frame0.svg` (necesita `resvg` o `rsvg-convert`; solo cuando
   cambie la pose del frame 0). La splash de Android es Kotlin con Canvas
   (`SplashCanvasView`): no hay JSON ni Lottie que sincronizar.
+- Logo y escudo blanco: `tools/make-brand-logo.sh` regenera `assets/images/urbano-logo.png`,
+  `urbano-logo-blanco.png` (desde `tools/brand_logo.py`, Montserrat ExtraBold vía resvg) y
+  `gobierno-santa-cruz-blanco.png` (`tools/brand_seal.py`: solo el texto del escudo pasa a
+  blanco, el blasón no se toca). La app (`UrbanoLogo`) y la splash nativa de Android usan esos
+  MISMOS PNG; nunca los edites a mano.
 - Ícono de la app: `tools/make-app-icon.sh` lo regenera en todas las plataformas. El diseño vive
   en `tools/app_icon.py` (SVG en `assets/brand/app-icon/`, PNG intermedios ignorados) y la
   config en `icons_launcher.yaml`; nunca edites los PNG de `android/`/`ios/` a mano.
@@ -106,17 +111,19 @@ Vercel URL**. Always pass it explicitly for targeted local runs
   1080×2340@2.75. `_CommunityHeader` is therefore one tight row (badge + title + compact
   `Crear` CTA with tooltip `Crear queja`) above the three `ComplaintsStatTile`s (`complaints_cover_header.dart`) — no tagline paragraph, no
   full-width button row — and `test/complaints_feed_test.dart` asserts `card.bottom < bar.top` at a
-  real phone height (the shell no longer has a `NavigationBar`: that harness mounts its own as the
-  bottom boundary; `_openFeed` does not). Anything
+  real phone height (that harness mounts the real `UrbanoBottomBar` as the bottom boundary;
+  `_openFeed` does not). Anything
   new up there goes into the header row or gets scrolled, never stacked below it. Because the CTA
   shares the row with the title, the title is `Expanded > FittedBox(scaleDown)`, **never**
   `TextOverflow.ellipsis` (a long label there truncated "La voz del pasaj…" on real phones); the
-  label stays short and its `textStyle` starts from a theme style so it keeps Inter.
-- **Text widths measured under `flutter test` are Ahem, not Inter** (one square per glyph, so
+  label stays short and its `textStyle` starts from a theme style so it keeps Montserrat.
+- **Text widths measured under `flutter test` are Ahem, not Montserrat** (one square per glyph, so
   ~1.8× the real string): anything sized by measured text must be re-measured with the real face
-  — load it in `setUpAll` with `FontLoader('Inter')` over `assets/fonts/Inter-*.ttf` bytes
+  — load it in `setUpAll` with `FontLoader('Montserrat')` over `assets/fonts/Montserrat-*.ttf` bytes
   (`dart:io` + cwd = package root), and remember `TextStyle(...)` without `fontFamily` silently
-  drops the app's face (only `display/headline/title*` carry Inter via `AppTypography.apply`).
+  drops the app's face unless it inherits the theme (`ThemeData.fontFamily` is Montserrat; the
+  `TextTheme` carries it via `AppTypography.apply`). Patterns: `test/nearby_quick_action_test.dart`
+  and `test/home_action_tiles_test.dart` (the four Inicio tiles must not cut text at 360 dp).
 - **Feed de quejas: el doble toque sobre la foto APOYA, nunca quita** (`complaint-hero-<id>`, solo
   el héroe; el resto de la tarjeta abre el detalle al primer toque, sin la espera del doble toque).
   Apoyar da `HapticFeedback.lightImpact` y el corazón que late. El feed cierra con
@@ -147,6 +154,13 @@ Vercel URL**. Always pass it explicitly for targeted local runs
   violation by commenting a rule out or adding `// ignore:` without a reason in Spanish.
 
 Visual values come from tokens in `lib/src/core/theme/`, never from literals:
+
+- Brand: the official palette (`AppColors.lime/brightGreen/brand/primary` greens, `accent`
+  orange `#FD7502`) and `urbanoGradient`. On the green gradient the ink is **always**
+  `AppColors.onBrand` (white, bold, title/label sizes) — never `AppColors.onColor`, which
+  picks black against the bright brand green. Green or orange used as small text on light
+  surfaces goes through `greenDeep` / `accentDeep` (≥4.5:1). Denuncias uses the orange as its
+  section accent. Type is Montserrat everywhere (`ThemeData.fontFamily`).
 
 - Corners: `AppRadius` (`sm 10 · tile 12 · input 14 · md 16 · lg 24 · xl 32 · pill 999`).
   No `BorderRadius.circular(<número>)` anywhere in `lib/`. `pill` is also correct for thin 4 px
@@ -197,18 +211,25 @@ Backend (`backend/src/modules/<feature>/{domain,application,infrastructure,prese
 - `DB_SYNCHRONIZE=true` in dev: TypeORM auto-syncs schema on boot; PostGIS/B-tree/`pg_trgm`
   indexes are created idempotently at startup (`DatabaseSetupService`).
 
-Flutter app: Riverpod for state, `go_router` (three sections: Inicio · Viaje · Denuncias —
-**sin barra inferior ni menú**: a Viaje y Denuncias se llega por los accesos de Inicio, y se
-vuelve con la flecha `journey-back-button` de la columna de controles del mapa o con «atrás»
-(el `PopScope` del shell lleva a Inicio). El botón de la cabecera de Inicio es el de **tema
-claro/oscuro** (`home-theme-button`: luna en claro, sol en oscuro, `setMode` persiste la
-elección); «Acerca de» (`/info`) y el menú `showUrbanoMenu` se retiraron, no los repongas sin
-decidir dónde vive la navegación; el shell monta las tres
-ramas con `StatefulShellRoute.indexedStack` y solo funde el cuerpo al cambiar de sección).
-El catálogo
-completo de líneas es la pantalla **`/micros`** (`routes/presentation/micros_screen.dart`,
-tarjetas `MicroCard`), que abre el acceso **Micros** de Inicio con
-`UrbanoRoutes.openMicrosCatalog`; cada tarjeta lleva al detalle `/routes/:id?from=micros`.
+Flutter app: Riverpod for state, `go_router`. **Barra inferior del diseño** (`UrbanoBottomBar`,
+`core/router/urbano_bottom_bar.dart`, claves `nav-<id>`): Inicio · Micros · Viajes · Lugares ·
+Denuncias · Perfil. Cinco pestañas son ramas de `StatefulShellRoute.indexedStack` (`/`,
+`/micros`, `/journey`, `/complaints`, `/profile`; `UrbanoShell.tabBranches` mapea pestaña →
+rama); **Lugares no es rama**: es la acción `openPlacesSearch` (abre la hoja «¿Qué micro pasa
+cerca?» y empuja `/nearby`), la misma del acceso de Inicio. Tocar la pestaña activa vuelve a su
+raíz; «atrás» fuera de Inicio lleva a Inicio (`PopScope` del shell) y la flecha
+`journey-back-button` sigue en la columna de controles del mapa. Las ramas se construyen al
+visitarse por primera vez, y el shell solo funde el cuerpo al cambiar de sección. El botón de la
+cabecera de Inicio es el de **tema claro/oscuro** (`home-theme-button`: luna en claro, sol en
+oscuro, `setMode` persiste la elección); la misma preferencia (sistema/claro/oscuro) se elige en
+**Perfil** (`features/profile/`): identidad anónima del pasajero (avatar + apodo editable con
+`showPassengerNameSheet`), apariencia, historial de viajes (contador + «Borrar» con
+confirmación) y «Acerca de». Perfil lee `passengerControllerProvider`, así que todo test que
+abra esa pestaña lo sobrescribe con un store en memoria (pattern en `test/urbano_shell_test.dart`).
+El catálogo completo de líneas es la rama **`/micros`** (`routes/presentation/micros_screen.dart`,
+tarjetas `MicroCard`), que también abre el acceso **Micros** de Inicio con
+`UrbanoRoutes.openMicrosCatalog` (`go`, no `push`); cada tarjeta lleva al detalle
+`/routes/:id?from=micros`.
 `/map` redirects to `/journey`. El antiguo panel lateral de micros de `/journey` (cajón con
 toggles ida/vuelta y modo «Lugares») se **retiró** —había quedado sin entrada—; no lo
 repongas sin decidir antes cómo convive con `/micros`. Si vuelve a hacer falta una bandera
@@ -221,28 +242,25 @@ facade, GPS isolated in `core/location/` (injectable `LocationService` so tests 
 without geolocator). `/journey` is a single always-mounted screen — don't recreate the
 platform view; the merged map/result-sheet design is deliberate (see README).
 
-- **La portada es UNA pantalla: marca, cuatro accesos, destino e historial.** El home se compone
-  de una **banda oficial** a sangre (`home_header.dart`: escudo del Gobierno Autónomo Municipal de
-  Santa Cruz de la Sierra —`assets/images/gobierno-santa-cruz.png`, se escala pero no se redibuja—
-  a la izquierda y la píldora «Transporte Oficial» a la derecha; en oscuro el escudo va sobre una
-  placa blanca para que su trazo negro no se pierda), una cabecera de marca sobre el lienzo
-  (wordmark centrado —Plus Jakarta Sans ExtraBold de **un solo color**: nunca partas «Urbano» en
-  colores, resaltar una sílaba se lee como otra palabra— + lema + botón de tema flotando a la derecha
-  y la píldora «Tu ubicación»; el
-  buscador de rutas se retiró, así que Inicio no tiene `TextField`), cuatro
-  cuadros **compactos** en retícula 2 × 2 con píldora, ilustración plana sobre
-  placa tonal y una sola flecha circular de acción
-  (`home_action_illustrations.dart`) y bajada (`home_action_tiles.dart`: Micros · Viajes · Lugares ·
-  Denuncias), la barra `¿A dónde vas?` (`destination_bar.dart`, cuya etiqueta
-  `Marca tu destino y listo` siguen tocando los tests) y `recent_trips.dart`, una sola tarjeta
-  agrupada con la píldora de duración al pie de cada fila. La portada **termina** en los viajes
-  recientes: el banner «Santa Cruz en movimiento», la tirilla «Tus micros» y el mini mapa se
-  retiraron para que cabecera, accesos, destino e historial quepan sin scroll; el catálogo completo
-  vive en el panel de Viaje (acceso **Micros**) y el mapa, en `/journey`. Los cuatro cuadros usan
-  una ilustración de 104 × 64 sobre placa de 108 × 64, y tipografía
-  `titleSmall`/`labelSmall`; no los agrandes sin volver a medir el alto de la
-  portada. «¿A dónde vas?» es el CTA primario con tinta contrastada; los cuatro
-  accesos se mantienen visualmente secundarios.
+- **La portada sigue el diseño «Pantalla de inicio» (carpeta de marca `actualizacion/`).**
+  De arriba abajo: la cabecera (`home_header.dart`, key `home-official-band`) con el escudo del
+  Gobierno Autónomo Municipal (`assets/images/gobierno-santa-cruz.png`, se escala pero no se
+  redibuja; en oscuro va sobre una placa blanca, `home_official_seal.dart`), el **logotipo
+  oficial** (`UrbanoLogo`, `core/widgets/urbano_logo.dart`: PNG generado + el lema como `Text`
+  en Montserrat, que cambia de tinta con el tema) y el botón de tema; la tarjeta **«Planifica tu
+  viaje»** (`destination_bar.dart`, key `home-destination`: degradado de verdes, tinta blanca en
+  negrita, píldora blanca «¿A dónde vas?» con la flecha naranja) que abre
+  `openJourneyDestinationSheet` — es el CTA primario; los cuatro accesos en retícula 2 × 2
+  (`home_action_tiles.dart`: tarjeta blanca, ícono de marca `UrbanoGlyph` sobre placa tonal,
+  título, bajada y chevrón verde; Micros · Viajes · Lugares · Denuncias) y **Tus viajes
+  recientes** (`recent_trips.dart`: rótulo con reloj y «Ver todos», una tarjeta por viaje con la
+  píldora de recencia —«Hoy»/«Ayer»/«Hace N d», `recencyLabel`, días de calendario— y la **X**
+  `recent-trip-remove-<key>` que lo borra del historial). Ya no hay píldora «Transporte
+  Oficial», ni «Tu ubicación», ni wordmark de texto: la marca es el logo. Los íconos de marca
+  (`core/widgets/urbano_glyph.dart`) se dibujan en código en dos modos: a color (accesos) y
+  monocromo (barra inferior); los «blancos» del dibujo se recortan, así funcionan en ambos temas.
+  Los accesos están medidos para 360 dp (`test/home_action_tiles_test.dart`): no agrandes
+  placa, título ni márgenes sin volver a correrlo.
   El historial se alimenta de `tripHistoryControllerProvider`
   (`journey/application/trip_history_controller.dart` + `journey/data/trip_history.dart`):
   `SharedPreferences` bajo `urbano.trips.recent`, dedupe por `label|lat|lon`, máximo
@@ -250,7 +268,7 @@ platform view; the merged map/result-sheet design is deliberate (see README).
   `journeyResultsProvider` cuando llega una respuesta fresca. La portada lista solo
   `RecentTrips.visibleOnHome = 3` filas; cuando hay más, el rótulo lleva la píldora
   «Ver todos» (sin número) en la esquina superior derecha y abre
-  la hoja con el historial completo (`recent-trip-all-*`, misma tarjeta agrupada),
+  la hoja con el historial completo (`recent-trip-all-*`, tarjeta agrupada, sin X),
   que lleva un buscador con lupa y pagina de 8 en 8 cuando hay más de 8 viajes. Sin
   historial la sección no ocupa
   espacio; tocar una fila repone el destino, usa `lastKnownLocationProvider` (o
@@ -389,36 +407,35 @@ platform view; the merged map/result-sheet design is deliberate (see README).
   when the skeleton retires, `EmptyState`/`ErrorView` reveal themselves, list tiles
   stagger by `index`. Don't wrap those calls in another `Reveal`/`flutter_animate`
   chain — it double-animates and looks cheap.
-- **The boot splash is ONE phase: `SplashGate`, and it is a LOADING screen, not the brand show.**
-  The user asked to see carga — not the logo — at the very first moment the app opens, so
-  `core/widgets/splash_gate.dart` mounts no logo, no `URBANO` wordmark and no tagline: what
-  reads is a spinning dial, the word `Cargando`, the real boot stage under it and a progress bar.
-  Identity stays in the background (brand gradient, the Santa Cruz rings tracing themselves, the
-  `Santa Cruz de la Sierra · datos GTFS` footer); the brand lives inside the app (the home
-  header's wordmark). Before `SplashGate` there are now TWO native phases on Android: the OS field
-  (`windowSplashScreenBackground` / `windowBackground`, which cannot animate) and
+- **The boot splash is ONE phase: `SplashGate`, and it follows the design «Pantalla de carga».**
+  `core/widgets/splash_gate.dart` (cover in `splash_cover.dart`) paints, over the brand gradient
+  and the Santa Cruz rings: the municipal seal with white text (`_SplashBrand`,
+  `assets/images/gobierno-santa-cruz-blanco.png`), the white Urbano logo with its tagline
+  (`UrbanoLogo(onBrand: true)`), then the loading block — orange dial on a pale-green track,
+  `Cargando`, the real boot stage and a white bar filling with orange — and the
+  `Santa Cruz de la Sierra` footer. (An earlier iteration hid the logo on request; the new brand
+  design puts it back, so don't remove it again without asking.) Before `SplashGate` there are
+  TWO native phases on Android: the OS field (`windowSplashScreenBackground` /
+  `windowBackground`, which cannot animate) and
   `android/app/src/main/kotlin/.../SplashActivity.kt`, a Kotlin launcher whose `SplashCanvasView`
-  paints the loading screen for 1,5 s (brand gradient, the Santa Cruz rings, a coral rotating dial
-  with aqua tail, the baked `Cargando` text and a progress bar) and then hands off to
-  `MainActivity` + `finish()` (so it never enters the back stack). It is Canvas-only: no Lottie, no
-  JSON, no cached composition — the art exists twice (this Canvas and the Dart painters) and has to
-  be kept in sync by hand, which is why it stays minimal. iOS has no animated launch (Apple
-  rejects it), so `LaunchScreen.storyboard` shows a static reproduction of that frame 0
-  (`LaunchImage` imageset, generated by `tools/make-ios-splash-frame0.sh` from
-  `assets/brand/splash-frame0.svg`, which draws `Cargando` with Inter via resvg's `--use-font-file`)
-  and then the SAME painted `SplashGate` cover (`_RingsPainter` + `_Dial` + `_Loader`) takes over on
-  every platform. Keeping the cover painted everywhere is what avoids doubling the baked text/bar on
-  iOS. `launch_background.xml`
+  paints the same screen for 1,5 s — it decodes the SAME two PNGs from `flutter_assets` and draws
+  the rest with Canvas and Montserrat — and then hands off to `MainActivity` + `finish()` (so it
+  never enters the back stack). It is Canvas-only: no Lottie, no JSON — the art exists twice
+  (this Canvas and the Dart painters) and has to be kept in sync by hand (same layout numbers:
+  `Alignment(0, -0.3)`, logo 70 % of the width clamped 48–96 dp, dial `min side * 0.17`
+  clamped 58–80 dp, bar 220 × 10 dp). iOS has no animated launch (Apple rejects it), so
+  `LaunchScreen.storyboard` shows a static reproduction of that frame 0 (`LaunchImage`
+  imageset, generated by `tools/make-ios-splash-frame0.sh` from `assets/brand/splash-frame0.svg`,
+  which embeds both PNGs and draws its text with Montserrat via resvg's `--use-font-file`) and
+  then the SAME painted `SplashGate` cover takes over on every platform. `launch_background.xml`
   still has no logo, and Android 12+ needs
   `windowSplashScreenAnimatedIcon` = the transparent `urbano_splash_icon_blank` — omit it and the
-  launcher icon shows, which is the second splash the user rejected.
+  launcher icon shows as a second splash.
   `test/splash_gate_test.dart` covers the cover and native resources are
   checked with `:app:processDebugResources`.
-  `windowSplashScreenBackground` is **`urbano_primary`, not `primary_dark`**: a 30 fps `screenrecord`
-  of a cold start on the Honor (API 35) measured the native field at srgb(0,34,31) against the
-  cover's first frame at srgb(4,55,49) — the dark corner of the gradient made the handoff read as a
-  separate green screen. `urbano_primary` is the gradient's average, so the two phases are the same
-  color.
+  `windowSplashScreenBackground` is **`urbano_primary` (`#12C94B`, the average of the green
+  gradient), not `primary_dark`**: with the dark end the handoff read as a separate green screen
+  (measured with `screenrecord` on the Honor). Keep it the gradient's average if the palette moves.
 - **The cover enters already painted.** (the cover and its painters live in `splash_cover.dart`, a `part` of `splash_gate.dart`) `_SplashCover._startT` is `0.14` and the loading windows
   (`_blockEnd 0.26`, `_barBegin .02`, `_footEnd .14`) are already open by then, so frame 1 shows the
   dial + `Cargando` + the stage line + footer + a bar that has already started. With `begin: 0` the
@@ -477,7 +494,7 @@ platform view; the merged map/result-sheet design is deliberate (see README).
   de ese hilo (no en `onCreate`) y el engine se levanta recién en `setOnFirstFrameListener`. Con
   una `View` común y el warm en `onCreate`, el primer frame llegaba con la animación ya vencida y
   solo se veía el campo verde. El arte copia las medidas de `SplashGate` (bloque en
-  `Alignment(0, -0.22)` del área segura, Inter leída de `flutter_assets`) y termina en su estado
+  `Alignment(0, -0.3)` del área segura, escudo y logo de los mismos PNG, Montserrat leída de `flutter_assets`) y termina en su estado
   de entrada (`Preparando la app`, barra al 10 %, anillos a medio trazar) para que el relevo no
   retroceda; la Activity es edge-to-edge con las barras del `_chrome` de Dart.
   `UrbanoSplashApplication` sigue existiendo porque el manifest reemplaza el `${applicationName}`,

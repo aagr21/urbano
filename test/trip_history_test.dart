@@ -233,33 +233,34 @@ void main() {
           durationMinutes: minutes,
         );
 
-    test('con duración conocida muestra lo que tardó', () {
+    test('dice cuándo se usó, aunque se sepa lo que tardó', () {
       expect(
         tripHistoryPillLabel(entry(minutes: 28, at: now), now: now),
-        '28 min',
+        'Hoy',
       );
-    });
-
-    test('sin duración dice cuándo se intentó', () {
-      expect(tripHistoryPillLabel(entry(at: now), now: now), 'hoy');
+      expect(tripHistoryPillLabel(entry(at: now), now: now), 'Hoy');
       expect(
         tripHistoryPillLabel(
           entry(at: now.subtract(const Duration(days: 1))),
           now: now,
         ),
-        'ayer',
+        'Ayer',
       );
       expect(
         tripHistoryPillLabel(
           entry(at: now.subtract(const Duration(days: 5))),
           now: now,
         ),
-        'hace 5 d',
+        'Hace 5 d',
       );
     });
 
-    test('una duración de 0 cuenta como desconocida', () {
-      expect(tripHistoryPillLabel(entry(minutes: 0, at: now), now: now), 'hoy');
+    test('cuenta días de calendario, no tandas de 24 h', () {
+      // Anoche a las 23:00 ya es «Ayer» a las 10:00, aunque no pasaron 24 h.
+      expect(
+        tripHistoryPillLabel(entry(at: DateTime(2026, 11, 25, 23)), now: now),
+        'Ayer',
+      );
     });
   });
 }

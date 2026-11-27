@@ -49,16 +49,29 @@ abstract final class AppControl {
   static const double mapButton = 44.0;
 }
 
-/// Degradado de marca reutilizable: va de la orilla (verde agua brillante) a
-/// la laguna profunda. La mitad del recorrido ya es verde agua sólido
-/// (paradas inclinadas hacia el color principal) para que la identidad se
-/// lea sólida, no pastel. Se usa en la cabecera del home, en la tarjeta CTA
-/// y en el logo para que la identidad sea la misma en todos lados.
+/// Degradado de marca reutilizable: la escalera de verdes de la paleta
+/// oficial, del verde luminoso arriba a la izquierda al verde oscuro abajo a la
+/// derecha (la barra de degradado del manual de marca). Se usa en la tarjeta
+/// «Planifica tu viaje», la cabecera de Quejas, la splash y el ícono, para que
+/// la identidad sea la misma en todos lados.
 const LinearGradient urbanoGradient = LinearGradient(
   begin: Alignment.topLeft,
   end: Alignment.bottomRight,
-  colors: [AppColors.aqua, AppColors.primary, AppColors.primaryDark],
-  stops: [0.0, 0.58, 1.0],
+  colors: [
+    AppColors.lime,
+    AppColors.brightGreen,
+    AppColors.brand,
+    AppColors.primaryDark,
+  ],
+  stops: [0.0, 0.3, 0.62, 1.0],
+);
+
+/// Degradado del botón naranja (la flecha de «¿A dónde vas?» y los CTA de
+/// Quejas): naranja de marca con un brillo arriba.
+const LinearGradient urbanoAccentGradient = LinearGradient(
+  begin: Alignment.topCenter,
+  end: Alignment.bottomCenter,
+  colors: [Color(0xFFFF9133), AppColors.accent],
 );
 
 /// Tema claro/oscuro de Urbano (Material 3, semillas propias).
@@ -97,7 +110,7 @@ class AppTheme {
             onPrimary: AppColors.onPrimaryDark,
             primaryContainer: AppColors.primaryContainerDark,
             onPrimaryContainer: AppColors.onPrimaryContainerDark,
-            secondary: AppColors.aquaSoftDark,
+            secondary: AppColors.limeSoftDark,
             tertiary: AppColors.accentSoftDark,
             surface: AppColors.surfaceDark,
             surfaceContainerLowest: AppColors.canvasDark,
@@ -112,9 +125,10 @@ class AppTheme {
           )
         : seedScheme.copyWith(
             primary: AppColors.primary,
+            onPrimary: Colors.white,
             primaryContainer: AppColors.primaryContainerLight,
             onPrimaryContainer: AppColors.onPrimaryContainerLight,
-            secondary: AppColors.aquaDeep,
+            secondary: AppColors.greenDeep,
             secondaryContainer: AppColors.secondaryContainerLight,
             onSecondaryContainer: AppColors.onSecondaryContainerLight,
             tertiary: AppColors.accentDeep,
@@ -122,10 +136,10 @@ class AppTheme {
             onTertiaryContainer: AppColors.onTertiaryContainerLight,
             surface: AppColors.surfaceLight,
             surfaceContainerLowest: AppColors.canvasLight,
-            surfaceContainerLow: const Color(0xFFEDEDF2),
-            surfaceContainer: const Color(0xFFE9E9EE),
-            surfaceContainerHigh: const Color(0xFFE4E4EA),
-            surfaceContainerHighest: const Color(0xFFE0E0E6),
+            surfaceContainerLow: const Color(0xFFEEF1EF),
+            surfaceContainer: const Color(0xFFE9EDEA),
+            surfaceContainerHigh: const Color(0xFFE4E8E5),
+            surfaceContainerHighest: const Color(0xFFDFE4E0),
             onSurface: AppColors.ink,
             onSurfaceVariant: AppColors.inkSoft,
             outline: AppColors.outlineLight,
@@ -135,6 +149,9 @@ class AppTheme {
       useMaterial3: true,
       brightness: brightness,
       colorScheme: scheme,
+      // Montserrat también para todo estilo que no salga del `TextTheme`
+      // (un `TextStyle` suelto hereda la familia del tema por defecto).
+      fontFamily: AppTypography.family,
     );
     final textTheme = AppTypography.apply(base.textTheme);
 

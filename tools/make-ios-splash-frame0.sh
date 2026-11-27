@@ -17,9 +17,12 @@ OUT="ios/Runner/Assets.xcassets/LaunchImage.imageset"
 
 render() { # <px> <archivo destino>
   if command -v resvg >/dev/null; then
-    # El SVG lleva el texto «Cargando»: hay que cargar Inter a mano, porque el
-    # frame 0 imita al JSON y ese texto se hornea con la cara de la marca.
-    resvg --use-font-file assets/fonts/Inter-SemiBold.ttf -w "$1" -h "$1" "$SRC" "$2"
+    # El SVG lleva texto (lema, «Cargando», etapa): hay que cargar Montserrat a
+    # mano, en los tres pesos que usa, porque se hornea con la cara de la marca.
+    resvg --use-font-file assets/fonts/Montserrat-Medium.ttf \
+      --use-font-file assets/fonts/Montserrat-Bold.ttf \
+      --use-font-file assets/fonts/Montserrat-ExtraBold.ttf \
+      --resources-dir assets/brand -w "$1" -h "$1" "$SRC" "$2"
   else
     rsvg-convert -w "$1" -h "$1" -o "$2" "$SRC"
   fi
