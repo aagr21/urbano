@@ -16,8 +16,8 @@
   el PRIMER FOTOGRAMA de la portada de carga que pinta Flutter. Así el cambio
   launch screen → `SplashGate` no se lee como un corte, porque no cambia nada:
 
-   * El fondo es `#12C94B` (`urbano_primary`), el promedio del degradado de
-     verdes que pinta `SplashGate` y el mismo color del campo nativo de Android.
+   * El fondo es `#06BD4A` (`urbano_primary`), el verde principal de la
+     paleta, tono central del degradado que pinta `SplashGate` y el mismo color del campo nativo de Android.
    * La imagen es `LaunchImage` (en `Assets.xcassets`), render de
      `assets/brand/splash-frame0.svg`: escudo, logo blanco con su lema, el
      girófono naranja, «Cargando» y la barra, el mismo frame 0 que pinta la
@@ -63,7 +63,7 @@
                                 </constraints>
                             </imageView>
                         </subviews>
-                        <color key="backgroundColor" red="0.070588235294117646" green="0.78823529411764703" blue="0.29411764705882354" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
+                        <color key="backgroundColor" red="0.023529411764705882" green="0.74117647058823533" blue="0.29019607843137257" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
                         <constraints>
                             <constraint firstItem="L0t-00-fr0" firstAttribute="centerX" secondItem="Ze5-6b-2t3" secondAttribute="centerX" id="L0t-00-cx1"/>
                             <constraint firstItem="L0t-00-fr0" firstAttribute="width" secondItem="Ze5-6b-2t3" secondAttribute="width" multiplier="0.82" id="L0t-00-wd1"/>

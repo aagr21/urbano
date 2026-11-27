@@ -308,8 +308,8 @@ class _LoadingBlock extends StatelessWidget {
   }
 }
 
-/// Girófono de carga: un arco naranja dando vueltas sobre una pista verde
-/// clara (la pantalla de carga del diseño).
+/// Girófono de carga: un arco naranja dando vueltas sobre una pista blanca
+/// translúcida (la pantalla de carga del diseño).
 ///
 /// A propósito NO es un `CircularProgressIndicator`: ese trae su propio ticker
 /// eterno y `pumpAndSettle` no converge con él montado (y un spinner clavado en
@@ -356,7 +356,7 @@ class _DialPainter extends CustomPainter {
       2 * math.pi,
       false,
       Paint()
-        ..color = const Color(0xFFB9EFC9).withValues(alpha: 0.75)
+        ..color = AppColors.brandWhite.withValues(alpha: 0.6)
         ..style = PaintingStyle.stroke
         ..strokeWidth = stroke,
     );
@@ -400,7 +400,7 @@ class _Loader extends StatelessWidget {
     height: 10,
     child: DecoratedBox(
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.88),
+        color: AppColors.brandWhite,
         borderRadius: BorderRadius.circular(AppRadius.pill),
       ),
       child: Stack(

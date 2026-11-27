@@ -56,7 +56,9 @@ test/           # models, formatters, api_client, widget_test (Home mockeado),
 
 Paleta oficial de la marca: verdes `#35F04F` → `#1BD64C` → `#06BD4A` →
 `#029E46` (el degradado de marca), naranja `#FD7502` y blanco `#FEFEFE`;
-tokens en `core/theme/app_colors.dart`, degradados en `app_theme.dart`.
+exactos, sin tonos inventados (los rellenos claros son esos colores con
+transparencia); tokens en `core/theme/app_colors.dart`, degradado en
+`app_theme.dart`.
 Logo e ícono salen de `tools/brand_logo.py` y `tools/app_icon.py`.
 
 ### ✍️ Tipografía

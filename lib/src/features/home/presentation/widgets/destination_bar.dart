@@ -157,7 +157,7 @@ class _SearchPill extends StatelessWidget {
             width: 46,
             height: 46,
             decoration: BoxDecoration(
-              gradient: urbanoAccentGradient,
+              color: AppColors.accent,
               shape: BoxShape.circle,
               boxShadow: AppTheme.softShadow(
                 color: AppColors.accent,

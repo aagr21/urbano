@@ -148,7 +148,7 @@ class MicrosHeroBanner extends StatelessWidget {
         gradient: const LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [HtmlDesignTokens.emerald900, HtmlDesignTokens.teal950],
+          colors: [HtmlDesignTokens.emerald500, HtmlDesignTokens.teal950],
         ),
         boxShadow: [
           BoxShadow(

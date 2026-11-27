@@ -26,7 +26,7 @@ BRIGHT = '#1BD64C'
 BRAND = '#06BD4A'
 DARK = '#029E46'
 ORANGE = '#FD7502'
-WHITE = '#FFFFFF'
+WHITE = '#FEFEFE'
 
 # Lienzo y medidas (Montserrat ExtraBold, 1000 upm: «Urbano» avanza 3914).
 W, H = 900, 224
@@ -69,17 +69,13 @@ def logo(white: bool) -> str:
     </linearGradient>'''
     return f'''<svg xmlns="http://www.w3.org/2000/svg" width="{W}" height="{H}" viewBox="0 0 {W} {H}">
   <defs>{defs}
-    <linearGradient id="pin" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#FF8C2B"/>
-      <stop offset="1" stop-color="{ORANGE}"/>
-    </linearGradient>
   </defs>
   <text x="{TEXT_X}" y="{BASELINE}" font-family="Montserrat" font-weight="800"
         font-size="{SIZE}" letter-spacing="{TRACKING}" fill="{ink}">Urbano</text>
   <path d="{ROUTE_PATH}" fill="none" stroke="{ink}" stroke-width="{STROKE}"
         stroke-linecap="round" stroke-linejoin="round"/>
   <circle cx="{RING_X}" cy="{LINE_Y}" r="17" fill="{ring_fill}" stroke="{ink}" stroke-width="11"/>
-  <path d="{PIN_PATH}" fill="url(#pin)"/>
+  <path d="{PIN_PATH}" fill="{ORANGE}"/>
   <circle cx="{PIN_X}" cy="{PIN_CY}" r="{PIN_R * 0.4}" fill="{WHITE}"/>
 </svg>
 '''
