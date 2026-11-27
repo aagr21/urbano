@@ -171,6 +171,8 @@ class SplashActivity : Activity() {
             val t0 = SystemClock.uptimeMillis()
             val engine = FlutterEngine(applicationContext)
             GeneratedPluginRegistrant.registerWith(engine)
+            // Antes de `main()`: Dart pregunta por enlaces entrantes al arrancar.
+            IncomingLinks.attach(engine)
             engine.dartExecutor.executeDartEntrypoint(DartExecutor.DartEntrypoint.createDefault())
             FlutterEngineCache.getInstance().put(ENGINE_ID, engine)
             Log.d(TAG, "engine pre-calentado en ${SystemClock.uptimeMillis() - t0} ms")

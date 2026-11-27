@@ -49,6 +49,37 @@
               android:resource="@style/NormalTheme"
               />
         </activity>
+        <!-- UBICACIONES DE OTRAS APPS. Trampolín invisible: guarda el enlace y
+             trae la tarea de Urbano al frente (ver IncomingLinkActivity.kt).
+             - `geo:` es lo que dispara WhatsApp al tocar una ubicación.
+             - `urbano://destino?lat=&lon=&nombre=` para enlaces propios.
+             - `text/plain` = «Compartir» un lugar desde Google Maps. -->
+        <activity
+            android:name=".IncomingLinkActivity"
+            android:exported="true"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:taskAffinity=""
+            android:label="Planificar con Urbano"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="geo"/>
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="urbano"/>
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.SEND"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <data android:mimeType="text/plain"/>
+            </intent-filter>
+        </activity>
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data

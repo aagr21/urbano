@@ -1,6 +1,7 @@
 package com.example.urbano
 
 import io.flutter.embedding.android.FlutterActivity
+import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.embedding.engine.FlutterEngineCache
 
 /**
@@ -31,4 +32,13 @@ class MainActivity : FlutterActivity() {
         } else {
             null
         }
+
+    /**
+     * Canal de las ubicaciones que llegan de otras apps ([IncomingLinkActivity]).
+     * `super` conserva el registro de plugins de siempre.
+     */
+    override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
+        super.configureFlutterEngine(flutterEngine)
+        IncomingLinks.attach(flutterEngine)
+    }
 }

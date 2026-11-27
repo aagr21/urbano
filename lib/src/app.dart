@@ -10,6 +10,7 @@ import 'core/router/app_router.dart';
 import 'core/theme/app_colors.dart';
 import 'core/theme/app_theme.dart';
 import 'core/theme/theme_mode_controller.dart';
+import 'features/journey/presentation/widgets/incoming_destination_gate.dart';
 
 /// `MaterialApp.router` con tema claro/oscuro controlable por el usuario
 /// ([themeModeControllerProvider], persiste en preferencias) y es-ES.
@@ -68,7 +69,13 @@ class UrbanoApp extends ConsumerWidget {
           value: overlay,
           // Puerta de arranque: pide el permiso de ubicación pendiente al
           // lanzar la app y activa el auto-follow del mapa si se concede.
-          child: StartupLocationGate(child: child ?? const SizedBox.shrink()),
+          child: StartupLocationGate(
+            // Ubicaciones que llegan de otras apps (WhatsApp, Google Maps):
+            // abren la hoja «¿A dónde vas?» con el destino puesto.
+            child: IncomingDestinationGate(
+              child: child ?? const SizedBox.shrink(),
+            ),
+          ),
         );
       },
     );

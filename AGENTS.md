@@ -263,6 +263,23 @@ platform view; the merged map/result-sheet design is deliberate (see README).
   entran sin scroll; el historial con filas se sigue leyendo con
   `scrollUntilVisible`/`ensureVisible`.
 
+- **Ubicaciones que llegan de otras apps (deep link) abren la hoja «¿A dónde vas?» con el destino
+  puesto.** Solo Android: `IncomingLinkActivity.kt` es un trampolín invisible con tres filtros
+  (`geo:` = tocar una ubicación en WhatsApp; `urbano://destino?lat=&lon=&nombre=`; `SEND text/plain` =
+  «Compartir» desde Google Maps). Guarda el texto en el buzón `IncomingLinks` y trae la tarea con el
+  intent del **launcher** (en frío pasa por `SplashActivity`; con la app viva se reanuda) — nunca abre
+  `MainActivity` directo, que crearía una segunda FlutterActivity en la tarea de WhatsApp pegada al
+  engine cacheado. El canal `urbano/incoming_link` (`takePending`, consume) se registra en el engine
+  pre-calentado **y** en `MainActivity.configureFlutterEngine`. En Dart, `IncomingDestinationGate`
+  (en el `builder` de `MaterialApp`, junto a `StartupLocationGate`) pregunta al montarse y en cada
+  `onResume`; la decisión es pura: `parseSharedLocation` (`core/deep_link/shared_location.dart`:
+  geo, Google con prioridad `!3d!4d` > `q/query/destination` > `@`, Apple, OSM, Waze, texto con
+  enlace o par suelto), enlaces cortos `maps.app.goo.gl` por `MapLinkResolver` (HEAD sin seguir
+  redirecciones, solo hosts de Google; offline bajo test) y `resolveIncomingDestination`
+  (`journey/application/incoming_destination.dart`: fuera de `sharedLocationServiceArea` o ilegible
+  → snack, sin hoja). iOS no puede: WhatsApp solo ofrece Apple/Google Maps/Waze. Locked by
+  `test/shared_location_test.dart` y `test/incoming_destination_gate_test.dart`.
+
 - **Sugerencias de calles al escribir = Photon (OSM), nunca Nominatim.** `core/location/place_search.dart`:
   `placeSearchProvider(query)` (≥ `placeSearchMinChars` = 3 letras, pausa de 350 ms tras la última tecla,
   `CancelToken` al seguir escribiendo, caché de 2 min) sobre `PlaceSearchService`; la implementación es
